@@ -21,7 +21,7 @@ yargs
 				stdio: 'inherit',
 			});
 			childProcess.on('close', (code) => {
-				console.log(`child process exited with code ${code}`);
+				console.log(`exited with code ${code}`);
 			});
 		},
 	})
