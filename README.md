@@ -1,5 +1,7 @@
-# catbot
-Main repository for catbot onboard software
+<img src="https://pbs.twimg.com/profile_images/661962002/logo_400x400.png" align="right" alt="MDRC LOGO" title="MDRC LOGO" width="100">
+
+# Catbot
+Quadruped Hybrid Pneumatic-Electric Robot. Utilizes McKibben Muscles for bio-inpired locomotion.
 
 ## Setup
 ### Install dependencies
