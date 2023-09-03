@@ -6,3 +6,8 @@ This folder contains the code for the Raspberry Pi. The code is written in Pytho
 The code is responsible for reading the data from the Arduino Nano via serial communication and controlling the motors via the motor driver.
 
 ## How to run
+To run the code, simply run the following command in the terminal:
+```bash
+  pip install -r requirements.txt
+  python3 main.py
+```
