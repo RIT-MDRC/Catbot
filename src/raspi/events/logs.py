@@ -9,4 +9,9 @@ class LogEntry():
     timestamp : datetime
 
 def log_event(entry : LogEntry) -> None:
+    """
+    Log the given event and its related info to a file.
+
+    :param entry: information about an event at a specific time
+    """
     ...
