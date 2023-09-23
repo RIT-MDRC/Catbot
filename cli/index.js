@@ -8,9 +8,9 @@ yargs
 		command: 'install',
 		aliases: ['i'],
 		describe: 'set up arduino and raspberry pi to run catbot',
-		handler() {
-			console.log('installing catbot...');
-			return install();
+		handler(args) {
+			console.log('installing catbot is still under construction...');
+			// return install(args.d);
 		},
 	})
 	.command({
