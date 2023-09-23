@@ -21,7 +21,7 @@ class Valve():
         """
         ...
 
-    def set_valve(state : bool) -> None:
+    def set_valve(self, state : bool) -> None:
         """
         Manually set the current state of the valve.
 
