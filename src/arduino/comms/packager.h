@@ -1,20 +1,11 @@
 #include <pressure.h>
-#include <potentiometer.h>
 #include <packet.h>
-// TODO: docstring
+
+// Packages up some data to send across an I2C bus
 class Packager
 {
     public:
         void Main();
     private:
-        Pressure *pressure;
-        Potentiometer **potentiometers;
-        PotentiometerEntry *potentiometerHistory;
         void Send(Packet *packet);
-};
-
-struct PotentiometerEntry
-{
-    int id;
-    int *potValues;
 };

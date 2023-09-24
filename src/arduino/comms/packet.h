@@ -1,13 +1,11 @@
 class Packet
 {
     public:
-        int GetRequestType();
+        int GetPacketType();
         int GetDataLength();
         int *GetData();
-        int AddByte(int byte);
-        int AddBytes(int *bytes);
     private:
-        int requestType;
+        int packetType;
         int dataLength;
         int *data;
 };
