@@ -4,8 +4,9 @@ class Packet
         int GetPacketType();
         int GetDataLength();
         int *GetData();
+        int AddByte(int byte);
+        int AddBytes(int *bytes);
     private:
         int packetType;
-        int dataLength;
         int *data;
 };
