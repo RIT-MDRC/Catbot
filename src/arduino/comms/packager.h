@@ -1,4 +1,3 @@
-#include <pressure.h>
 #include <packet.h>
 
 // Packages up some data to send across an I2C bus
