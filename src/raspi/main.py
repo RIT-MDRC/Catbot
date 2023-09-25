@@ -4,25 +4,19 @@
 from gpiozero import PWMLED
 from time import sleep
 
-led0 = PWMLED(14)
-led1 = PWMLED(15)
-led2 = PWMLED(23)
-led3 = PWMLED(24)
+PINLIST = [14, 15, 23, 24, 4, 17, 27, 22]
+pwms = []
+for pin in PINLIST:
+    pwms.append(PWMLED(pin))
 
-led0.value = 1  # LED fully on
-led1.value = 1  # LED fully on
-led2.value = 1  # LED fully on
-led3.value = 1  # LED fully on
+for pwm in pwms:
+    pwm.value = 0
 sleep(1)
-led0.value = 0.5  # LED half-brightness
-led1.value = 0.5  # LED half-brightness
-led2.value = 0.5  # LED half-brightness
-led3.value = 0.5  # LED half-brightness
+for pwm in pwms:
+    pwm.value = 1
 sleep(1)
-led0.value = 0  # LED fully off
-led1.value = 0  # LED fully off
-led2.value = 0  # LED fully off
-led3.value = 0  # LED fully off
+for pwm in pwms:
+    pwm.value = 0
 sleep(1)
 
 try:
@@ -30,24 +24,18 @@ try:
     while True:
         # fade in
         for duty_cycle in range(0, 100, 1):
-            led0.value = duty_cycle / 100.0
-            led1.value = duty_cycle / 100.0
-            led2.value = duty_cycle / 100.0
-            led3.value = duty_cycle / 100.0
+            for pwm in pwms:
+                pwm.value = duty_cycle / 100.0
             sleep(0.05)
 
         # fade out
         for duty_cycle in range(100, 0, -1):
-            led0.value = duty_cycle / 100.0
-            led1.value = duty_cycle / 100.0
-            led2.value = duty_cycle / 100.0
-            led3.value = duty_cycle / 100.0
+            for pwm in pwms:
+                pwm.value = duty_cycle / 100.0
             sleep(0.05)
 
 except KeyboardInterrupt:
     print("Stop the program and turning off the LED")
-    led0.value = 0
-    led1.value = 0
-    led2.value = 0
-    led3.value = 0
+    for pwm in pwms:
+        pwm.value = 0
     pass
