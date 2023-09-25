@@ -23,12 +23,14 @@ try:
     # fade in and out forever
     while True:
         # fade in
+        print("Fade in")
         for duty_cycle in range(0, 100, 1):
             for pwm in pwms:
                 pwm.value = duty_cycle / 100.0
             sleep(0.05)
 
         # fade out
+        print("Fade out")
         for duty_cycle in range(100, 0, -1):
             for pwm in pwms:
                 pwm.value = duty_cycle / 100.0
