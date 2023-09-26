@@ -4,7 +4,7 @@
 from gpiozero import PWMLED
 from time import sleep
 
-PINLIST = [14, 15, 23, 24, 4, 17, 27, 22]
+PINLIST = [14, 15, 18, 23, 4, 17, 27, 22]
 pwms = []
 for pin in PINLIST:
     pwms.append(PWMLED(pin))
