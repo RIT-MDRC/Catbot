@@ -1,0 +1,35 @@
+{
+	"name": "utilities",
+	"version": "0.0.1",
+	"description": "installer and cli for catbot",
+	"main": "cli/index.js",
+	"scripts": {
+		"test": "echo \"Error: no test specified\" && exit 1",
+		"meow": "echo \"Meow\""
+	},
+	"bin": {
+		"catbot": "./cli/index.js",
+		"cb": "./cli/index.js"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/RIT-MDRC/Catbot.git"
+	},
+	"keywords": [
+		"catbot",
+		"mdrc",
+		"catbot-cli"
+	],
+	"author": "Hiroto",
+	"license": "ISC",
+	"bugs": {
+		"url": "https://github.com/RIT-MDRC/Catbot/issues"
+	},
+	"homepage": "https://github.com/RIT-MDRC/Catbot#readme",
+	"dependencies": {
+		"yargs": "^17.7.2"
+	},
+	"devDependencies": {
+		"arduino-cli": "^0.37.0"
+	}
+}
