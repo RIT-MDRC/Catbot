@@ -1,17 +1,26 @@
 #! /usr/bin/env node
-const yargs = require('yargs');
-const { spawn } = require('child_process');
-const { install } = require('./install');
+import yargs from 'yargs';
+import { hideBin } from 'yargs/helpers';
+import { spawn } from 'child_process';
+import { install } from './install.js';
+import { upload } from './upload.js';
 
-yargs
+yargs(hideBin(process.argv))
 	.command({
 		command: 'install',
 		aliases: ['i'],
 		describe: 'set up arduino and raspberry pi to run catbot',
 		handler(args) {
-			console.log('installing catbot is still under construction...');
-			// return install(args.d);
+			const debug = args.d ?? false;
+			console.log(`installing catbot... (debug: ${debug})`);
+			return install(debug);
 		},
+	})
+	.command({
+		command: 'upload',
+		aliases: ['u'],
+		describe: 'upload catbot code to arduino',
+		handler: upload,
 	})
 	.command({
 		command: 'start',
@@ -41,6 +50,5 @@ yargs
 			);
 		},
 	})
-	.demandCommand(1, '');
-
-yargs.parse();
+	.demandCommand(1, '')
+	.parse();
