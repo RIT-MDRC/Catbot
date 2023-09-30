@@ -17,8 +17,15 @@ yargs
 		command: 'start',
 		aliases: ['s'],
 		describe: 'start catbot',
+		builder: (yargs) =>
+			yargs.option('f', {
+				alias: 'file',
+				describe: 'specify file to run',
+				default: 'main',
+				type: 'string',
+			}),
 		handler(args) {
-			file = args.f ?? 'main';
+			file = args.f ?? args.file ?? 'main';
 			console.log(
 				`starting catbot${args.f ? ` with file '${args.f}.py'` : '...'}`
 			);
