@@ -4,6 +4,7 @@
 from gpiozero import PWMLED
 from time import sleep
 
+# GPIO pins on raspi
 PINLIST = [14, 15, 18, 23, 4, 17, 27, 22]
 pwms = []
 for pin in PINLIST:
