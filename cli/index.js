@@ -17,9 +17,12 @@ yargs
 		command: 'start',
 		aliases: ['s'],
 		describe: 'start catbot',
-		handler() {
-			console.log('starting catbot...');
-			const childProcess = spawn('python', ['src/raspi/main.py'], {
+		handler(args) {
+			file = args.f ?? 'main';
+			console.log(
+				`starting catbot${args.f ? ` with file '${args.f}.py'` : '...'}`
+			);
+			const childProcess = spawn('python', [`src/raspi/${file}.py`], {
 				stdio: 'inherit',
 			});
 			childProcess.on('close', (code) => {
