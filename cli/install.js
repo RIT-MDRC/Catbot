@@ -31,7 +31,6 @@ async function install(debug = false) {
 		const board = boards[0];
 		console.log(`Arduino Board found:`);
 		if (debug) console.log(board);
-		cli.updateConfig({});
 	} catch (err) {
 		console.log(`Error getting board information: ${err}`);
 		return 1;
