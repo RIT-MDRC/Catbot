@@ -17,5 +17,8 @@ Displays help information about the CLI.
 ### `catbot start`
 Runs the main program in Raspberry Pi.
 
+optional arguments:
+* `-f`, `--file` - Path to the file containing the code to run. Defaults to `main.py`.
+
 ### `catbot install`
 Uploads the code for arduino.
