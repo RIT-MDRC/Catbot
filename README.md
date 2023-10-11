@@ -36,7 +36,7 @@ For more command information goto [catbot-cli](cli/README.md)
 * Go to command pallet (`Ctrl+Shift+P`)
 * Search `Arduino: Rebuild IntelliSense Configuration`
 
-### Possible Errors
+### Possible Errors on Setup
 Include path error:
 * Try editing the include path in `.vscode/c_cpp_properties.json`
 * Click on `Quick Fix...` at the bottom of the error popup menu after hovering on the error
