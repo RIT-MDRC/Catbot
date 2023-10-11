@@ -2,26 +2,8 @@
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import { spawn } from 'child_process';
-import { install } from './install.js';
-import { upload } from './upload.js';
 
 yargs(hideBin(process.argv))
-	.command({
-		command: 'install',
-		aliases: ['i'],
-		describe: 'set up arduino and raspberry pi to run catbot',
-		handler(args) {
-			const debug = args.d ?? false;
-			console.log(`installing catbot... (debug: ${debug})`);
-			return install(debug);
-		},
-	})
-	.command({
-		command: 'upload',
-		aliases: ['u'],
-		describe: 'upload catbot code to arduino',
-		handler: upload,
-	})
 	.command({
 		command: 'start',
 		aliases: ['s'],
