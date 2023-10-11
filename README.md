@@ -35,6 +35,8 @@ For more command information goto [catbot-cli](cli/README.md)
 * Select `Arduino Nano RP2040 Connect`
 * Go to command pallet (`Ctrl+Shift+P`)
 * Search `Arduino: Rebuild IntelliSense Configuration`
+* Click on Verify button on the top right corner of the window with a checkmark icon
+* and make sure the code passes verification
 
 ### Possible Errors on Setup
 Include path error:
