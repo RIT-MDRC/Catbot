@@ -1,3 +1,5 @@
+namespace _ = arduino;
+
 /*
   Blink
 
@@ -27,13 +29,13 @@ const int LED_PIN = 13; // define LED pin number
 
 void setup()
 {
-  arduino::pinMode(LED_PIN, PinMode::OUTPUT);
+  _::pinMode(LED_PIN, PinMode::OUTPUT);
 }
 
 void loop()
 {
-  arduino::digitalWrite(LED_PIN, HIGH);
+  _::digitalWrite(LED_PIN, HIGH);
   delay(1000);
-  arduino::digitalWrite(LED_PIN, LOW);
+  _::digitalWrite(LED_PIN, LOW);
   delay(1000);
 }
