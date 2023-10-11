@@ -29,6 +29,7 @@ For more command information goto [catbot-cli](cli/README.md)
 
 ### Setup Arduino Extension
 * Open `src/arduino/arduino.ino` in VSCode
+* Click on `Mac`, `Win32`, or `linux` on the bottom right corner of the window and change to `Arduino`
 * Click on `<Select a Board Type>` in the bottom right corner
 * Search `Arduino Nano`
 * Select `Arduino Nano RP2040 Connect`

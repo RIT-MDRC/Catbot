@@ -1,5 +1,6 @@
 {
 	"board": "arduino:mbed_nano:nanorp2040connect",
 	"sketch": "src/arduino/arduino.ino",
-	"output": "src/arduino/build"
+	"output": "src/arduino/build",
+	"intelliSenseGen": "disable"
 }
