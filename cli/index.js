@@ -16,11 +16,11 @@ yargs(hideBin(process.argv))
 				type: 'string',
 			}),
 		handler(args) {
-			file = args.f ?? args.file ?? 'main';
+			const file = args.f ?? args.file ?? 'main';
 			console.log(
 				`starting catbot${args.f ? ` with file '${args.f}.py'` : '...'}`
 			);
-			const childProcess = spawn('python', [`src/raspi/${file}.py`], {
+			const childProcess = spawn('python3', [`src/raspi/${file}.py`], {
 				stdio: 'inherit',
 			});
 			childProcess.on('close', (code) => {
