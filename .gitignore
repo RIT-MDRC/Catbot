@@ -1,3 +1,4 @@
 **node_modules
 **/arduino/build
 .vscode/c_cpp_properties.json
+.vscode/arduino.json
