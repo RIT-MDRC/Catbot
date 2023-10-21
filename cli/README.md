@@ -20,5 +20,5 @@ Runs the main program in Raspberry Pi.
 optional arguments:
 * `-f`, `--file` - Path to the file containing the code to run. Defaults to `main.py`.
 
-### `catbot install`
+### `catbot install` ~stalled indefinitely
 Uploads the code for arduino.
