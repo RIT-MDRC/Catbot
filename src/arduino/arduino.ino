@@ -14,8 +14,9 @@
 #define VOLTAGE_CONST 5
 #define P_MAX 145 // psi
 #define P_MIN 0
-#define SYSTEM_PRESSURE 82 // average pressure we want to maintain
-// #define PRESSURE_TOLERANCE 3 // tolerance for pressure (we want to maintain in the difference margin of 3 psi)
+
+#define SYSTEM_PRESSURE 82    // average pressure we want to maintain
+#define PRESSURE_TOLERANCE 10 // tolerance for pressure (we want to maintain in the difference margin of 3 psi)
 
 #define TIME_DURATION_FOR_VALVE_OPEN 5 // seconds
 
@@ -25,7 +26,7 @@ Pressure *systemPressure = NULL;
 void setup()
 {
   Serial.begin(9600);
-  systemPressure = &Pressure(SENSORPIN, COMPRESSORPIN, P_MIN, P_MAX, VOLTAGE_CONST);
+  systemPressure = &Pressure(SENSORPIN, COMPRESSORPIN, SYSTEM_PRESSURE, PRESSURE_TOLERANCE, P_MIN, P_MAX, VOLTAGE_CONST);
 }
 
 void loop()

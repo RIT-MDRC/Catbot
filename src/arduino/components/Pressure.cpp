@@ -1,23 +1,36 @@
 #include "pressure.h"
 
+/**
+ * Returns pressure in PSI
+ *
+ * LOGIC:
+ * 1. Read sensor value
+ * 2. Convert sensor value to voltage
+ * 3. Convert voltage to pressure
+ * 4. Set pressure
+ * 5. Return pressure
+ */
 float Pressure::getPressure()
 {
-  double sensorRead = analogRead(sensorPin) * 0.0049;                                                                                                             // Volts
-  double pressure = (((sensorRead - 0.1 * VOLTAGE_CONST) * (PRESSURE_UPPER_BOUND - PRESSURE_LOWER_BOUND)) / (0.8 * VOLTAGE_CONST)) + PRESSURE_LOWER_BOUND + 0.36; // PSI
+  double sensorRead = analogRead(sensorPin) * 0.0049;                                                                // Volts
+  double pressure = (((sensorRead - 0.1 * VOLTAGE_CONST) * (P_MAX - P_MIN)) / (0.8 * VOLTAGE_CONST)) + P_MIN + 0.36; // PSI
   Pressure::pressure = pressure;
   return pressure;
 }
 
+/**
+ * Returns true if pressure is within tolerance of the ideal pressure
+ */
 bool Pressure::PressureOk()
 {
-  return (pressure >= PRESSURE_LOWER_BOUND && pressure <= PRESSURE_UPPER_BOUND);
+  return (pressure >= IDEAL_PRESSURE - PRESSURE_TOLERANCE && pressure <= IDEAL_PRESSURE + PRESSURE_TOLERANCE);
 }
 
 /**
  * Turns compressor on or off
  *
  * LOGIC:
- * if pressure is less than SYSTEM_PRESSURE or override is true:
+ * if pressure is less than IDEA_PRESSURE or override is true:
  *   turn on compressor
  * else:
  *   turn off compressor
@@ -26,7 +39,7 @@ void Pressure::Pressurize(bool override)
 {
   getPressure();
 
-  if (pressure < PRESSURE_UPPER_BOUND || override)
+  if (pressure < IDEAL_PRESSURE || override)
   { // First check if system pressure is too high, turn off compressor
     digitalWrite(compressorPin, HIGH);
   }
