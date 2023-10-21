@@ -18,7 +18,7 @@ Displays help information about the CLI.
 Runs the main program in Raspberry Pi.
 
 optional arguments:
-* `-f`, `--file` - Path to the file containing the code to run. Defaults to `main.py`.
+* `-f`, `--file` - Path to the file containing the code to run. Defaults to `main` for `main.py`.
 
-### `catbot install`
-Uploads the code for arduino.
+### `catbot a <arduino-cli commands>`
+Refaced arduino-cli

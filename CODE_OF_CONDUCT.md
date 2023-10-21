@@ -110,7 +110,8 @@ standards, including sustained inappropriate behavior,  harassment of an
 individual, or aggression toward or disparagement of classes of individuals.
 
 **Consequence**: A permanent ban from any sort of public interaction within
-the community.
+the community. If deemed necessary the university official will be notified
+and the university may take their own actions. 
 
 ## Attribution
 
