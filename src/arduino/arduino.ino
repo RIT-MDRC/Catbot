@@ -1,41 +1,78 @@
-namespace _ = arduino;
+#include <DS1307RTC.h>
+#include <TimeLib.h>
+#include <Time.h>
+#include "components/Pressure.h"
 
-/*
-  Blink
+// pins
+#define COMPRESSORPIN 9
+#define VALVE_1PIN 8
+#define SENSORPIN A0        // Analog
+#define COMP_SWITCHPIN 11   // button #1
+#define VALVE1_SWITCHPIN 10 // button #2
 
-  Turns an LED on for one second, then off for one second, repeatedly.
+// constants
+#define VOLTAGE_CONST 5
+#define P_MAX 145 // psi
+#define P_MIN 0
+#define SYSTEM_PRESSURE 82 // average pressure we want to maintain
+// #define PRESSURE_TOLERANCE 3 // tolerance for pressure (we want to maintain in the difference margin of 3 psi)
 
-  Most Arduinos have an on-board LED you can control. On the UNO, MEGA and ZERO
-  it is attached to digital pin 13, on MKR1000 on pin 6. LED_BUILTIN is set to
-  the correct LED pin independent of which board is used.
-  If you want to know what pin the on-board LED is connected to on your Arduino
-  model, check the Technical Specs of your board at:
-  https://www.arduino.cc/en/Main/Products
+#define TIME_DURATION_FOR_VALVE_OPEN 5 // seconds
 
-  modified 8 May 2014
-  by Scott Fitzgerald
-  modified 2 Sep 2016
-  by Arturo Guadalupi
-  modified 8 Sep 2016
-  by Colby Newman
-
-  This example code is in the public domain.
-
-  https://www.arduino.cc/en/Tutorial/BuiltInExamples/Blink
-*/
-
-// the setup function runs once when you press reset or power the board
-const int LED_PIN = 13; // define LED pin number
+int timeWhenValveOpened;
+Pressure *systemPressure = NULL;
 
 void setup()
 {
-  _::pinMode(LED_PIN, PinMode::OUTPUT);
+  Serial.begin(9600);
+  systemPressure = &Pressure(SENSORPIN, COMPRESSORPIN, P_MIN, P_MAX, VOLTAGE_CONST);
 }
 
 void loop()
 {
-  _::digitalWrite(LED_PIN, HIGH);
-  delay(1000);
-  _::digitalWrite(LED_PIN, LOW);
-  delay(1000);
+  systemPressure->Pressurize(compSwitchPressed() && !valveSwitchPressed());
+  valveControl();
+  Serial.print(systemPressure->getPressure());
+  delay(100);
+}
+
+/**
+ * Returns compressor button status
+ */
+bool compSwitchPressed()
+{
+  return digitalRead(COMP_SWITCHPIN) == HIGH;
+}
+
+/**
+ * Returns valve button status
+ */
+bool valveSwitchPressed()
+{
+  return digitalRead(VALVE1_SWITCHPIN) == HIGH;
+}
+
+/**
+ * Opens or closes the valve based on time and active button
+ *
+ * LOGIC:
+ * If the valve button is pressed and valve is not open:
+ *   the valve will open
+ * else if valve is opened for more than TIME_DURATION_FOR_VALVE_OPEN or both button is pressed:
+ *   the valve will close
+ * else:
+ *   No op
+ */
+void valveControl()
+{
+  if (!compSwitchPressed() && valveSwitchPressed() && timeWhenValveOpened == NULL)
+  { // If valve switch is pressed open valve
+    timeWhenValveOpened = now();
+    digitalWrite(VALVE_1PIN, HIGH);
+  }
+  else if ((timeWhenValveOpened + TIME_DURATION_FOR_VALVE_OPEN < now()) || (compSwitchPressed() && valveSwitchPressed()))
+  {
+    timeWhenValveOpened = NULL;
+    digitalWrite(VALVE_1PIN, LOW);
+  }
 }
