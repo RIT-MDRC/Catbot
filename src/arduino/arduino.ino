@@ -1,14 +1,14 @@
 #include <DS1307RTC.h>
 #include <TimeLib.h>
 #include <Time.h>
-#include "components/Pressure.h"
+#include "components/Pressure.cpp"
 
 // pins
-#define COMPRESSORPIN 9
-#define VALVE_1PIN 8
-#define SENSORPIN A0        // Analog
-#define COMP_SWITCHPIN 11   // button #1
-#define VALVE1_SWITCHPIN 10 // button #2
+#define COMPRESSOR_PIN 9
+#define VALVE_1_PIN 8
+#define SENSOR_PIN A0         // Analog
+#define COMP_SWITCH_PIN 11    // button #1
+#define VALVE_1_SWITCH_PIN 10 // button #2
 
 // constants
 #define VOLTAGE_CONST 5
@@ -26,14 +26,14 @@ Pressure *systemPressure = NULL;
 void setup()
 {
   Serial.begin(9600);
-  systemPressure = &Pressure(SENSORPIN, COMPRESSORPIN, SYSTEM_PRESSURE, PRESSURE_TOLERANCE, P_MIN, P_MAX, VOLTAGE_CONST);
+  systemPressure = new Pressure(SENSOR_PIN, COMPRESSOR_PIN, SYSTEM_PRESSURE, PRESSURE_TOLERANCE, P_MIN, P_MAX, VOLTAGE_CONST);
 }
 
 void loop()
 {
   systemPressure->Pressurize(compSwitchPressed() && !valveSwitchPressed());
   valveControl();
-  Serial.print(systemPressure->getPressure());
+  Serial.println(systemPressure->getPressure());
   delay(100);
 }
 
@@ -42,7 +42,7 @@ void loop()
  */
 bool compSwitchPressed()
 {
-  return digitalRead(COMP_SWITCHPIN) == HIGH;
+  return digitalRead(COMP_SWITCH_PIN) == HIGH;
 }
 
 /**
@@ -50,7 +50,7 @@ bool compSwitchPressed()
  */
 bool valveSwitchPressed()
 {
-  return digitalRead(VALVE1_SWITCHPIN) == HIGH;
+  return digitalRead(VALVE_1_SWITCH_PIN) == HIGH;
 }
 
 /**
@@ -69,11 +69,11 @@ void valveControl()
   if (!compSwitchPressed() && valveSwitchPressed() && timeWhenValveOpened == NULL)
   { // If valve switch is pressed open valve
     timeWhenValveOpened = now();
-    digitalWrite(VALVE_1PIN, HIGH);
+    digitalWrite(VALVE_1_PIN, HIGH);
   }
   else if ((timeWhenValveOpened + TIME_DURATION_FOR_VALVE_OPEN < now()) || (compSwitchPressed() && valveSwitchPressed()))
   {
     timeWhenValveOpened = NULL;
-    digitalWrite(VALVE_1PIN, LOW);
+    digitalWrite(VALVE_1_PIN, LOW);
   }
 }
