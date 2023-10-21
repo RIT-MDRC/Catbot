@@ -2,7 +2,6 @@
   "[python]": {
     "editor.defaultFormatter": "ms-python.black-formatter"
   },
-  "python.formatting.provider": "none",
   "C_Cpp.default.includePath": [
     "${workspaceFolder}/src/arduino/libraries/**"
   ]
