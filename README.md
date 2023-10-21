@@ -46,3 +46,6 @@ Include path error:
 * If the error occures with multiple include path options try adding them using the wildcard (`**`) operator
 * Goto `.vscode.c_cpp_properties.json` in the root directory of the repo
 * Example: `"includePath": ["${workspaceFolder}/**", "/Users/doofenshmirtz/Library/Arduino15/packages/arduino/hardware/mbed_nano/4.0.8/cores/arduino/mbed/**"]`
+
+If all above fails:
+* Consider using the arduino-ide and uploading the code through the ide
