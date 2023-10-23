@@ -3,6 +3,8 @@ import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import { spawn } from 'child_process';
 
+const SRC_FOLDER = '/opt/catbot/src';
+
 yargs(hideBin(process.argv))
 	.command({
 		command: 'start',
@@ -20,11 +22,22 @@ yargs(hideBin(process.argv))
 			console.log(
 				`starting catbot${args.f ? ` with file '${args.f}.py'` : '...'}`
 			);
-			const childProcess = spawn('python3', [`src/raspi/${file}.py`], {
-				stdio: 'inherit',
-			});
+			const childProcess = spawn(
+				'python3',
+				[`${SRC_FOLDER}/raspi/${file}.py`],
+				{
+					stdio: 'inherit',
+				}
+			);
 			childProcess.on('close', (code) => {
 				console.log(`exited with code ${code}`);
+			});
+			childProcess.on('error', (err) => {
+				console.log('Failed to execute python script');
+				console.log(
+					"Make sure you have python3 installed and that you have ran 'npm run postinstall'"
+				);
+				console.log(err);
 			});
 		},
 	})

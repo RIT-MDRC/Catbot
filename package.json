@@ -4,6 +4,7 @@
 	"description": "installer and cli for catbot",
 	"main": "cli/index.js",
 	"scripts": {
+		"postinstall": "node ./cli/postinstall.js",
 		"test": "echo \"Error: no test specified\" && exit 1",
 		"meow": "echo \"Meow\""
 	},
@@ -28,6 +29,7 @@
 	},
 	"homepage": "https://github.com/RIT-MDRC/Catbot#readme",
 	"dependencies": {
+		"fs": "^0.0.1-security",
 		"yargs": "^17.7.2"
 	},
 	"devDependencies": {
