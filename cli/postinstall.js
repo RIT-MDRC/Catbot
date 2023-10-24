@@ -17,7 +17,7 @@ if (os.arch() !== 'arm64' || os.platform() !== 'linux') {
 	process.exit(0);
 }
 
-const CURRENT_SRC_FOLDER = __dirname + '/src';
+const CURRENT_SRC_FOLDER = './src';
 const OPT_FOLDER = '/opt';
 const GLOBAL_CATBOT_FOLDER = '/opt/catbot';
 const SRC_FOLDER = '/opt/catbot/src';
@@ -57,7 +57,7 @@ if (fs.existsSync(SRC_FOLDER)) {
 
 // Making new /opt/catbot/src/ folder from /main/src/
 try {
-	fs.cpSync(CURRENT_SRC_FOLDER, GLOBAL_CATBOT_FOLDER, { recursive: true });
+	fs.cpSync(CURRENT_SRC_FOLDER, SRC_FOLDER, { recursive: true });
 } catch {
 	console.log(
 		`Something went wrong while copying new src directory to '${SRC_FOLDER}'.`
