@@ -11,25 +11,36 @@ yargs(hideBin(process.argv))
 		aliases: ['s'],
 		describe: 'start catbot',
 		builder: (yargs) =>
-			yargs.option('f', {
-				alias: 'file',
-				describe: 'specify file to run',
-				default: 'main',
-				type: 'string',
-			}),
+			yargs
+				.option('f', {
+					alias: 'file',
+					describe: 'specify file to run',
+					default: 'main',
+					type: 'string',
+				})
+				.option('p', {
+					alias: 'proj',
+					describe: 'run from a specific project folder',
+					type: 'string',
+				})
+				.option('D', {
+					alias: 'dev',
+					describe:
+						'run from current repo folder instead of the global copy',
+					type: 'boolean',
+				}),
 		handler(args) {
-			const srcFolder = args.D || args.dev ? './src' : SRC_FOLDER;
-			const file = args.f ?? args.file ?? 'main';
+			const srcFolder =
+				args.proj ?? args.p ?? (args.D || args.dev)
+					? 'src'
+					: SRC_FOLDER;
+			const file = args.f ?? args.file ?? 'raspi/main';
 			console.log(
 				`starting catbot${args.f ? ` with file '${args.f}.py'` : '...'}`
 			);
-			const childProcess = spawn(
-				'python3',
-				[`${srcFolder}/raspi/${file}.py`],
-				{
-					stdio: 'inherit',
-				}
-			);
+			const childProcess = spawn('python3', [`${srcFolder}/${file}.py`], {
+				stdio: 'inherit',
+			});
 			childProcess.on('close', (code) => {
 				console.log(`exited with code ${code}`);
 			});
