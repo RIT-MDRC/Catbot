@@ -1,12 +1,16 @@
 #! /usr/bin/env node
 import fs from 'fs';
 import os from 'node:os';
+import url from 'url';
 /**
  * This is a postinstall script that runs after `npm -g install`.
  * This is a script only for raspberry pi.
  * ** if you have a arm64 linux machine, this will run on your machine. **
  * If you do run this on a local machine, please remove the /opt/catbot/ folder.
  */
+
+// __dirname is not defined in ES6 modules
+const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 
 if (os.arch() !== 'arm64' || os.platform() !== 'linux') {
 	console.log('This is not a Linux system. Skipping postinstall.');
