@@ -53,19 +53,5 @@ yargs(hideBin(process.argv))
 			});
 		},
 	})
-	.command({
-		command: 'arduino',
-		aliases: ['a'],
-		describe: 'run arduino cli',
-		handler(args) {
-			console.log('running arduino cli...');
-			const childProcess = spawn('arduino-cli', args._.slice(1), {
-				stdio: 'inherit',
-			});
-			childProcess.on('close', (code) =>
-				console.log(`exited with code ${code}`)
-			);
-		},
-	})
 	.demandCommand(1, '')
 	.parse();
