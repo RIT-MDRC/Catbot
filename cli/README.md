@@ -25,11 +25,7 @@ optional arguments:
 * `-f`, `-file` - String - Path to the file containing the code to run. Defaults to `raspi/main` for `src/raspi/main.py`.
   example: `catbot start -f Landslideinator` will result to running `src/raspi/Landslideinator.py`
 
-TL;DR: path is defined as `{-D}/{-p}/{-f}.py`
-
-### `catbot a <arduino-cli commands>`
-Refaced arduino-cli
-
+TL;DR: path is defined as `{-D}/{-p}/{-f}.py` default is `{"global-directory"}/{"src"}/{"raspi/main"}.py`
 
 # Usage Guide
 
