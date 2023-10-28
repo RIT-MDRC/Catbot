@@ -10,13 +10,14 @@
 #define COMP_SWITCH_PIN 11    // button #1
 #define VALVE_1_SWITCH_PIN 10 // button #2
 
-// constants
+// constants for calculating pressure
 #define VOLTAGE_CONST 5
 #define P_MAX 145 // psi
 #define P_MIN 0
 
-#define SYSTEM_PRESSURE 82    // average pressure we want to maintain
-#define PRESSURE_TOLERANCE 10 // tolerance for pressure (we want to maintain in the difference margin of 3 psi)
+// constants for pressure
+#define IDEAL_PRESSURE 82       // average pressure we want to maintain
+#define IDEAL_PRESSURE_RANGE 10 // range of pressure we want to send ok signal to raspi (okay signal if pressure is above IP minus IPR)
 
 #define TIME_DURATION_FOR_VALVE_OPEN 5 // seconds
 
@@ -26,7 +27,7 @@ Pressure *systemPressure = NULL;
 void setup()
 {
   Serial.begin(9600);
-  systemPressure = new Pressure(SENSOR_PIN, COMPRESSOR_PIN, SYSTEM_PRESSURE, PRESSURE_TOLERANCE, P_MIN, P_MAX, VOLTAGE_CONST);
+  systemPressure = new Pressure(SENSOR_PIN, COMPRESSOR_PIN, IDEAL_PRESSURE, IDEAL_PRESSURE_RANGE, P_MIN, P_MAX, VOLTAGE_CONST);
 }
 
 void loop()

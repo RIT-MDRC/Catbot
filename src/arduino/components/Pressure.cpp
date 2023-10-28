@@ -23,7 +23,7 @@ float Pressure::getPressure()
  */
 bool Pressure::PressureOk()
 {
-  return (pressure >= IDEAL_PRESSURE - PRESSURE_TOLERANCE && pressure <= IDEAL_PRESSURE + PRESSURE_TOLERANCE);
+  return (pressure >= IDEAL_PRESSURE - IDEAL_PRESSURE_RANGE);
 }
 
 /**
