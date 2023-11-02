@@ -1,9 +1,10 @@
 {
 	"name": "utilities",
-	"version": "0.0.1",
+	"version": "0.0.2",
 	"description": "installer and cli for catbot",
 	"main": "cli/index.js",
 	"scripts": {
+		"postinstall": "node ./cli/postinstall.js",
 		"test": "echo \"Error: no test specified\" && exit 1",
 		"meow": "echo \"Meow\""
 	},
@@ -11,6 +12,7 @@
 		"catbot": "./cli/index.js",
 		"cb": "./cli/index.js"
 	},
+	"type": "module",
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/RIT-MDRC/Catbot.git"
@@ -27,9 +29,11 @@
 	},
 	"homepage": "https://github.com/RIT-MDRC/Catbot#readme",
 	"dependencies": {
+		"fs": "^0.0.1-security",
 		"yargs": "^17.7.2"
 	},
 	"devDependencies": {
-		"arduino-cli": "^0.37.0"
+		"arduino-cli": "^0.37.0",
+		"esm": "^3.2.25"
 	}
 }
