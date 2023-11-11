@@ -15,7 +15,7 @@ class Motor():
         per real-world motor.
 
         :param direction_pin: pin to send direction signal to
-        :param pwm_pin: pin to send motor speed signal to;
+        :param pwm_pin: pin to send motor speed signal to
         """
         self.direction = PWMOutputDevice(direction_pin)
         self.pwm = PWMOutputDevice(pwm_pin)

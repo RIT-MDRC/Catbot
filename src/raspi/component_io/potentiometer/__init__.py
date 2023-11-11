@@ -1,1 +1,1 @@
-import potentiometer.potentiometer
+from .potentiometer import *
