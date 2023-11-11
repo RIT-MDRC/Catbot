@@ -1,61 +1,38 @@
+from gpiozero import PWMOutputDevice
+
 class Motor():
     """
     Represents a motor that will control the hip, giving the leg abduction
     and adduction motion.
     """
 
-    pin : int
-    current_value : float = 0.0
-    min_value : float       # signal to rotate at max speed in one direction 
-    middle_value : float    # signal to stop rotation
-    max_value : float       # signal to rotate at max speed in other direction
+    direction : PWMOutputDevice
+    pwm : PWMOutputDevice
 
-    def __init__(self,
-                 pin : int, 
-                 min_value : float,
-                 middle_value : float,
-                 max_value : float) -> None:
+    def __init__(self, direction_pin : int, pwm_pin : int) -> None:
         """
         Initialize a new instance of a motor. There should be only one Motor object
         per real-world motor.
 
-        :param pin: pin to send motor signals to
-        :param min_value: signal to send to rotate motor fully in one direction
-        :param middle_value: signal to send to stop motor rotation
-        :param max_value: signal to send to rotate motor fully in other direction
+        :param direction_pin: pin to send direction signal to
+        :param pwm_pin: pin to send motor speed signal to;
         """
-        self.pin = pin
-        self.min_value = min_value
-        self.middle_value = middle_value
-        self.max_value = max_value
-        ...
+        self.direction = PWMOutputDevice(direction_pin)
+        self.pwm = PWMOutputDevice(pwm_pin)
 
-    def send_signal(value : int) -> None:
-        """
-        Send a signal directly to the motor.
-
-        :param value: signal to send; cannot be above max_value or below min_value
-        """
-        ...
-
-    def run(direction : int, time : int) -> None:
+    def run(self, clockwise : bool, speed_percent : float) -> None:
         """
         Rotate the motor in the given direction for the given amount of time.
 
-        TODO: add params
+        :param clockwise: direction of rotation when viewing motor from front of output shaft
+        :param speed_percent: [0, 100] percentage of maximum motor speed to operate at;
+        generally should NOT be greater than 50
         """
-        ...
+        self.direction.value = 1 if clockwise else 0
+        self.pwm.value = speed_percent / 100.0
 
-    def run(direction : int) -> None:
+    def stop(self) -> None:
         """
-        Rotate the motor in the given direction indefinitely.
-
-        TODO: add params
+        Stop the rotation of the motor.
         """
-        ...
-
-    def stop() -> None:
-        """
-        Stop all motor rotation.
-        """
-        ...
+        self.pwm.value = 0
