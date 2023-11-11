@@ -1,4 +1,4 @@
-from component_io.motor.motor import Motor
+from component_io.motor import Motor
 import time
 
 print("Meow! This is catbot cli v2")
