@@ -32,10 +32,23 @@ class MotorController():
         generally should NOT be greater than 50
         :param rotaion: the target rotation of the motor (degrees)
         """
-        ...
+        clockwise = True
+
+        if rotation > self.potentiometer.get_rotation():
+            clockwise = False
+
+        self.motor.run(clockwise, percent_speed)
+        
+        if clockwise:
+            while self.potentiometer.get_rotation() < rotation:
+                ...
+        else:
+            while self.potentiometer.get_rotation() > rotation:
+                ...
+        self.stop()
 
     def stop(self) -> None:
         """
         Stop rotation of the motor.
         """
-        ...
+        self.motor.stop()
