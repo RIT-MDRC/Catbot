@@ -2,38 +2,50 @@
 #include <TimeLib.h>
 #include <Time.h>
 #include "components/Pressure.cpp"
+#include "comms/handshake.cpp"
 
 // pins
-#define COMPRESSOR_PIN 9
+#define COMPRESSOR_PIN 7
 #define VALVE_1_PIN 8
-#define SENSOR_PIN A0         // Analog
-#define COMP_SWITCH_PIN 11    // button #1
-#define VALVE_1_SWITCH_PIN 10 // button #2
+#define PRESSURE_SENSOR_PIN A0 // Analog
+#define COMP_SWITCH_PIN 11     // button #1
+#define VALVE_1_SWITCH_PIN 10  // button #2
+#define HANDSHAKE_PIN 6
 
-// constants for calculating pressure
-#define VOLTAGE_CONST 5
-#define P_MAX 145 // psi
-#define P_MIN 0
+// Operating range of the compressor/pressure system
+#define MIN_VOLTAGE 0.5 // at <MIN_PSI> psi
+#define MAX_VOLTAGE 4.5 // at <MAX_PSI> psi
+#define MIN_PSI 2
+#define MAX_PSI 100
 
 // constants for pressure
-#define IDEAL_PRESSURE 82       // average pressure we want to maintain
-#define IDEAL_PRESSURE_RANGE 10 // range of pressure we want to send ok signal to raspi (okay signal if pressure is above IP minus IPR)
+#define IDEAL_PRESSURE 65 // average pressure we want to maintain
 
 #define TIME_DURATION_FOR_VALVE_OPEN 5 // seconds
 
+// Resolution to set the ADC to
+#define RESOLUTION_BITS 10
+
+// Pressure level that we need to hit to be able to flex the leg (in psi)
+#define SUFFICIENT_PRESSURE 50
+
+int currentPressure = 0; // (in psi)
+
 int timeWhenValveOpened;
 Pressure *systemPressure = NULL;
+Handshake *handshake = NULL;
 
 void setup()
 {
   Serial.begin(9600);
-  systemPressure = new Pressure(SENSOR_PIN, COMPRESSOR_PIN, IDEAL_PRESSURE, IDEAL_PRESSURE_RANGE, P_MIN, P_MAX, VOLTAGE_CONST);
+  systemPressure = new Pressure(PRESSURE_SENSOR_PIN, COMPRESSOR_PIN, RESOLUTION_BITS, IDEAL_PRESSURE, SUFFICIENT_PRESSURE, MIN_PSI, MAX_PSI, MIN_VOLTAGE, MAX_VOLTAGE);
+  handshake = new Handshake(HANDSHAKE_PIN);
 }
 
 void loop()
 {
   systemPressure->Pressurize(compSwitchPressed() && !valveSwitchPressed());
-  valveControl();
+  handshake->setStatus(systemPressure->PressureOk());
   Serial.println(systemPressure->getPressure());
   delay(100);
 }
