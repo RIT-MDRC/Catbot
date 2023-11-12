@@ -30,21 +30,21 @@ class MotorController():
 
         :param percent_speed: percentage of max speed to run motor at, range [0, 100];
         generally should NOT be greater than 50
-        :param rotaion: the target rotation of the motor (degrees)
+        :param rotaiton: the target rotation of the motor (degrees)
         """
-        clockwise = True
+        clockwise = False
 
-        if rotation > self.potentiometer.get_rotation():
-            clockwise = False
+        if rotation < self.potentiometer.get_rotation():
+            clockwise = True
 
         self.motor.run(clockwise, percent_speed)
         
         if clockwise:
-            while self.potentiometer.get_rotation() < rotation:
-                ...
-        else:
             while self.potentiometer.get_rotation() > rotation:
-                ...
+                print(self.potentiometer.get_rotation())
+        else:
+            while self.potentiometer.get_rotation() < rotation:
+                print(self.potentiometer.get_rotation())
         self.stop()
 
     def stop(self) -> None:

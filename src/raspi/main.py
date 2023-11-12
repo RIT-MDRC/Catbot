@@ -1,13 +1,9 @@
+from control.motor import MotorController
+from component_io.potentiometer import Potentiometer
 from component_io.motor import Motor
 import time
 
 print("Meow! This is catbot cli v2")
 
-test_motor = Motor(26, 21)
-
-test_motor.run(clockwise=False, speed_percent=15)
-
-input()
-test_motor.stop()
-
-time.sleep(100)
+ctrl = MotorController(pot_channel=0, motor_dir_pin=26, motor_pwm_pin=21)
+ctrl.run(10, 100)
