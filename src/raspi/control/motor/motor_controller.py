@@ -24,28 +24,44 @@ class MotorController():
         self.motor = Motor(motor_dir_pin, motor_pwm_pin)
         self.potentiometer = Potentiometer(pot_channel)
 
-    def run(self, percent_speed : float, rotation : float) -> None:
+    def rotate_to(self, target_rotation : float, percent_speed : float) -> None:
         """
-        Rotate the motor until it reaches a given rotation.
+        Rotate the gearbox until it reaches a given rotation.
 
+        :param target_rotation: the target rotation of the motor (degrees)
         :param percent_speed: percentage of max speed to run motor at, range [0, 100];
         generally should NOT be greater than 50
-        :param rotaiton: the target rotation of the motor (degrees)
         """
         clockwise = False
 
-        if rotation < self.potentiometer.get_rotation():
+        # Even though turning the potentiometer clockwise increases its output voltage, the
+        # motor turns in the opposite direction as the potentiometer since that's how gears work.
+        if target_rotation < self.potentiometer.get_rotation():
             clockwise = True
 
         self.motor.run(clockwise, percent_speed)
         
+        # Run the motor until we hit our target rotation
         if clockwise:
-            while self.potentiometer.get_rotation() > rotation:
+            while self.potentiometer.get_rotation() > target_rotation:
                 print(self.potentiometer.get_rotation())
         else:
-            while self.potentiometer.get_rotation() < rotation:
+            while self.potentiometer.get_rotation() < target_rotation:
                 print(self.potentiometer.get_rotation())
+
+        print(f"Reached {str(target_rotation)} degrees")
         self.stop()
+
+    def rotate_degrees(self, rotation_amount : float, percent_speed : float) -> None:
+        """
+        Rotate the gearbox some number of degrees from its current rotation.
+
+        :param rotation_amount: number of degrees to rotate, where a negative value is clockwise
+        :param percent_speed: percentage of max speed to run motor at, range [0, 100];
+        generally should NOT be greater than 50
+        """
+        end_rotation = self.potentiometer.get_rotation() + rotation_amount
+        self.rotate_to(end_rotation, percent_speed)
 
     def stop(self) -> None:
         """
