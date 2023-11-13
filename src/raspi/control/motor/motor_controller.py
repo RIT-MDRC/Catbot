@@ -1,3 +1,4 @@
+import RPi.GPIO as GPIO
 from component_io.motor import Motor
 from component_io.potentiometer import Potentiometer
 
@@ -8,11 +9,13 @@ class MotorController():
 
     motor : Motor
     potentiometer : Potentiometer
+    limit_hit : bool = False
 
     def __init__(self,
                  pot_channel : int,
                  motor_dir_pin : int,
-                 motor_pwm_pin : int) -> None:
+                 motor_pwm_pin : int,
+                 limit_interrupt_pin : int) -> None:
         """
         Initialize a new instance of a motor controller. There should only be one
         instance of MotorController per real-world motor.
@@ -20,9 +23,14 @@ class MotorController():
         :param pot_channel: ADC channel this motor's potentiometer is connected to
         :param motor_dir_pin: pin to send motor direction signal to
         :param motor_pwm_pin: pin to send motor speed signal to
+        :param limit_interrupt_pin: pin to detect interrupts from limit switches
         """
         self.motor = Motor(motor_dir_pin, motor_pwm_pin)
         self.potentiometer = Potentiometer(pot_channel)
+
+        GPIO.setmode(GPIO.BCM)
+        GPIO.setup(limit_interrupt_pin, GPIO.IN)
+        GPIO.add_event_detect(limit_interrupt_pin, GPIO.RISING, callback=self.stop, bouncetime=50)
 
     def rotate_to(self, target_rotation : float, percent_speed : float) -> None:
         """
@@ -43,13 +51,15 @@ class MotorController():
         
         # Run the motor until we hit our target rotation
         if clockwise:
-            while self.potentiometer.get_rotation() > target_rotation:
+            while self.potentiometer.get_rotation() > target_rotation and not self.limit_hit:
                 print(self.potentiometer.get_rotation())
         else:
-            while self.potentiometer.get_rotation() < target_rotation:
+            while self.potentiometer.get_rotation() < target_rotation and not self.limit_hit:
                 print(self.potentiometer.get_rotation())
 
-        print(f"Reached {str(target_rotation)} degrees")
+        if not self.limit_hit:
+            print(f"Reached {str(target_rotation)} degrees")
+            
         self.stop()
 
     def rotate_degrees(self, rotation_amount : float, percent_speed : float) -> None:
@@ -63,8 +73,16 @@ class MotorController():
         end_rotation = self.potentiometer.get_rotation() + rotation_amount
         self.rotate_to(end_rotation, percent_speed)
 
-    def stop(self) -> None:
+    def stop(self, interrupt_channel = -1) -> None:
         """
         Stop rotation of the motor.
+
+        :param interrupt_channel: optional parameter used for limit switch interrupt detection
         """
         self.motor.stop()
+
+        # If `interrupt_channel` had an argument other than default (-1) passed in, then
+        # that means a limit switch was hit and any motor behavior should be cancelled.
+        if interrupt_channel != 1:
+            self.limit_hit = True
+            print("Limit switch hit! Motor stopped")
