@@ -1,15 +1,5 @@
 #include "handshake.h"
 
-/**
- * Returns pressure in PSI
- *
- * LOGIC:
- * 1. Read sensor value
- * 2. Convert sensor value to voltage
- * 3. Convert voltage to pressure
- * 4. Set pressure
- * 5. Return pressure
- */
 void Handshake::toggle()
 {
   status = !status;
