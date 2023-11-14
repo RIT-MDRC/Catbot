@@ -1,8 +1,12 @@
 from functools import wraps
 from dataclasses import dataclass
 
-from io.pneumatics.pressure import is_pressure_ok
-from io.pneumatics.valve import get_valve_state, turn_valve_off, turn_valve_on
+from io_controller.pneumatics.pressure import is_pressure_ok
+from io_controller.pneumatics.valve import (
+    get_valve_state,
+    turn_valve_off,
+    turn_valve_on,
+)
 
 muscles = dict()
 

@@ -1,1 +1,1 @@
-from muscle_controller import *
+from control.muscle.muscle_controller import *

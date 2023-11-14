@@ -2,7 +2,7 @@ import json
 from gpiozero import InputDevice, OutputDevice
 from control.muscle.muscle_controller import MuscleObj, add_muscle
 
-from io.pneumatics.valve import add_valve_pin
+from io_controller.pneumatics.valve import add_valve_pin
 
 
 def create_input_device(pin: int) -> InputDevice:
@@ -40,7 +40,7 @@ def create_dataclass(dataclass: object, data: dict) -> object:
     return dataclass
 
 
-def get_pinconfig(filepath: str = "src/pinconfig.json") -> dict:
+def get_pinconfig(filepath: str = "src/raspi/pinconfig.json") -> dict:
     """
     Get the pin configuration from a JSON file.
 
