@@ -6,20 +6,27 @@ import pygame
 
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
+"""Colors for pygame"""
+
 global sysFont, screen, clock
+"""Global variables for pygame"""
 
 
 def setup():
+    """Setup the pins and pygame"""
     data = get_pinconfig()
     set_pin(data)
+
     pygame.init()
     sysFont = pygame.font.SysFont("Ariel", 36)
     screen = pygame.display.set_mode((640, 480))
     clock = pygame.time.Clock()
+
     return sysFont, screen, clock
 
 
 def screen_setup():
+    """Post setup for the screen (after pygame.init() and global variable are set)"""
     screen.fill(WHITE)
     render_pressure_status(False)
     render_up_status(False)
@@ -27,6 +34,7 @@ def screen_setup():
 
 
 def main():
+    """Main program loop"""
     screen_setup()
 
     on_pressure_active(
@@ -59,17 +67,35 @@ def main():
 
 
 def render_text(rect, text):
+    """Renders a text on the screen
+
+    Args:
+        rect([int,int,int,int]): the rectangle to render the text in
+        text(str): the text to render
+
+    Returns:
+        the rectangle of the rendered text
+    """
     screen.fill(WHITE, rect)
     surface = sysFont.render(text, True, BLACK)
-    return screen.blit(surface, rect.topleft)
+    return screen.blit(surface, (rect[0], rect[1]))
 
 
 render_up_status: callable = lambda status: render_text(
-    pygame.Rect(0, 0, 640, 36), f"Up: {status}"
+    (0, 0, 640, 36), f"Up: {status}"
 )
+"""Renders the up button status
+Args:
+    status(bool): the status to render
+"""
+
 render_pressure_status: callable = lambda status: render_text(
-    pygame.Rect(0, 36, 640, 36), f"Pressure: {status}"
+    (0, 36, 640, 36), f"Pressure: {status}"
 )
+"""Renders the pressure status
+Args:
+    status(bool): the status to render
+"""
 
 sysFont, screen, clock = setup()
 main()
