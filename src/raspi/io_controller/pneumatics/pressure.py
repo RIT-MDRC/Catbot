@@ -24,7 +24,15 @@ def get_pressure_device(name: str) -> DigitalInputDevice:
     :param name: the name of the pressure sensor
     :return: the pin number of the pressure sensor
     """
-    device = pressure_pins[name]
+    try:
+        device = pressure_pins[name]
+    except KeyError:
+        raise KeyError(
+            f"""
+Pressure sensor {name} does not exist
+Available pressure sensors: {list(pressure_pins.keys())}
+            """
+        )
     if device is None:
         raise ValueError(f"Pressure sensor {name} does not exist")
     return device
@@ -86,6 +94,7 @@ def is_pressure_ok(device: Pressure_device) -> bool:
     return device.is_active
 
 
+@pressure_action
 def on_pressure_active(device: Pressure_device, action: callable) -> None:
     """
     Add a new pressure sensor change event.
@@ -93,9 +102,12 @@ def on_pressure_active(device: Pressure_device, action: callable) -> None:
     :param name: the name of the pressure sensor
     :param action: the action to perform when the pressure sensor changes
     """
+    if isinstance(device, str):
+        return
     device.when_activated = action
 
 
+@pressure_action
 def on_pressure_deactive(device: Pressure_device, action: callable) -> None:
     """
     Add a new pressure sensor change event.
@@ -103,4 +115,6 @@ def on_pressure_deactive(device: Pressure_device, action: callable) -> None:
     :param name: the name of the pressure sensor
     :param action: the action to perform when the pressure sensor changes
     """
+    if isinstance(device, str):
+        return
     device.when_deactivated = action

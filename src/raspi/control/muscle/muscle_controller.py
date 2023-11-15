@@ -1,5 +1,6 @@
 from functools import wraps
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Any
 
 from io_controller.pneumatics.pressure import is_pressure_ok
 from io_controller.pneumatics.valve import (
@@ -31,8 +32,14 @@ class MuscleObj:
         valve (str): the name of the valve
     """
 
-    pressure: str
-    valve: str
+    pressure: str = field(default="not_set")
+    valve: str = field(default="not_set")
+
+    def __getitem__(self, key):
+        return getattr(self, key)
+
+    def __setitem__(self, key, value):
+        setattr(self, key, value)
 
 
 type Muscle = str | MuscleObj

@@ -19,7 +19,7 @@
 #define MAX_PSI 100
 
 // constants for pressure
-#define IDEAL_PRESSURE 65 // average pressure we want to maintain
+#define IDEAL_PRESSURE 80 // average pressure we want to maintain
 
 #define TIME_DURATION_FOR_VALVE_OPEN 5 // seconds
 
