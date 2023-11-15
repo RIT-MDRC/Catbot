@@ -6,9 +6,7 @@ import pygame
 
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
-global sysFont
-global screen
-global clock
+global sysFont, screen, clock
 
 
 def setup():
@@ -21,12 +19,15 @@ def setup():
     return sysFont, screen, clock
 
 
-def main():
+def screen_setup():
     screen.fill(WHITE)
-
     render_pressure_status(False)
     render_up_status(False)
     pygame.display.update()
+
+
+def main():
+    screen_setup()
 
     on_pressure_active(
         "left_pressure",
@@ -57,17 +58,18 @@ def main():
     clear_intervals()
 
 
-def render_up_status(status: bool):
-    screen.fill(WHITE, (0, 0, 640, 36))
-    surface = sysFont.render(f"Up: {status}", True, BLACK)
-    return screen.blit(surface, (0, 0))
+def render_text(rect, text):
+    screen.fill(WHITE, rect)
+    surface = sysFont.render(text, True, BLACK)
+    return screen.blit(surface, rect.topleft)
 
 
-def render_pressure_status(status: bool):
-    screen.fill(WHITE, (0, 36, 640, 36))
-    surface = sysFont.render(f"Pressure: {status}", True, BLACK)
-    return screen.blit(surface, (0, 36))
-
+render_up_status: callable = lambda status: render_text(
+    pygame.Rect(0, 0, 640, 36), f"Up: {status}"
+)
+render_pressure_status: callable = lambda status: render_text(
+    pygame.Rect(0, 36, 640, 36), f"Pressure: {status}"
+)
 
 sysFont, screen, clock = setup()
 main()
