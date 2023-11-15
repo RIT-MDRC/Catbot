@@ -5,6 +5,8 @@ from control.muscle.muscle_controller import MuscleObj, add_muscle
 from dotenv import dotenv_values
 from io_controller.pneumatics.valve import add_valve_pin
 from io_controller.pneumatics.pressure import add_pressure_pin
+from utils.deviceMock import FakeInputDevice, FakeOutputDevice
+from utils.interval import set_interval
 
 
 def is_dev() -> bool:
@@ -27,7 +29,9 @@ def create_input_device(pin: int, onDev: callable = None) -> InputDevice:
     :return: the device object
     """
     if is_dev():
-        obj = Mock(InputDevice)
+        print("dev environment detected")
+        print("mocking input device")
+        obj = FakeInputDevice(pin)
         if onDev is not None:
             onDev(obj)
     else:
@@ -35,7 +39,7 @@ def create_input_device(pin: int, onDev: callable = None) -> InputDevice:
     return obj
 
 
-create_pressure_device = create_input_device
+create_pressure_device = lambda pin: create_input_device(pin, on_test_pressure_reading)
 """Create a new pressure device (alias for create_input_device)"""
 
 
@@ -47,7 +51,9 @@ def create_output_device(pin: int, onDev: callable = None) -> OutputDevice:
     :return: the device class
     """
     if is_dev():
-        obj = Mock(OutputDevice)
+        print("dev environment detected")
+        print("mocking output device")
+        obj = FakeOutputDevice(pin)
         if onDev is not None:
             onDev(obj)
     else:
@@ -77,7 +83,7 @@ def get_pinconfig(filepath: str = "src/raspi/pinconfig.json") -> dict:
         return json.load(file)
 
 
-def set_pin(config_data: dict) -> dict:
+def set_pin(config_data: dict, onDev: callable = None) -> dict:
     """
     Set the pin configuration.
 
@@ -106,3 +112,13 @@ def set_pin(config_data: dict) -> dict:
         else:
             raise ValueError(f"Invalid key {key}")
     return ret
+
+
+def on_test_pressure_reading(id):
+    if isinstance(id, InputDevice):
+
+        def func():
+            id.toggle()
+
+        interval = set_interval(func, 5)
+        return interval
