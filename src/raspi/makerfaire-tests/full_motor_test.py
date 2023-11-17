@@ -10,7 +10,11 @@ from gpiozero import PWMOutputDevice
 from gpiozero import DigitalOutputDevice
 from time import sleep
 
-direction = PWMOutputDevice(11)
+direction_pin = DigitalOutputDevice(1)
+address_p0 = DigitalOutputDevice(5)
+address_p1 = DigitalOutputDevice(6)
+address_p2 = DigitalOutputDevice(12)
+
 motor = PWMOutputDevice(26) #26 yellow, 16 red
 gee = DigitalOutputDevice(0)
 
@@ -22,14 +26,30 @@ sleep(1)
 gee.value = 0
 
 
+def bitfield(n):
+    return [int(digit) for digit in bin(n)[2:]] # [2:] to chop off the "0b" part 
+
+def set_dir(dir,address):
+    bits = bitfield(address)
+    bits.reverse()
+    direction_pin.value = dir
+    address_p0 = bits[0]
+    address_p1 = bits[1]
+    address_p2 = bits[2]
+    
+
+
+
+
+
 # spin in one direction
-direction.value = 1
+set_dir(1,0)
 motor.value = 0.1
 print(f"spinning at {motor.value * 100}% duty cycle, direction {direction.value}")
 sleep(5)
 
 # spin in the other direction
-direction.value = 0
+set_dir(1,0)
 motor.value = 0.2
 print(f"spinning at {motor.value * 100}% duty cycle, direction {direction.value}")
 sleep(5)
@@ -56,3 +76,5 @@ while i > 0:
 
 # motor.value = 0
 print("end")
+
+
