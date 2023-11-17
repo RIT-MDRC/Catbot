@@ -12,7 +12,7 @@ CHANNEL_SELECTIONS = [0b000, 0b100, 0b001, 0b101, 0b010, 0b110, 0b011, 0b111]
 with SMBus(1) as bus:
     # selection_bits = CHANNEL_SELECTIONS[pot_channel] << 4
     # command_byte = 0b10001100 | selection_bits
-    command_byte = int(0b10001100)
+    command_byte = int(0b10000100)
 
     while True:
         try:
