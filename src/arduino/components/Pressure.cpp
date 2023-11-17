@@ -1,3 +1,5 @@
+#include <Arduino.h>
+
 #include "pressure.h"
 
 /**
@@ -12,8 +14,8 @@
  */
 float Pressure::getPressure()
 {
-  double voltage = (analogRead(PRESSURE_SENSOR_PIN) / pow(2, RESOLUTION_BITS)) * 5.0; // Volts
-  Pressure::pressure = (((voltage - MIN_VOLTAGE) * PRESSURE_RANGE) / VOLTAGE_RANGE) + P_MIN;
+  float voltage = (analogRead(PRESSURE_SENSOR_PIN) / pow(2, RESOLUTION_BITS)) * 3.3; // Volts
+  Pressure::pressure = map(voltage, MIN_VOLTAGE, MAX_VOLTAGE, P_MIN, P_MAX);
   return Pressure::pressure;
 }
 
