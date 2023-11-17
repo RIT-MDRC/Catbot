@@ -21,6 +21,9 @@ with SMBus(1) as bus:
             most_significant = bytes_array[0]
             least_significant = bytes_array[1]
 
+            most_significant = (most_significant << 4) | (most_significant >> 4)
+            least_significant = (least_significant << 4) | (most_significant >> 4)
+
             reading = (most_significant << 8) + least_significant
 
             print(f"received : {reading} / {bin(reading)}", end='                   \r')
