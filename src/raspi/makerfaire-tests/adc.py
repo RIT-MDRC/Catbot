@@ -18,7 +18,9 @@ if handle < 0:
     print("i2c could not connect, exiting")
     exit()
 
-command_byte = 0b10011100  # read CH1
+command_byte = int(0b10011100)  # read CH1
+print(f"writing command byte {command_byte}")
+
 pi.i2c_write_byte(handle, command_byte)
 
 while True:
