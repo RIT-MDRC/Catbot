@@ -16,12 +16,13 @@ with SMBus(1) as bus:
 
     while True:
         try:
-            bytes_array = bus.read_i2c_block_data(ADC_I2C_ADDR, command_byte, 2)
+            # bytes_array = bus.read_i2c_block_data(ADC_I2C_ADDR, command_byte, 2)
 
-            most_significant = bytes_array[0]
-            least_significant = bytes_array[1]
+            # most_significant = bytes_array[0]
+            # least_significant = bytes_array[1]
 
-            reading = (most_significant << 8) + least_significant
+            # reading = (most_significant << 8) + least_significant
+            reading = bus.read_word_data(ADC_I2C_ADDR, command_byte)
 
             print(f"received : {reading} / {bin(reading)}", end='                   \r')
         except Exception:
