@@ -39,10 +39,8 @@ with SMBus(1) as bus:
     while True:
         try:
             reading = bus.read_word_data(ADC_I2C_ADDR, command_byte)
+            print(f"received : {bin(reading)}")
         except Exception:
             print("failed to read, trying again...")
             continue  # just try again
-        break
-
-print(f"received value : {reading}")
 
