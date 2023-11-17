@@ -12,17 +12,16 @@ CHANNEL_SELECTIONS = [0b000, 0b100, 0b001, 0b101, 0b010, 0b110, 0b011, 0b111]
 with SMBus(1) as bus:
     # selection_bits = CHANNEL_SELECTIONS[pot_channel] << 4
     # command_byte = 0b10001100 | selection_bits
-    command_byte = int(0b11001100)
+    command_byte = int(0b10001100)
 
     while True:
         try:
-            # bytes_array = bus.read_i2c_block_data(ADC_I2C_ADDR, command_byte, 2)
+            bytes_array = bus.read_i2c_block_data(ADC_I2C_ADDR, command_byte, 2)
 
-            # most_significant = bytes_array[0]
-            # least_significant = bytes_array[1]
+            most_significant = bytes_array[0]
+            least_significant = bytes_array[1]
 
-            # reading = (most_significant << 8) + least_significant
-            reading = bus.read_word_data(ADC_I2C_ADDR, command_byte)
+            reading = (most_significant << 8) + least_significant
 
             print(f"received : {reading} / {bin(reading)}", end='                   \r')
         except Exception:
