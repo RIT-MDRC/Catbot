@@ -61,10 +61,6 @@ def create_output_device(pin: int, onDev: callable = None) -> OutputDevice:
     return obj
 
 
-create_valve_device = create_output_device
-"""Create a new valve device (alias for create_output_device)"""
-
-
 def create_dataclass(dataclass: object, data: dict) -> object:
     for key in data.keys():
         k = key.split("_")[-1]
@@ -96,7 +92,7 @@ def set_pin(config_data: dict, onDev: callable = None) -> dict:
     for key in keys:
         if str.endswith(key, "valve"):
             pin = config_data[key]
-            od = create_valve_device(pin)
+            od = create_output_device(pin)
             add_valve_pin(key, od)
             ret[key] = od
         elif str.endswith(key, "pressure"):
@@ -109,6 +105,10 @@ def set_pin(config_data: dict, onDev: callable = None) -> dict:
             muscle = create_dataclass(MuscleObj(), raw_muscle)
             add_muscle(key, muscle)
             ret[key] = muscle
+        elif str.endswith(key, "compressor"):
+            pin = config_data[key]
+            od = create_output_device(pin)
+            ret[key] = od
         else:
             raise ValueError(f"Invalid key {key}")
     return ret
