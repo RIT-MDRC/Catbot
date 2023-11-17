@@ -21,9 +21,10 @@ with SMBus(1) as bus:
             most_significant = bytes_array[0]
             least_significant = bytes_array[1]
 
-            nibbles = [most_significant & 0b00001111, most_significant >> 4, least_significant & 0b00001111, least_significant >> 4]
+            most_significant = (most_significant << 4) | (most_significant >> 4)
+            least_significant = (least_significant << 4) | (most_significant >> 4)
 
-            reading = nibbles[0] << 12 + nibbles[1] << 8 + nibbles[2] << 4 + nibbles[3]
+            reading = (most_significant << 8) + least_significant
 
             print(f"received : {reading} / {bin(reading)}")
         except Exception:
