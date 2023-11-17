@@ -26,7 +26,7 @@ with SMBus(1) as bus:
 
             reading = (most_significant << 8) + least_significant
 
-            print(f"received : {reading} / {bin(reading)}")
+            print(f"received : {reading} / {bin(reading)}", end='\r')
         except Exception:
             print("failed to read, trying again...")
             continue  # just try again
