@@ -1,7 +1,7 @@
 from smbus2 import SMBus
 
 # The I2C address of the ADC
-ADC_I2C_ADDR = 0x49
+ADC_I2C_ADDR = 0x48
 I2C_BUS = 1
 
 # Index is the channel ID (CH0, CH1, ...), element at that index is the set of channel selection
@@ -12,7 +12,7 @@ CHANNEL_SELECTIONS = [0b000, 0b100, 0b001, 0b101, 0b010, 0b110, 0b011, 0b111]
 with SMBus(1) as bus:
     # selection_bits = CHANNEL_SELECTIONS[pot_channel] << 4
     # command_byte = 0b10001100 | selection_bits
-    command_byte = int(0b10000100)
+    command_byte = int(0b11001100)
 
     while True:
         try:

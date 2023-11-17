@@ -7,12 +7,20 @@
 # PWM           24
 
 from gpiozero import PWMOutputDevice
+from gpiozero import DigitalOutputDevice
 from time import sleep
 
-direction = PWMOutputDevice(23)
-motor = PWMOutputDevice(24)
+direction = PWMOutputDevice(11)
+motor = PWMOutputDevice(26) #26 yellow, 16 red
+gee = DigitalOutputDevice(0)
 
-sleep(0.1)
+#Global ESC Enable Pulse
+gee.value = 1
+
+sleep(1)
+
+gee.value = 0
+
 
 # spin in one direction
 direction.value = 1
@@ -45,4 +53,6 @@ while i > 0:
     i -= 0.05
     sleep(0.25)
 
+
+# motor.value = 0
 print("end")
