@@ -36,7 +36,7 @@ def setup():
     sysFont = pygame.font.SysFont("Ariel", 36)
     screen = pygame.display.set_mode((640, 480))
     clock = pygame.time.Clock()
-    motor = MotorController(26, 49)
+    motor = MotorController(26, 0)
 
     return sysFont, screen, clock, motor
 
