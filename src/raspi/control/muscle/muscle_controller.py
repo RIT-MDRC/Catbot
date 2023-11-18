@@ -1,11 +1,9 @@
 from functools import wraps
 from dataclasses import dataclass, field
-from typing import Any
 
 from io_controller.pneumatics.pressure import is_pressure_ok
 from io_controller.pneumatics.valve import (
     get_valve_state,
-    toggle_valve,
     turn_valve_off,
     turn_valve_on,
 )

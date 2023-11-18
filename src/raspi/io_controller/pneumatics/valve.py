@@ -1,14 +1,11 @@
 from functools import wraps
 from gpiozero import DigitalOutputDevice
 
-from utils.deviceMock import DigitalOutputDeviceType
 
-
-type Valve = str | DigitalOutputDeviceType
 valve_pins = dict()
 
 
-def add_valve_pin(name: str, valve: DigitalOutputDeviceType) -> None:
+def add_valve_pin(name: str, valve) -> None:
     """
     Add a new valve pin to the list of pins.
 
@@ -20,7 +17,7 @@ def add_valve_pin(name: str, valve: DigitalOutputDeviceType) -> None:
     valve_pins[name] = valve
 
 
-def get_valve(name: str) -> DigitalOutputDeviceType:
+def get_valve(name: str):
     """
     Get the pin number of a valve.
 
@@ -78,7 +75,7 @@ def valve_action(func: callable) -> callable:
 
 
 @valve_action
-def turn_valve_on(valve: Valve) -> None:
+def turn_valve_on(valve) -> None:
     """
     Turn a valve on.
 
@@ -88,7 +85,7 @@ def turn_valve_on(valve: Valve) -> None:
 
 
 @valve_action
-def turn_valve_off(valve: Valve) -> None:
+def turn_valve_off(valve) -> None:
     """
     Turn a valve off.
 
@@ -98,7 +95,7 @@ def turn_valve_off(valve: Valve) -> None:
 
 
 @valve_action
-def turn_value(valve: Valve, state: bool) -> None:
+def turn_value(valve, state: bool) -> None:
     """
     Turn a valve on or off.
 
@@ -109,7 +106,7 @@ def turn_value(valve: Valve, state: bool) -> None:
 
 
 @valve_action
-def toggle_valve(valve: Valve) -> None:
+def toggle_valve(valve) -> None:
     """
     Toggle a valve.
 
@@ -119,7 +116,7 @@ def toggle_valve(valve: Valve) -> None:
 
 
 @valve_action
-def get_valve_state(valve: Valve) -> bool:
+def get_valve_state(valve) -> bool:
     """
     Get the state of a valve.
 

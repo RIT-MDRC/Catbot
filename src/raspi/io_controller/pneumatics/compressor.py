@@ -1,14 +1,11 @@
 from functools import wraps
 from gpiozero import DigitalOutputDevice
 
-from utils.deviceMock import DigitalOutputDeviceType
 
-
-type Compressor = str | DigitalOutputDeviceType
 compressor_pins = dict()
 
 
-def add_compressor_pin(name: str, compressor: DigitalOutputDeviceType) -> None:
+def add_compressor_pin(name: str, compressor) -> None:
     """
     Add a new valve pin to the list of pins.
 
@@ -20,7 +17,7 @@ def add_compressor_pin(name: str, compressor: DigitalOutputDeviceType) -> None:
     compressor_pins[name] = compressor
 
 
-def get_compressor(name: str) -> DigitalOutputDeviceType:
+def get_compressor(name: str):
     """
     Get the pin number of a valve.
 
@@ -78,7 +75,7 @@ def compressor_action(func: callable) -> callable:
 
 
 @compressor_action
-def turn_compressor_on(valve: Compressor) -> None:
+def turn_compressor_on(valve) -> None:
     """
     Turn a valve on.
 
@@ -88,7 +85,7 @@ def turn_compressor_on(valve: Compressor) -> None:
 
 
 @compressor_action
-def turn_compressor_off(compressor: Compressor) -> None:
+def turn_compressor_off(compressor) -> None:
     """
     Turn a valve off.
 
@@ -98,7 +95,7 @@ def turn_compressor_off(compressor: Compressor) -> None:
 
 
 @compressor_action
-def turn_value(compressor: Compressor, state: bool) -> None:
+def turn_value(compressor, state: bool) -> None:
     """
     Turn a valve on or off.
 
@@ -109,7 +106,7 @@ def turn_value(compressor: Compressor, state: bool) -> None:
 
 
 @compressor_action
-def toggle_valve(compressor: Compressor) -> None:
+def toggle_valve(compressor) -> None:
     """
     Toggle a valve.
 
@@ -119,7 +116,7 @@ def toggle_valve(compressor: Compressor) -> None:
 
 
 @compressor_action
-def get_valve_state(compressor: Compressor) -> bool:
+def get_valve_state(compressor) -> bool:
     """
     Get the state of a valve.
 

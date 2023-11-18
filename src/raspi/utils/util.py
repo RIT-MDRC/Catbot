@@ -5,8 +5,6 @@ from dotenv import dotenv_values
 from io_controller.pneumatics.valve import add_valve_pin
 from io_controller.pneumatics.pressure import add_pressure_pin
 from utils.deviceMock import (
-    DigitalOutputDeviceType,
-    DigitalInputDeviceType,
     FakeInputDevice,
     FakeOutputDevice,
 )
@@ -25,7 +23,7 @@ def is_dev() -> bool:
     return config["ENV"] == "dev"
 
 
-def create_input_device(pin: int, onDev: callable = None) -> DigitalInputDeviceType:
+def create_input_device(pin: int, onDev: callable = None):
     """
     Create a new input device.
 
@@ -47,7 +45,7 @@ create_pressure_device = lambda pin: create_input_device(pin, on_test_pressure_r
 """Create a new pressure device (alias for create_input_device)"""
 
 
-def create_output_device(pin: int, onDev: callable = None) -> DigitalOutputDeviceType:
+def create_output_device(pin: int, onDev: callable = None):
     """
     Create a new output device.
 

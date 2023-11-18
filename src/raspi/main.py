@@ -1,5 +1,5 @@
 from enum import Enum
-from control.muscle.muscle_controller import contract, relax, toggle_muscle_state
+from control.muscle.muscle_controller import contract, relax
 from io_controller.pneumatics.compressor import (
     turn_compressor_off,
     turn_compressor_on,

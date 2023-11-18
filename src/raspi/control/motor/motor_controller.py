@@ -1,5 +1,4 @@
 from gpiozero import PWMOutputDevice
-from gpiozero import DigitalOutputDevice
 
 from utils.util import create_output_device
 

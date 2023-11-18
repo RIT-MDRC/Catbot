@@ -58,7 +58,3 @@ class FakeInputDevice:
         elif self.value == 0 and self.when_deactivated is not None:
             print("(Dev) calling when_deactivated")
             self.when_deactivated()
-
-
-type DigitalInputDeviceType = DigitalInputDevice | FakeInputDevice
-type DigitalOutputDeviceType = DigitalOutputDevice | FakeOutputDevice

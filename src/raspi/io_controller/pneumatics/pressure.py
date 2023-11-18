@@ -1,13 +1,13 @@
 from functools import wraps
 from gpiozero import DigitalInputDevice
 
-from utils.deviceMock import DigitalInputDeviceType, FakeInputDevice
+from utils.deviceMock import FakeInputDevice
 
-type Pressure_device = str | DigitalInputDeviceType
+
 pressure_pins = dict()
 
 
-def add_pressure_pin(name: str, pressure: DigitalInputDeviceType) -> None:
+def add_pressure_pin(name: str, pressure) -> None:
     """
     Add a new pressure sensor to the list of pins.
 
@@ -19,7 +19,7 @@ def add_pressure_pin(name: str, pressure: DigitalInputDeviceType) -> None:
     pressure_pins[name] = pressure
 
 
-def get_pressure_device(name: str) -> DigitalInputDeviceType:
+def get_pressure_device(name: str):
     """
     Get the pin number of a pressure sensor.
 
@@ -90,7 +90,7 @@ def pressure_action(func: callable) -> callable:
 
 
 @pressure_action
-def is_pressure_ok(device: Pressure_device) -> bool:
+def is_pressure_ok(device) -> bool:
     """
     Check if the pressure sensor is ok.
 
@@ -102,7 +102,7 @@ def is_pressure_ok(device: Pressure_device) -> bool:
 
 
 @pressure_action
-def on_pressure_active(device: Pressure_device, action: callable) -> None:
+def on_pressure_active(device, action: callable) -> None:
     """
     Add a new pressure sensor change event.
 
@@ -115,7 +115,7 @@ def on_pressure_active(device: Pressure_device, action: callable) -> None:
 
 
 @pressure_action
-def on_pressure_deactive(device: Pressure_device, action: callable) -> None:
+def on_pressure_deactive(device, action: callable) -> None:
     """
     Add a new pressure sensor change event.
 
