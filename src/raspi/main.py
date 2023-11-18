@@ -59,11 +59,11 @@ def main():
 
     on_pressure_active(
         "left_pressure",
-        lambda: change_compressor(False),
+        lambda: change_compressor(True),
     )
     on_pressure_deactive(
         "left_pressure",
-        lambda: change_compressor(True),
+        lambda: change_compressor(False),
     )
     exit = False
     while not exit:
