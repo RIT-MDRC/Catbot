@@ -4,7 +4,7 @@ from control.muscle.muscle_controller import MuscleObj, add_muscle
 from dotenv import dotenv_values
 from io_controller.pneumatics.valve import add_valve_pin
 from io_controller.pneumatics.pressure import add_pressure_pin
-from raspi.io_controller.pneumatics.compressor import add_compressor_pin
+from io_controller.pneumatics.compressor import add_compressor_pin
 from utils.deviceMock import (
     FakeInputDevice,
     FakeOutputDevice,
