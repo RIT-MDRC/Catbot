@@ -1,5 +1,5 @@
 import json
-from gpiozero import DigitalInputDevice, DigitalOutputDevice
+from gpiozero import DigitalInputDevice, DigitalOutputDevice, PWMOutputDevice
 from control.muscle.muscle_controller import MuscleObj, add_muscle
 from dotenv import dotenv_values
 from io_controller.pneumatics.valve import add_valve_pin
@@ -8,6 +8,7 @@ from io_controller.pneumatics.compressor import add_compressor_pin
 from utils.deviceMock import (
     FakeInputDevice,
     FakeOutputDevice,
+    FakePWMOutputDevice,
 )
 from utils.interval import set_interval
 
@@ -69,6 +70,24 @@ def create_dataclass(dataclass: object, data: dict) -> object:
         k = key.split("_")[-1]
         dataclass[k] = key
     return dataclass
+
+
+def create_pwm_device(pin: int, onDev: callable = None):
+    """
+    Create a new output device.
+
+    :param pin: the pin number of the device
+    :return: the device class
+    """
+    if is_dev():
+        print("dev environment detected")
+        print("mocking output device")
+        obj = FakePWMOutputDevice(pin)
+        if onDev is not None:
+            onDev(obj)
+    else:
+        obj = PWMOutputDevice(pin)
+    return obj
 
 
 def get_pinconfig(filepath: str = "src/raspi/pinconfig.json") -> dict:

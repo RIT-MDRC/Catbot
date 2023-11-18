@@ -1,4 +1,5 @@
 from functools import wraps
+from typing import Any
 from gpiozero import DigitalInputDevice, DigitalOutputDevice
 
 
@@ -16,7 +17,9 @@ def value_change(func: callable) -> callable:
         """
         Decorated function.
         """
+        print(f"Value changed: {args[0].pin} {args[0].value}", end=" -> ")
         func(*args, **kwargs)
+        print(f"{args[0].value}")
 
     return wrapper
 
@@ -58,3 +61,20 @@ class FakeInputDevice:
         elif self.value == 0 and self.when_deactivated is not None:
             print("(Dev) calling when_deactivated")
             self.when_deactivated()
+
+
+class FakePWMOutputDevice:
+    pin: int
+    value: float
+
+    def __init__(self, pin: int):
+        self.pin = pin
+        self.value = 0
+
+    @value_change
+    def is_active(self):
+        return self.value > 0
+
+    @value_change
+    def toggle(self):
+        self.value = 1 - self.value
