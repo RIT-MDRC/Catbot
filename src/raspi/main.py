@@ -75,10 +75,6 @@ def main():
                     res = contract("left_muscle")
                     if res:
                         render_up_status(True)
-                elif event.key == pygame.K_s or event.key == pygame.K_DOWN:
-                    res = relax("left_muscle")
-                    if res:
-                        render_up_status(False)
                 elif event.key == pygame.K_a or event.key == pygame.K_LEFT:
                     res = motor.set_Motor(SPEED, 1)
                     if res:
@@ -96,6 +92,10 @@ def main():
                     res = motor.set_Motor(0, 0)
                     if res:
                         render_right_status(False)
+                elif event.key == pygame.K_w or event.key == pygame.K_UP:
+                    res = relax("left_muscle")
+                    if res:
+                        render_up_status(False)
             elif event.type == pygame.QUIT:
                 exit = True
         pygame.display.update()
