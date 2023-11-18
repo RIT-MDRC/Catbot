@@ -80,20 +80,20 @@ def main():
                     if res:
                         render_up_status(False)
                 elif event.key == pygame.K_a or event.key == pygame.K_LEFT:
-                    res = motor.set_Motor(SPEED, Direction.FORWARD)
+                    res = motor.set_Motor(SPEED, 1)
                     if res:
                         render_left_status(True)
                 elif event.key == pygame.K_d or event.key == pygame.K_RIGHT:
-                    res = motor.set_Motor(SPEED, Direction.BACKWARD)
+                    res = motor.set_Motor(SPEED, 0)
                     if res:
                         render_right_status(True)
             elif event.type == pygame.KEYUP:
                 if event.key == pygame.K_a or event.key == pygame.K_LEFT:
-                    res = motor.set_Motor(0, Direction.FORWARD)
+                    res = motor.set_Motor(0, 1)
                     if res:
                         render_left_status(False)
                 elif event.key == pygame.K_d or event.key == pygame.K_RIGHT:
-                    res = motor.set_Motor(0, Direction.BACKWARD)
+                    res = motor.set_Motor(0, 0)
                     if res:
                         render_right_status(False)
             elif event.type == pygame.QUIT:
