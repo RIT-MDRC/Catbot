@@ -183,7 +183,7 @@ def change_compressor(status: bool):
     render_pressure_status(status)
 
 
-async def step(motor):
+def step(motor):
     contract("left_muscle")
     sleep(1)
     motor.set_Motor(SPEED, 1)
