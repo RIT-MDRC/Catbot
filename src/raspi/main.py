@@ -1,4 +1,4 @@
-from control.muscle.muscle_controller import contract, relax
+from control.muscle.muscle_controller import contract, relax, toggle_muscle_state
 from io_controller.pneumatics.compressor import (
     turn_compressor_off,
     turn_compressor_on,
@@ -56,14 +56,19 @@ def main():
                 if event.key == pygame.K_q:
                     exit = True
                 elif event.key == pygame.K_w or event.key == pygame.K_UP:
-                    res = contract("left_muscle")
+                    res = toggle_muscle_state("left_muscle")
                     if res:
                         render_up_status(True)
-            elif event.type == pygame.KEYUP:
-                if event.key == pygame.K_w or event.key == pygame.K_UP:
-                    res = relax("left_muscle")
+                elif event.key == pygame.K_s or event.key == pygame.K_DOWN:
+                    res = toggle_muscle_state("left_muscle")
                     if res:
                         render_up_status(False)
+            elif event.type == pygame.KEYUP:
+                pass
+                # if event.key == pygame.K_w or event.key == pygame.K_UP:
+                #     res = toggle_muscle_state("left_muscle")
+                #     if res:
+                #         render_up_status(False)
             elif event.type == pygame.QUIT:
                 exit = True
         pygame.display.update()

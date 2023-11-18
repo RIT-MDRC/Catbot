@@ -5,6 +5,7 @@ from typing import Any
 from io_controller.pneumatics.pressure import is_pressure_ok
 from io_controller.pneumatics.valve import (
     get_valve_state,
+    toggle_valve,
     turn_valve_off,
     turn_valve_on,
 )
@@ -162,6 +163,20 @@ def relax(muscle: Muscle) -> bool:
     print("relaxing muscle")
     turn_valve_off(muscle.valve)
     return True
+
+
+@muscle_action
+def toggle_muscle_state(muscle: Muscle) -> bool:
+    """
+    Toggle a muscle.
+
+    Args:
+        muscle (Muscle): the muscle to toggle
+    """
+    is_contracted = get_valve_state(muscle.valve)
+    if is_contracted:
+        return relax(muscle)
+    return contract(muscle)
 
 
 def noop(*args, **kwargs) -> bool:
