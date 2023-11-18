@@ -1,5 +1,5 @@
 import json
-from gpiozero import InputDevice, OutputDevice
+from gpiozero import DigitalInputDevice, DigitalOutputDevice
 from control.muscle.muscle_controller import MuscleObj, add_muscle
 from dotenv import dotenv_values
 from io_controller.pneumatics.valve import add_valve_pin
@@ -39,7 +39,7 @@ def create_input_device(pin: int, onDev: callable = None) -> DigitalInputDeviceT
         if onDev is not None:
             onDev(obj)
     else:
-        obj = InputDevice(pin)
+        obj = DigitalInputDevice(pin)
     return obj
 
 
@@ -61,7 +61,7 @@ def create_output_device(pin: int, onDev: callable = None) -> DigitalOutputDevic
         if onDev is not None:
             onDev(obj)
     else:
-        obj = OutputDevice(pin)
+        obj = DigitalOutputDevice(pin)
     return obj
 
 
@@ -119,7 +119,7 @@ def set_pin(config_data: dict, onDev: callable = None) -> dict:
 
 
 def on_test_pressure_reading(id):
-    if isinstance(id, InputDevice) or isinstance(id, FakeInputDevice):
+    if isinstance(id, DigitalInputDevice) or isinstance(id, FakeInputDevice):
 
         def func():
             id.toggle()
