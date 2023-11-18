@@ -57,14 +57,14 @@ def main():
     screen_setup()
     setup_cpu(render_temperature_status)
 
-    # on_pressure_active(
-    #     "left_pressure",
-    #     lambda: render_pressure_status(False),
-    # )
-    # on_pressure_deactive(
-    #     "left_pressure",
-    #     lambda: render_pressure_status(True),
-    # )
+    on_pressure_active(
+        "left_pressure",
+        lambda: change_compressor(False),
+    )
+    on_pressure_deactive(
+        "left_pressure",
+        lambda: change_compressor(True),
+    )
     exit = False
     while not exit:
         for event in pygame.event.get():
@@ -172,6 +172,7 @@ def change_compressor(status: bool):
     """
     action = turn_compressor_on if status else turn_compressor_off
     action("main_compressor")
+    render_pressure_status(status)
 
 
 sysFont, screen, clock, motor = setup()
