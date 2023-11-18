@@ -1,5 +1,5 @@
-from asyncio import sleep
 from enum import Enum
+from time import sleep
 from control.muscle.muscle_controller import contract, relax
 from io_controller.pneumatics.compressor import (
     turn_compressor_off,
@@ -183,7 +183,7 @@ def change_compressor(status: bool):
     render_pressure_status(status)
 
 
-def step(motor):
+async def step(motor):
     contract("left_muscle")
     sleep(1)
     motor.set_Motor(SPEED, 1)
