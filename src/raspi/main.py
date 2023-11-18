@@ -56,7 +56,7 @@ def main():
     """Main program loop"""
     screen_setup()
     setup_cpu(render_temperature_status)
-
+    change_compressor(True)
     on_pressure_active(
         "left_pressure",
         lambda: change_compressor(True),
