@@ -41,10 +41,7 @@ class MuscleObj:
         setattr(self, key, value)
 
 
-type Muscle = str | MuscleObj
-
-
-def add_muscle(name: str, muscle: MuscleObj) -> None:
+def add_muscle(name: str, muscle) -> None:
     """
     Add a new muscle to the list of pins.
 
@@ -59,7 +56,7 @@ def add_muscle(name: str, muscle: MuscleObj) -> None:
 
 def get_muscle(
     name: str,
-) -> MuscleObj:
+):
     """
     Get the pin number of a muscle.
 
@@ -82,7 +79,7 @@ def get_muscle_names() -> list[str]:
     return list(muscles.keys())
 
 
-def get_muscle_devices() -> list[MuscleObj]:
+def get_muscle_devices():
     """
     Get a list of all the muscle pins.
 
@@ -126,7 +123,7 @@ def muscle_action(func: callable) -> callable:
 
 
 @muscle_action
-def contract(muscle: Muscle) -> bool:
+def contract(muscle) -> bool:
     """
     Contract a muscle.
 
@@ -146,7 +143,7 @@ def contract(muscle: Muscle) -> bool:
 
 
 @muscle_action
-def relax(muscle: Muscle) -> bool:
+def relax(muscle) -> bool:
     """
     Relax a muscle.
 
@@ -164,7 +161,7 @@ def relax(muscle: Muscle) -> bool:
 
 
 @muscle_action
-def toggle_muscle_state(muscle: Muscle) -> bool:
+def toggle_muscle_state(muscle) -> bool:
     """
     Toggle a muscle.
 
