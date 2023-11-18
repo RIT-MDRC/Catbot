@@ -1,3 +1,4 @@
+from asyncio import sleep
 from enum import Enum
 from control.muscle.muscle_controller import contract, relax
 from io_controller.pneumatics.compressor import (
@@ -88,6 +89,8 @@ def main():
                     res = motor.set_Motor(SPEED, 0)
                     if res:
                         render_right_status(True)
+                elif event.key == pygame.K_t:
+                    step(motor)
             elif event.type == pygame.KEYUP:
                 if event.key == pygame.K_a or event.key == pygame.K_LEFT:
                     res = motor.set_Motor(0, 1)
@@ -178,6 +181,21 @@ def change_compressor(status: bool):
     action = turn_compressor_on if status else turn_compressor_off
     action("main_compressor")
     render_pressure_status(status)
+
+
+def step(motor):
+    contract("left_muscle")
+    sleep(1)
+    motor.set_Motor(SPEED, 1)
+    sleep(1)
+    motor.set_Motor(0, 1)
+    sleep(1)
+    relax("left_muscle")
+    sleep(1)
+    motor.set_Motor(SPEED, 0)
+    sleep(1)
+    motor.set_Motor(0, 0)
+    sleep(1)
 
 
 sysFont, screen, clock, motor = setup()
