@@ -1,12 +1,22 @@
+from enum import Enum
 from control.muscle.muscle_controller import contract, relax, toggle_muscle_state
 from io_controller.pneumatics.compressor import (
     turn_compressor_off,
     turn_compressor_on,
 )
+from control.motor.motor_controller import MotorController
 from utils.interval import clear_intervals
 from utils.util import *
 from io_controller.pneumatics.pressure import on_pressure_active, on_pressure_deactive
 import pygame
+
+SPEED = 0.1
+
+
+class Direction(Enum):
+    FORWARD = 1
+    BACKWARD = 0
+
 
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
@@ -14,6 +24,7 @@ BLACK = (0, 0, 0)
 
 global sysFont, screen, clock
 """Global variables for pygame"""
+motor = None
 
 
 def setup():
@@ -25,6 +36,7 @@ def setup():
     sysFont = pygame.font.SysFont("Ariel", 36)
     screen = pygame.display.set_mode((640, 480))
     clock = pygame.time.Clock()
+    motor = MotorController(26, 0, 0.5, 1)
 
     return sysFont, screen, clock
 
@@ -63,12 +75,15 @@ def main():
                     res = relax("left_muscle")
                     if res:
                         render_up_status(False)
+                elif event.key == pygame.K_a or event.key == pygame.K_LEFT:
+                    motor.set_Motor(SPEED, Direction.FORWARD)
+                elif event.key == pygame.K_d or event.key == pygame.K_RIGHT:
+                    motor.set_Motor(SPEED, Direction.BACKWARD)
             elif event.type == pygame.KEYUP:
-                pass
-                # if event.key == pygame.K_w or event.key == pygame.K_UP:
-                #     res = toggle_muscle_state("left_muscle")
-                #     if res:
-                #         render_up_status(False)
+                if event.key == pygame.K_a or event.key == pygame.K_LEFT:
+                    motor.set_Motor(0, Direction.FORWARD)
+                elif event.key == pygame.K_d or event.key == pygame.K_RIGHT:
+                    motor.set_Motor(0, Direction.BACKWARD)
             elif event.type == pygame.QUIT:
                 exit = True
         pygame.display.update()
