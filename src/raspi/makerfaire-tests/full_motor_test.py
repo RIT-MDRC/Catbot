@@ -8,6 +8,7 @@
 
 from gpiozero import PWMOutputDevice
 from gpiozero import DigitalOutputDevice
+from gpiozero import DigitalInputDevice
 from time import sleep
 
 direction_pin = DigitalOutputDevice(1)
@@ -18,13 +19,12 @@ address_p2 = DigitalOutputDevice(12)
 motor = PWMOutputDevice(26) #26 yellow, 16 red
 gee = DigitalOutputDevice(0)
 
+
+handshake = DigitalInputDevice(15)
 #Global ESC Enable Pulse
-gee.value = 1
 
-sleep(1)
 
-gee.value = 0
-
+#gee.value = 1
 
 def bitfield(n):
     return [int(digit) for digit in bin(n)[2:]] # [2:] to chop off the "0b" part 
@@ -32,49 +32,59 @@ def bitfield(n):
 def set_dir(dir,address):
     bits = bitfield(address)
     bits.reverse()
+#    print(bits)
+
+    while(len(bits)<3):
+        bits.append(0)
+
+
     direction_pin.value = dir
     address_p0 = bits[0]
     address_p1 = bits[1]
     address_p2 = bits[2]
-    
-
-
 
 
 
 # spin in one direction
 set_dir(1,0)
-motor.value = 0.1
-print(f"spinning at {motor.value * 100}% duty cycle, direction {direction.value}")
+motor.value = 0.5
+print(f"spinning at {motor.value * 100}% duty cycle, direction 1")
+
+gee.value = 0
+print("gee low")
 sleep(5)
+
+gee.value = 1
+print("gee high")
+sleep(500)
 
 # spin in the other direction
-set_dir(1,0)
-motor.value = 0.2
-print(f"spinning at {motor.value * 100}% duty cycle, direction {direction.value}")
-sleep(5)
+#set_dir(0,0)
+#motor.value = 0.2
+#print(f"spinning at {motor.value * 100}% duty cycle, direction 0")
+#sleep(5)
 
 # stop for a bit
-print(f"stop")
-motor.value = 0
-sleep(1)
+#print(f"stop")
+#motor.value = 0
+#sleep(1)
 
-i = 0
-print(f"ramping up speed")
-while i < 1:
-    motor.value = i
-    i += 0.05
-    sleep(0.25)
+#i = 0
+#print(f"ramping up speed")
+#while i < 1:
+#    motor.value = i
+#    i += 0.05
+#    sleep(0.25)
 
-i = 1
-print(f"ramping down speed")
-while i > 0:
-    motor.value = i
-    i -= 0.05
-    sleep(0.25)
+#i = 1
+#print(f"ramping down speed")
+#while i > 0:
+#    motor.value = i
+#    i -= 0.05
+#    sleep(0.25)
 
 
 # motor.value = 0
-print("end")
+#print("end")
 
 
