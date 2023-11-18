@@ -18,12 +18,6 @@ import pygame
 
 SPEED = 0.1
 
-
-class Direction(Enum):
-    FORWARD = 1
-    BACKWARD = 0
-
-
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 """Colors for pygame"""
@@ -82,22 +76,22 @@ def main():
                     if res:
                         render_up_status(True)
                 elif event.key == pygame.K_a or event.key == pygame.K_LEFT:
-                    res = motor.set_Motor(SPEED, 1)
+                    res = turn_motor_left(SPEED)
                     if res:
                         render_left_status(True)
                 elif event.key == pygame.K_d or event.key == pygame.K_RIGHT:
-                    res = motor.set_Motor(SPEED, 0)
+                    res = turn_motor_right(SPEED)
                     if res:
                         render_right_status(True)
                 elif event.key == pygame.K_t:
                     step(motor)
             elif event.type == pygame.KEYUP:
                 if event.key == pygame.K_a or event.key == pygame.K_LEFT:
-                    res = motor.set_Motor(0, 1)
+                    res = stop_motor_left()
                     if res:
                         render_left_status(False)
                 elif event.key == pygame.K_d or event.key == pygame.K_RIGHT:
-                    res = motor.set_Motor(0, 0)
+                    res = stop_motor_right()
                     if res:
                         render_right_status(False)
                 elif event.key == pygame.K_w or event.key == pygame.K_UP:
@@ -183,18 +177,46 @@ def change_compressor(status: bool):
     render_pressure_status(status)
 
 
-def step(motor):
+def turn_motor_left(speed):
+    """Turns the motor left
+
+    Args:
+        speed(float): the speed to turn the motor at
+    """
+    return motor.set_Motor(speed, 1)
+
+
+def stop_motor_left():
+    """Stops the motor"""
+    return motor.set_Motor(0, 1)
+
+
+def turn_motor_right(speed):
+    """Turns the motor right
+
+    Args:
+        speed(float): the speed to turn the motor at
+    """
+    return motor.set_Motor(speed, 0)
+
+
+def stop_motor_right():
+    """Stops the motor"""
+    return motor.set_Motor(0, 0)
+
+
+def step():
     contract("left_muscle")
     sleep(1)
-    motor.set_Motor(SPEED, 0)
+    turn_motor_right(SPEED)
     sleep(1)
-    motor.set_Motor(0, 0)
+    stop_motor_right()
     sleep(1)
     relax("left_muscle")
     sleep(1)
-    motor.set_Motor(SPEED, 1)
+    turn_motor_left(SPEED)
     sleep(1)
-    motor.set_Motor(0, 1)
+    stop_motor_left()
     sleep(1)
 
 
