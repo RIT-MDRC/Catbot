@@ -1,12 +1,14 @@
 from functools import wraps
 from gpiozero import DigitalOutputDevice
 
+from utils.deviceMock import DigitalOutputDeviceType
 
-type Compressor = str | DigitalOutputDevice
+
+type Compressor = str | DigitalOutputDeviceType
 compressor_pins = dict()
 
 
-def add_compressor_pin(name: str, compressor: DigitalOutputDevice) -> None:
+def add_compressor_pin(name: str, compressor: DigitalOutputDeviceType) -> None:
     """
     Add a new valve pin to the list of pins.
 
@@ -18,7 +20,7 @@ def add_compressor_pin(name: str, compressor: DigitalOutputDevice) -> None:
     compressor_pins[name] = compressor
 
 
-def get_compressor(name: str) -> DigitalOutputDevice:
+def get_compressor(name: str) -> DigitalOutputDeviceType:
     """
     Get the pin number of a valve.
 
@@ -70,7 +72,7 @@ def compressor_action(func: callable) -> callable:
         ):
             raise ValueError("First argument must be a string or a DigitalOutputDevice")
         valve = get_compressor(args[0]) if isinstance(args[0], str) else args[0]
-        func(valve, *args[1:], **kwargs)
+        return func(valve, *args[1:], **kwargs)
 
     return wrapper
 

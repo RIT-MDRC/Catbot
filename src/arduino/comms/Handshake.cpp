@@ -8,14 +8,12 @@ void Handshake::toggle()
 
 void Handshake::setHigh()
 {
-  status = true;
-  digitalWrite(pin, status);
+  setStatus(true);
 }
 
 void Handshake::setLow()
 {
-  status = false;
-  digitalWrite(pin, status);
+  setStatus(false);
 }
 
 void Handshake::setStatus(bool status)

@@ -1,11 +1,15 @@
 import json
-from unittest.mock import MagicMock, Mock
 from gpiozero import InputDevice, OutputDevice
 from control.muscle.muscle_controller import MuscleObj, add_muscle
 from dotenv import dotenv_values
 from io_controller.pneumatics.valve import add_valve_pin
 from io_controller.pneumatics.pressure import add_pressure_pin
-from utils.deviceMock import FakeInputDevice, FakeOutputDevice
+from utils.deviceMock import (
+    DigitalOutputDeviceType,
+    DigitalInputDeviceType,
+    FakeInputDevice,
+    FakeOutputDevice,
+)
 from utils.interval import set_interval
 
 
@@ -21,7 +25,7 @@ def is_dev() -> bool:
     return config["ENV"] == "dev"
 
 
-def create_input_device(pin: int, onDev: callable = None) -> InputDevice:
+def create_input_device(pin: int, onDev: callable = None) -> DigitalInputDeviceType:
     """
     Create a new input device.
 
@@ -43,7 +47,7 @@ create_pressure_device = lambda pin: create_input_device(pin, on_test_pressure_r
 """Create a new pressure device (alias for create_input_device)"""
 
 
-def create_output_device(pin: int, onDev: callable = None) -> OutputDevice:
+def create_output_device(pin: int, onDev: callable = None) -> DigitalOutputDeviceType:
     """
     Create a new output device.
 
@@ -115,7 +119,7 @@ def set_pin(config_data: dict, onDev: callable = None) -> dict:
 
 
 def on_test_pressure_reading(id):
-    if isinstance(id, InputDevice):
+    if isinstance(id, InputDevice) or isinstance(id, FakeInputDevice):
 
         def func():
             id.toggle()

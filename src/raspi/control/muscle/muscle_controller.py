@@ -127,25 +127,27 @@ def muscle_action(func: callable) -> callable:
 
 
 @muscle_action
-def contract(muscle: Muscle, check: callable = is_pressure_ok) -> bool:
+def contract(muscle: Muscle) -> bool:
     """
     Contract a muscle.
 
     Args:
         muscle (Muscle): the muscle to contract
-        check (callable): the function to check the pressure of the muscle (default: is_pressure_ok from io/pneumatics/pressure.py)
 
     Returns:
         True if the muscle was contracted, False otherwise
     """
-    if not check(muscle.pressure):
-        print("Pressure check failed, cannot contract muscle")
+    pressure = is_pressure_ok(muscle.pressure)
+    if pressure:
+        print(f"{muscle.pressure}: Pressure check failed, cannot contract muscle")
         return False
-    return turn_valve_on(muscle.valve)
+    print("contracting muscle")
+    turn_valve_on(muscle.valve)
+    return True
 
 
 @muscle_action
-def relax(muscle: Muscle, check: callable = get_valve_state) -> bool:
+def relax(muscle: Muscle) -> bool:
     """
     Relax a muscle.
 
@@ -153,7 +155,18 @@ def relax(muscle: Muscle, check: callable = get_valve_state) -> bool:
         muscle (Muscle): the muscle to relax
         check (callable): the function to check the state of the valve (default: get_valve_state from io/pneumatics/valve.py)
     """
-    if not check(muscle.valve):
-        print("Valve check failed, Muscle is already relaxed")
+    check = not get_valve_state(muscle.valve)
+    if check:
+        print(f"{muscle.valve}: Valve check failed, Muscle is already relaxed")
         return False
-    return turn_valve_off(muscle.valve)
+    print("relaxing muscle")
+    turn_valve_off(muscle.valve)
+    return True
+
+
+def noop(*args, **kwargs) -> bool:
+    """
+    No operation function.
+    Pass into check if you want to disable the check.
+    """
+    return True

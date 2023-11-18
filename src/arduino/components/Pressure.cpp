@@ -14,15 +14,15 @@
  */
 float Pressure::getPressure()
 {
-  float voltage = (analogRead(PRESSURE_SENSOR_PIN) / pow(2, RESOLUTION_BITS)) * 3.3; // Volts
-  Pressure::pressure = map(voltage, MIN_VOLTAGE, MAX_VOLTAGE, P_MIN, P_MAX);
+  int max_read_value = pow(2, RESOLUTION_BITS);
+  Pressure::pressure = map(analogRead(PRESSURE_SENSOR_PIN), max_read_value * 0.1, max_read_value*0.9, P_MIN, P_MAX);
   return Pressure::pressure;
 }
 
 /**
  * Returns true if pressure is within tolerance of the ideal pressure
  */
-bool Pressure::PressureOk()
+bool Pressure::pressureOk()
 {
   getPressure();
   return (pressure >= SUFFICIENT_PRESSURE);
@@ -37,16 +37,8 @@ bool Pressure::PressureOk()
  * else:
  *   turn off compressor
  */
-void Pressure::Pressurize(bool override)
+void Pressure::pressurize(bool override)
 {
   getPressure();
-
-  if (pressure < IDEAL_PRESSURE || override)
-  { // First check if system pressure is too high, turn off compressor
-    digitalWrite(COMPRESSOR_PIN, HIGH);
-  }
-  else
-  {
-    digitalWrite(COMPRESSOR_PIN, LOW);
-  }
+  digitalWrite(COMPRESSOR_PIN, (pressure < IDEAL_PRESSURE || override));
 }

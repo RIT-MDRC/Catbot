@@ -1,11 +1,13 @@
 from functools import wraps
 from gpiozero import DigitalInputDevice
 
-type Pressure_device = str | DigitalInputDevice
+from utils.deviceMock import DigitalInputDeviceType, FakeInputDevice
+
+type Pressure_device = str | DigitalInputDeviceType
 pressure_pins = dict()
 
 
-def add_pressure_pin(name: str, pressure: DigitalInputDevice) -> None:
+def add_pressure_pin(name: str, pressure: DigitalInputDeviceType) -> None:
     """
     Add a new pressure sensor to the list of pins.
 
@@ -17,7 +19,7 @@ def add_pressure_pin(name: str, pressure: DigitalInputDevice) -> None:
     pressure_pins[name] = pressure
 
 
-def get_pressure_device(name: str) -> DigitalInputDevice:
+def get_pressure_device(name: str) -> DigitalInputDeviceType:
     """
     Get the pin number of a pressure sensor.
 
@@ -75,10 +77,14 @@ def pressure_action(func: callable) -> callable:
         """
         if len(args) < 1:
             raise ValueError("Missing argument")
-        if not isinstance(args[0], str) and not isinstance(args[0], DigitalInputDevice):
+        if (
+            not isinstance(args[0], str)
+            and not isinstance(args[0], DigitalInputDevice)
+            and not isinstance(args[0], FakeInputDevice)
+        ):
             raise ValueError("First argument must be a string or a DigitalOutputDevice")
         valve = get_pressure_device(args[0]) if isinstance(args[0], str) else args[0]
-        func(valve, *args[1:], **kwargs)
+        return func(valve, *args[1:], **kwargs)
 
     return wrapper
 
@@ -91,6 +97,7 @@ def is_pressure_ok(device: Pressure_device) -> bool:
     :param name: the name of the pressure sensor
     :return: true if the pressure sensor is ok, false otherwise
     """
+    print("is_pressure_ok", device)
     return device.is_active
 
 

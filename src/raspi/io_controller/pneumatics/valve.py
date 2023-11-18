@@ -1,12 +1,14 @@
 from functools import wraps
 from gpiozero import DigitalOutputDevice
 
+from utils.deviceMock import DigitalOutputDeviceType
 
-type Valve = str | DigitalOutputDevice
+
+type Valve = str | DigitalOutputDeviceType
 valve_pins = dict()
 
 
-def add_valve_pin(name: str, valve: DigitalOutputDevice) -> None:
+def add_valve_pin(name: str, valve: DigitalOutputDeviceType) -> None:
     """
     Add a new valve pin to the list of pins.
 
@@ -18,7 +20,7 @@ def add_valve_pin(name: str, valve: DigitalOutputDevice) -> None:
     valve_pins[name] = valve
 
 
-def get_valve(name: str) -> DigitalOutputDevice:
+def get_valve(name: str) -> DigitalOutputDeviceType:
     """
     Get the pin number of a valve.
 
@@ -70,7 +72,7 @@ def valve_action(func: callable) -> callable:
         ):
             raise ValueError("First argument must be a string or a DigitalOutputDevice")
         valve = get_valve(args[0]) if isinstance(args[0], str) else args[0]
-        func(valve, *args[1:], **kwargs)
+        return func(valve, *args[1:], **kwargs)
 
     return wrapper
 
@@ -124,4 +126,4 @@ def get_valve_state(valve: Valve) -> bool:
     :param valve: the valve to get the state of
     :return: `True` if the valve is on, `False` if it is off
     """
-    return valve.value
+    return valve.value == 1

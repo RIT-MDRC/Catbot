@@ -7,30 +7,21 @@ public:
         int RESOLUTION_BITS,
         float IDEAL_PRESSURE,
         float SUFFICIENT_PRESSURE,
-        float P_MIN, float P_MAX,
-        int MIN_VOLTAGE, int MAX_VOLTAGE) : PRESSURE_SENSOR_PIN(PRESSURE_SENSOR_PIN),
+        float P_MIN, float P_MAX) : PRESSURE_SENSOR_PIN(PRESSURE_SENSOR_PIN),
                                             COMPRESSOR_PIN(COMPRESSOR_PIN),
                                             RESOLUTION_BITS(RESOLUTION_BITS),
                                             IDEAL_PRESSURE(IDEAL_PRESSURE),
                                             SUFFICIENT_PRESSURE(SUFFICIENT_PRESSURE),
-                                            PRESSURE_RANGE(P_MAX - P_MIN),
                                             P_MAX(P_MAX),
-                                            P_MIN(P_MIN),
-                                            VOLTAGE_RANGE(MAX_VOLTAGE - MIN_VOLTAGE),
-                                            MAX_VOLTAGE(MAX_VOLTAGE),
-                                            MIN_VOLTAGE(MIN_VOLTAGE)
+                                            P_MIN(P_MIN)
     {
     }
     float getPressure();
-    bool PressureOk();
-    void Pressurize(bool override);
+    bool pressureOk();
+    void pressurize(bool override);
 
 private:
     const float IDEAL_PRESSURE;
-    const int PRESSURE_RANGE;
-    const int VOLTAGE_RANGE;
-    const int MAX_VOLTAGE;
-    const int MIN_VOLTAGE;
     const int P_MAX;
     const int P_MIN;
     const int PRESSURE_SENSOR_PIN;

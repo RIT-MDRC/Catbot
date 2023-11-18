@@ -1,4 +1,8 @@
 from control.muscle.muscle_controller import contract, relax
+from io_controller.pneumatics.compressor import (
+    turn_compressor_off,
+    turn_compressor_on,
+)
 from utils.interval import clear_intervals
 from utils.util import *
 from io_controller.pneumatics.pressure import on_pressure_active, on_pressure_deactive
@@ -39,11 +43,11 @@ def main():
 
     on_pressure_active(
         "left_pressure",
-        lambda: render_pressure_status(True),
+        lambda: render_pressure_status(False),
     )
     on_pressure_deactive(
         "left_pressure",
-        lambda: render_pressure_status(False),
+        lambda: render_pressure_status(True),
     )
     exit = False
     while not exit:
@@ -52,12 +56,14 @@ def main():
                 if event.key == pygame.K_q:
                     exit = True
                 elif event.key == pygame.K_w or event.key == pygame.K_UP:
-                    contract("left_muscle")
-                    render_up_status(True)
+                    res = contract("left_muscle")
+                    if res:
+                        render_up_status(True)
             elif event.type == pygame.KEYUP:
                 if event.key == pygame.K_w or event.key == pygame.K_UP:
-                    relax("left_muscle")
-                    render_up_status(False)
+                    res = relax("left_muscle")
+                    if res:
+                        render_up_status(False)
             elif event.type == pygame.QUIT:
                 exit = True
         pygame.display.update()
@@ -81,21 +87,33 @@ def render_text(rect, text):
     return screen.blit(surface, (rect[0], rect[1]))
 
 
-render_up_status: callable = lambda status: render_text(
-    (0, 0, 640, 36), f"Up: {status}"
-)
-"""Renders the up button status
-Args:
-    status(bool): the status to render
-"""
+def render_up_status(status: bool):
+    """Renders the up button status
 
-render_pressure_status: callable = lambda status: render_text(
-    (0, 36, 640, 36), f"Pressure: {status}"
-)
-"""Renders the pressure status
-Args:
-    status(bool): the status to render
-"""
+    Args:
+        status(bool): the status to render
+    """
+    render_text((0, 0, 640, 36), f"Up: {status}")
+
+
+def render_pressure_status(status: bool):
+    """Renders the pressure status
+
+    Args:
+        status(bool): the status to render
+    """
+    render_text((0, 36, 640, 36), f"Pressure: {status}")
+
+
+def change_compressor(status: bool):
+    """Renders the compressor status
+
+    Args:
+        status(bool): the status to render
+    """
+    action = turn_compressor_on if status else turn_compressor_off
+    action("main_compressor")
+
 
 sysFont, screen, clock = setup()
 main()
