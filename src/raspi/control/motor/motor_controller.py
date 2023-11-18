@@ -57,4 +57,5 @@ class MotorController:
         self.set_PWM(speed)
         self.set_direction(direction)
         self.direction = direction
+        self.last_speed = speed
         return True
