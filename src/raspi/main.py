@@ -8,7 +8,11 @@ from control.motor.motor_controller import MotorController
 from utils.cpu import setup_cpu
 from utils.interval import clear_intervals
 from utils.util import *
-from io_controller.pneumatics.pressure import on_pressure_active, on_pressure_deactive
+from io_controller.pneumatics.pressure import (
+    is_pressure_ok,
+    on_pressure_active,
+    on_pressure_deactive,
+)
 import pygame
 
 SPEED = 0.1
@@ -56,7 +60,8 @@ def main():
     """Main program loop"""
     screen_setup()
     setup_cpu(render_temperature_status)
-    change_compressor(True)
+    if is_pressure_ok("left_pressure"):
+        change_compressor(True)
     on_pressure_active(
         "left_pressure",
         lambda: change_compressor(True),
