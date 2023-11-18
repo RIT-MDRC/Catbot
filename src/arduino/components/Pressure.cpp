@@ -1,3 +1,5 @@
+#include <Arduino.h>
+
 #include "pressure.h"
 
 /**
@@ -12,18 +14,18 @@
  */
 float Pressure::getPressure()
 {
-  double sensorRead = analogRead(sensorPin) * 0.0049;                                                                // Volts
-  double pressure = (((sensorRead - 0.1 * VOLTAGE_CONST) * (P_MAX - P_MIN)) / (0.8 * VOLTAGE_CONST)) + P_MIN + 0.36; // PSI
-  Pressure::pressure = pressure;
-  return pressure;
+  int max_read_value = pow(2, RESOLUTION_BITS);
+  Pressure::pressure = map(analogRead(PRESSURE_SENSOR_PIN), max_read_value * 0.1, max_read_value*0.9, P_MIN, P_MAX);
+  return Pressure::pressure;
 }
 
 /**
  * Returns true if pressure is within tolerance of the ideal pressure
  */
-bool Pressure::PressureOk()
+bool Pressure::pressureOk()
 {
-  return (pressure >= IDEAL_PRESSURE - IDEAL_PRESSURE_RANGE);
+  getPressure();
+  return (pressure >= SUFFICIENT_PRESSURE);
 }
 
 /**
@@ -35,16 +37,8 @@ bool Pressure::PressureOk()
  * else:
  *   turn off compressor
  */
-void Pressure::Pressurize(bool override)
+void Pressure::pressurize(bool override)
 {
   getPressure();
-
-  if (pressure < IDEAL_PRESSURE || override)
-  { // First check if system pressure is too high, turn off compressor
-    digitalWrite(compressorPin, HIGH);
-  }
-  else
-  {
-    digitalWrite(compressorPin, LOW);
-  }
+  digitalWrite(COMPRESSOR_PIN, (pressure < IDEAL_PRESSURE || override));
 }

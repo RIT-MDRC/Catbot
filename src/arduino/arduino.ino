@@ -1,80 +1,43 @@
-#include <DS1307RTC.h>
-#include <TimeLib.h>
-#include <Time.h>
 #include "components/Pressure.cpp"
+#include "comms/handshake.cpp"
 
 // pins
-#define COMPRESSOR_PIN 9
+#define COMPRESSOR_PIN 12
 #define VALVE_1_PIN 8
-#define SENSOR_PIN A0         // Analog
-#define COMP_SWITCH_PIN 11    // button #1
-#define VALVE_1_SWITCH_PIN 10 // button #2
+#define PRESSURE_SENSOR_PIN A0 // Analog
+#define HANDSHAKE_PIN 1
 
-// constants for calculating pressure
-#define VOLTAGE_CONST 5
-#define P_MAX 145 // psi
-#define P_MIN 0
+// Operating range of the compressor/pressure system
+#define MIN_VOLTAGE 0.33 // at <MIN_PSI> psi
+#define MAX_VOLTAGE 2.98 // at <MAX_PSI> psi
+#define MIN_PSI 0
+#define MAX_PSI 150
 
 // constants for pressure
-#define IDEAL_PRESSURE 82       // average pressure we want to maintain
-#define IDEAL_PRESSURE_RANGE 10 // range of pressure we want to send ok signal to raspi (okay signal if pressure is above IP minus IPR)
+#define IDEAL_PRESSURE 70 // average pressure we want to maintain
 
-#define TIME_DURATION_FOR_VALVE_OPEN 5 // seconds
+// Resolution to set the ADC to
+#define RESOLUTION_BITS 12
 
-int timeWhenValveOpened;
+// Pressure level that we need to hit to be able to flex the leg (in psi)
+// If the psi is higher than this value the handshake will be set high
+#define SUFFICIENT_PRESSURE 70
+
 Pressure *systemPressure = NULL;
+Handshake *handshake = NULL;
 
 void setup()
 {
   Serial.begin(9600);
-  systemPressure = new Pressure(SENSOR_PIN, COMPRESSOR_PIN, IDEAL_PRESSURE, IDEAL_PRESSURE_RANGE, P_MIN, P_MAX, VOLTAGE_CONST);
+  analogReadResolution(RESOLUTION_BITS);
+  systemPressure = new Pressure(PRESSURE_SENSOR_PIN, COMPRESSOR_PIN, RESOLUTION_BITS, IDEAL_PRESSURE, SUFFICIENT_PRESSURE, MIN_PSI, MAX_PSI);
+  handshake = new Handshake(HANDSHAKE_PIN);
 }
 
 void loop()
 {
-  systemPressure->Pressurize(compSwitchPressed() && !valveSwitchPressed());
-  valveControl();
-  Serial.println(systemPressure->getPressure());
+  systemPressure->pressurize(false);
+  handshake->setStatus(!(systemPressure->pressureOk()));
+  Serial.println(systemPressure->pressureOk());
   delay(100);
-}
-
-/**
- * Returns compressor button status
- */
-bool compSwitchPressed()
-{
-  return digitalRead(COMP_SWITCH_PIN) == HIGH;
-}
-
-/**
- * Returns valve button status
- */
-bool valveSwitchPressed()
-{
-  return digitalRead(VALVE_1_SWITCH_PIN) == HIGH;
-}
-
-/**
- * Opens or closes the valve based on time and active button
- *
- * LOGIC:
- * If the valve button is pressed and valve is not open:
- *   the valve will open
- * else if valve is opened for more than TIME_DURATION_FOR_VALVE_OPEN or both button is pressed:
- *   the valve will close
- * else:
- *   No op
- */
-void valveControl()
-{
-  if (!compSwitchPressed() && valveSwitchPressed() && timeWhenValveOpened == NULL)
-  { // If valve switch is pressed open valve
-    timeWhenValveOpened = now();
-    digitalWrite(VALVE_1_PIN, HIGH);
-  }
-  else if ((timeWhenValveOpened + TIME_DURATION_FOR_VALVE_OPEN < now()) || (compSwitchPressed() && valveSwitchPressed()))
-  {
-    timeWhenValveOpened = NULL;
-    digitalWrite(VALVE_1_PIN, LOW);
-  }
 }
