@@ -1,7 +1,7 @@
 from gpiozero import PWMOutputDevice
 from gpiozero import DigitalOutputDevice
 
-from raspi.utils.util import create_output_device
+from utils.util import create_output_device
 
 
 class MotorController:
@@ -52,7 +52,8 @@ class MotorController:
     # Method for setting this ESC to a given speed and direction
     def set_Motor(self, speed, direction):
         if speed != 0 and self.direction != direction:
-            return
+            return False
         self.set_PWM(speed)
         self.set_direction(direction)
         self.direction = direction
+        return True
