@@ -50,6 +50,7 @@ class MotorController:
     ### USE THIS ONE ###
     # Method for setting this ESC to a given speed and direction
     def set_Motor(self, speed, direction):
+        print(f"motor called {speed} {direction}")
         if speed != 0 and self.direction != direction:
             print("ERROR: Motor direction and speed do not match")
             return False
