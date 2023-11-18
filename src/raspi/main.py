@@ -56,11 +56,11 @@ def main():
                 if event.key == pygame.K_q:
                     exit = True
                 elif event.key == pygame.K_w or event.key == pygame.K_UP:
-                    res = toggle_muscle_state("left_muscle")
+                    res = contract("left_muscle")
                     if res:
                         render_up_status(True)
                 elif event.key == pygame.K_s or event.key == pygame.K_DOWN:
-                    res = toggle_muscle_state("left_muscle")
+                    res = relax("left_muscle")
                     if res:
                         render_up_status(False)
             elif event.type == pygame.KEYUP:
