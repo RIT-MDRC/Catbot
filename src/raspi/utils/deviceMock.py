@@ -1,6 +1,4 @@
 from functools import wraps
-from typing import Any
-from gpiozero import DigitalInputDevice, DigitalOutputDevice
 
 
 def value_change(func: callable) -> callable:

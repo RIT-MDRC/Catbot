@@ -1,4 +1,3 @@
-from enum import Enum
 from time import sleep
 from control.muscle.muscle_controller import contract, relax
 from io_controller.pneumatics.compressor import (
@@ -87,11 +86,11 @@ def main():
                     step(motor)
             elif event.type == pygame.KEYUP:
                 if event.key == pygame.K_a or event.key == pygame.K_LEFT:
-                    res = stop_motor_left()
+                    res = turn_motor_left(0)
                     if res:
                         render_left_status(False)
                 elif event.key == pygame.K_d or event.key == pygame.K_RIGHT:
-                    res = stop_motor_right()
+                    res = turn_motor_right(0)
                     if res:
                         render_right_status(False)
                 elif event.key == pygame.K_w or event.key == pygame.K_UP:
@@ -186,11 +185,6 @@ def turn_motor_left(speed):
     return motor.set_Motor(speed, 1)
 
 
-def stop_motor_left():
-    """Stops the motor"""
-    return motor.set_Motor(0, 1)
-
-
 def turn_motor_right(speed):
     """Turns the motor right
 
@@ -200,23 +194,18 @@ def turn_motor_right(speed):
     return motor.set_Motor(speed, 0)
 
 
-def stop_motor_right():
-    """Stops the motor"""
-    return motor.set_Motor(0, 0)
-
-
 def step():
     contract("left_muscle")
     sleep(1)
     turn_motor_right(SPEED)
     sleep(1)
-    stop_motor_right()
+    turn_motor_right(0)
     sleep(1)
     relax("left_muscle")
     sleep(1)
     turn_motor_left(SPEED)
     sleep(1)
-    stop_motor_left()
+    turn_motor_left(0)
     sleep(1)
 
 
