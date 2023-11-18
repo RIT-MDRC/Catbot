@@ -7,7 +7,7 @@ class MotorController:
     motor = None
     PWM_Pin = None
     last_speed = 0
-    direction = 0  # 0 for forward, 1 for backward
+    last_direction = 0  # 0 for forward, 1 for backward
 
     def __init__(self, PWM_Pin, address):
         self.PWM_Pin = (
@@ -51,11 +51,11 @@ class MotorController:
     # Method for setting this ESC to a given speed and direction
     def set_Motor(self, speed, direction):
         print(f"motor called {speed} {direction}")
-        if speed != 0 and self.last_speed != 0 and self.direction != direction:
+        if speed != 0 and self.last_speed != 0 and self.last_direction != direction:
             print("ERROR: Motor direction and speed do not match")
             return False
         self.set_PWM(speed)
         self.set_direction(direction)
-        self.direction = direction
+        self.last_direction = direction
         self.last_speed = speed
         return True
