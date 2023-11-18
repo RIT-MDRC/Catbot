@@ -186,15 +186,15 @@ def change_compressor(status: bool):
 def step(motor):
     contract("left_muscle")
     sleep(1)
-    motor.set_Motor(SPEED, 1)
-    sleep(1)
-    motor.set_Motor(0, 1)
-    sleep(1)
-    relax("left_muscle")
-    sleep(1)
     motor.set_Motor(SPEED, 0)
     sleep(1)
     motor.set_Motor(0, 0)
+    sleep(1)
+    relax("left_muscle")
+    sleep(1)
+    motor.set_Motor(SPEED, 1)
+    sleep(1)
+    motor.set_Motor(0, 1)
     sleep(1)
 
 
