@@ -57,14 +57,14 @@ def main():
     screen_setup()
     setup_cpu(render_temperature_status)
 
-    on_pressure_active(
-        "left_pressure",
-        lambda: render_pressure_status(False),
-    )
-    on_pressure_deactive(
-        "left_pressure",
-        lambda: render_pressure_status(True),
-    )
+    # on_pressure_active(
+    #     "left_pressure",
+    #     lambda: render_pressure_status(False),
+    # )
+    # on_pressure_deactive(
+    #     "left_pressure",
+    #     lambda: render_pressure_status(True),
+    # )
     exit = False
     while not exit:
         for event in pygame.event.get():
