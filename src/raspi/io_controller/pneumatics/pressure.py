@@ -7,7 +7,7 @@ from utils.deviceMock import FakeInputDevice
 pressure_pins = dict()
 
 
-def add_pressure_pin(name: str, pressure) -> None:
+def register_pressure_pin(name: str, pressure) -> None:
     """
     Add a new pressure sensor to the list of pins.
 

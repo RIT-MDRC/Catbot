@@ -5,7 +5,7 @@ from gpiozero import DigitalOutputDevice
 valve_pins = dict()
 
 
-def add_valve_pin(name: str, valve) -> None:
+def register_valve_pin(name: str, valve) -> None:
     """
     Add a new valve pin to the list of pins.
 

@@ -41,7 +41,7 @@ class MuscleObj:
         setattr(self, key, value)
 
 
-def add_muscle(name: str, muscle) -> None:
+def register_muscle(name: str, muscle) -> None:
     """
     Add a new muscle to the list of pins.
 

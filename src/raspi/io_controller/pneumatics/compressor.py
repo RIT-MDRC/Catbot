@@ -5,7 +5,7 @@ from gpiozero import DigitalOutputDevice
 compressor_pins = dict()
 
 
-def add_compressor_pin(name: str, compressor) -> None:
+def register_compressor_pin(name: str, compressor) -> None:
     """
     Add a new valve pin to the list of pins.
 

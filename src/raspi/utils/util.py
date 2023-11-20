@@ -1,10 +1,10 @@
 import json
 from gpiozero import DigitalInputDevice, DigitalOutputDevice, PWMOutputDevice
-from control.muscle.muscle_controller import MuscleObj, add_muscle
+from control.muscle.muscle_controller import MuscleObj, register_muscle
 from dotenv import dotenv_values
-from io_controller.pneumatics.valve import add_valve_pin
-from io_controller.pneumatics.pressure import add_pressure_pin
-from io_controller.pneumatics.compressor import add_compressor_pin
+from io_controller.pneumatics.valve import register_valve_pin
+from io_controller.pneumatics.pressure import register_pressure_pin
+from io_controller.pneumatics.compressor import register_compressor_pin
 from utils.deviceMock import (
     FakeInputDevice,
     FakeOutputDevice,
@@ -115,22 +115,22 @@ def set_pin(config_data: dict, onDev: callable = None) -> dict:
         if str.endswith(key, "valve"):
             pin = config_data[key]
             od = create_output_device(pin)
-            add_valve_pin(key, od)
+            register_valve_pin(key, od)
             ret[key] = od
         elif str.endswith(key, "pressure"):
             pin = config_data[key]
             id = create_pressure_device(pin)
-            add_pressure_pin(key, id)
+            register_pressure_pin(key, id)
             ret[key] = id
         elif str.endswith(key, "muscle"):
             raw_muscle = set_pin(config_data[key])
             muscle = create_dataclass(MuscleObj(), raw_muscle)
-            add_muscle(key, muscle)
+            register_muscle(key, muscle)
             ret[key] = muscle
         elif str.endswith(key, "compressor"):
             pin = config_data[key]
             od = create_output_device(pin)
-            add_compressor_pin(key, od)
+            register_compressor_pin(key, od)
             ret[key] = od
         else:
             raise ValueError(f"Invalid key {key}")
