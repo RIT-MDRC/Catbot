@@ -11,8 +11,9 @@ def register_pressure_pin(name: str, pressure) -> None:
     """
     Add a new pressure sensor to the list of pins.
 
-    :param name: the name of the pressure sensor
-    :param pin: the pin number of the pressure sensor
+    Args:
+        name (str): the name of the pressure sensor
+        pin (int): the pin number of the pressure sensor
     """
     if name in pressure_pins:
         raise ValueError(f"Pressure sensor {name} already exists")
@@ -23,8 +24,11 @@ def get_pressure_device(name: str):
     """
     Get the pin number of a pressure sensor.
 
-    :param name: the name of the pressure sensor
-    :return: the pin number of the pressure sensor
+    Args:
+        name (str): the name of the pressure sensor
+
+    Returns:
+        (int) the pin number of the pressure sensor
     """
     try:
         device = pressure_pins[name]
@@ -44,7 +48,8 @@ def get_pressure_names() -> list[str]:
     """
     Get a list of all the pressure sensor names.
 
-    :return: a list of all the pressure sensor names
+    Returns:
+        (list[str]) a list of all the pressure sensor names
     """
     return list(pressure_pins.keys())
 
@@ -53,7 +58,8 @@ def get_pressure_devices() -> list[int]:
     """
     Get a list of all the pressure sensor pins.
 
-    :return: a list of all the pressure sensor pins
+    Returns:
+        (list[int]) a list of all the pressure sensor pins
     """
     return list(pressure_pins.values())
 
@@ -62,8 +68,11 @@ def pressure_action(func: callable) -> callable:
     """
     Decorator for valve actions.
 
-    :param func: the function to decorate
-    :return: the decorated function
+    Args:
+        func (callable): the function to decorate
+
+    Returns:
+        (callable) the decorated function
     """
 
     @wraps(func)
@@ -71,9 +80,10 @@ def pressure_action(func: callable) -> callable:
         """
         Decorated function.
 
-        :param name: the name of the valve
-        :param args: the arguments to pass to the function
-        :param kwargs: the keyword arguments to pass to the function
+        Args:
+            name (str): the name of the pressure sensor
+            args: the arguments to pass to the function
+            kwargs: the keyword arguments to pass to the function
         """
         if len(args) < 1:
             raise ValueError("Missing argument")
@@ -94,8 +104,11 @@ def is_pressure_ok(device) -> bool:
     """
     Check if the pressure sensor is ok.
 
-    :param name: the name of the pressure sensor
-    :return: true if the pressure sensor is ok, false otherwise
+    Args:
+        name (str): the name of the pressure sensor
+
+    Returns:
+        (bool) true if the pressure sensor is ok, false otherwise
     """
     print("is_pressure_ok", device)
     return device.is_active
@@ -106,8 +119,9 @@ def on_pressure_active(device, action: callable) -> None:
     """
     Add a new pressure sensor change event.
 
-    :param name: the name of the pressure sensor
-    :param action: the action to perform when the pressure sensor changes
+    Args:
+        name (str): the name of the pressure sensor
+        action (callable): the action to perform when the pressure sensor changes
     """
     if isinstance(device, str):
         return
@@ -119,8 +133,9 @@ def on_pressure_deactive(device, action: callable) -> None:
     """
     Add a new pressure sensor change event.
 
-    :param name: the name of the pressure sensor
-    :param action: the action to perform when the pressure sensor changes
+    Args:
+        name (str): the name of the pressure sensor
+        action (callable): the action to perform when the pressure sensor changes
     """
     if isinstance(device, str):
         return
