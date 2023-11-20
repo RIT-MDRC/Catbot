@@ -25,7 +25,7 @@ class MuscleObj:
     muscle.pressure.get_pressure()
     muscle.valve.turn_valve_on()
     ```
-
+    \n remember that the dataclass should not contain any logic, only data.
     Args:
         pressure (str): the name of the pressure sensor
         valve (str): the name of the valve
@@ -105,9 +105,9 @@ def muscle_action(func: callable) -> callable:
         """
         Decorated function.
 
-        :param name: the name of the muscle
-        :param args: the arguments of the function
-        :param kwargs: the keyword arguments of the function
+        Args:
+            args: the arguments of the function
+            kwargs: the keyword arguments of the function
         """
         if len(args) == 0:
             raise ValueError("Muscle name not provided")

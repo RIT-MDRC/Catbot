@@ -34,7 +34,7 @@ def setup():
     sysFont = pygame.font.SysFont("Ariel", 36)
     screen = pygame.display.set_mode((640, 480))
     clock = pygame.time.Clock()
-    motor = MotorController(26, 0)
+    motor = MotorController(26, 0, 1, [5, 6, 12])
 
     return sysFont, screen, clock, motor
 
@@ -182,7 +182,7 @@ def turn_motor_left(speed):
     Args:
         speed(float): the speed to turn the motor at
     """
-    return motor.set_Motor(speed, 1)
+    return motor.set_speed_dir(speed, 1)
 
 
 def turn_motor_right(speed):
@@ -191,7 +191,7 @@ def turn_motor_right(speed):
     Args:
         speed(float): the speed to turn the motor at
     """
-    return motor.set_Motor(speed, 0)
+    return motor.set_speed_dir(speed, 0)
 
 
 def step():
