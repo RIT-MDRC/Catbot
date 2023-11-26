@@ -4,6 +4,10 @@
 
 class Handshake
 {
+private:
+  bool status = false;
+  uint8_t _pin;
+
 public:
   Handshake(){};
   Handshake(uint8_t pin);
@@ -13,8 +17,4 @@ public:
   void setLow();
   void setStatus(bool status);
   bool getStatus();
-
-private:
-  bool status = false;
-  int _pin;
 };

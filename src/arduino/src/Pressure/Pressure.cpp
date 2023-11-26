@@ -2,13 +2,6 @@
 
 /**
  * Returns pressure in PSI
- *
- * LOGIC:
- * 1. Read sensor value
- * 2. Convert sensor value to voltage
- * 3. Convert voltage to pressure
- * 4. Set pressure
- * 5. Return pressure
  */
 float Pressure::getPressure()
 {
@@ -37,9 +30,9 @@ Pressure::Pressure(
 
 void Pressure::init()
 {
-  _pressure = 0;
   pinMode(_PRESSURE_SENSOR_PIN, INPUT);
   pinMode(_COMPRESSOR_PIN, OUTPUT);
+  getPressure();
 }
 
 /**
