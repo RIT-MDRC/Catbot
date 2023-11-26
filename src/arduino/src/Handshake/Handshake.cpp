@@ -1,9 +1,20 @@
-#include "handshake.h"
+#include "Handshake.h"
+
+Handshake::Handshake(int pin)
+{
+  this->_pin = pin;
+  init();
+}
+
+void Handshake::init()
+{
+  pinMode(_pin, OUTPUT);
+}
 
 void Handshake::toggle()
 {
   status = !status;
-  digitalWrite(pin, status);
+  digitalWrite(_pin, status);
 }
 
 void Handshake::setHigh()
@@ -19,7 +30,7 @@ void Handshake::setLow()
 void Handshake::setStatus(bool status)
 {
   this->status = status;
-  digitalWrite(pin, status);
+  digitalWrite(_pin, status);
 }
 
 bool Handshake::getStatus()

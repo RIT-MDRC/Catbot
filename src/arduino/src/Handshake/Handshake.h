@@ -1,10 +1,13 @@
+#pragma once
+
+#include <Arduino.h>
+
 class Handshake
 {
 public:
-  Handshake(int pin) : pin(pin)
-  {
-    pinMode(pin, OUTPUT);
-  }
+  Handshake(){};
+  Handshake(int pin);
+  void init();
   void toggle();
   void setHigh();
   void setLow();
@@ -13,5 +16,5 @@ public:
 
 private:
   bool status = false;
-  int pin;
+  int _pin;
 };

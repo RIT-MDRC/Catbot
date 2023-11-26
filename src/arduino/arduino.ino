@@ -1,5 +1,5 @@
-#include "components/Pressure.cpp"
-#include "comms/handshake.cpp"
+#include "src/Pressure/Pressure.h"
+#include "src/Handshake/Handshake.h"
 
 // pins
 #define COMPRESSOR_PIN 12
