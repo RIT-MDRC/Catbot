@@ -7,8 +7,8 @@ class Pressure
 public:
     Pressure(){};
     Pressure(
-        byte PRESSURE_SENSOR_PIN,
-        byte COMPRESSOR_PIN,
+        uint8_t PRESSURE_SENSOR_PIN,
+        uint8_t COMPRESSOR_PIN,
         int RESOLUTION_BITS,
         float IDEAL_PRESSURE,
         float SUFFICIENT_PRESSURE,
