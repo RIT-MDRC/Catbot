@@ -6,7 +6,7 @@ class Handshake
 {
 public:
   Handshake(){};
-  Handshake(int pin);
+  Handshake(byte pin);
   void init();
   void toggle();
   void setHigh();

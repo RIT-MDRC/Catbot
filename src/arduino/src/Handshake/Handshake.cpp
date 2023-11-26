@@ -1,6 +1,6 @@
 #include "Handshake.h"
 
-Handshake::Handshake(int pin)
+Handshake::Handshake(byte pin)
 {
   this->_pin = pin;
   init();

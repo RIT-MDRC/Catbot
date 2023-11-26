@@ -23,21 +23,19 @@
 // If the psi is higher than this value the handshake will be set high
 #define SUFFICIENT_PRESSURE 70
 
-Pressure *systemPressure = NULL;
-Handshake *handshake = NULL;
+Pressure systemPressure(PRESSURE_SENSOR_PIN, COMPRESSOR_PIN, RESOLUTION_BITS, IDEAL_PRESSURE, SUFFICIENT_PRESSURE, MIN_PSI, MAX_PSI);
+Handshake handshake(HANDSHAKE_PIN);
 
 void setup()
 {
   Serial.begin(9600);
   analogReadResolution(RESOLUTION_BITS);
-  systemPressure = new Pressure(PRESSURE_SENSOR_PIN, COMPRESSOR_PIN, RESOLUTION_BITS, IDEAL_PRESSURE, SUFFICIENT_PRESSURE, MIN_PSI, MAX_PSI);
-  handshake = new Handshake(HANDSHAKE_PIN);
 }
 
 void loop()
 {
-  systemPressure->pressurize(false);
-  handshake->setStatus(!(systemPressure->pressureOk()));
-  Serial.println(systemPressure->pressureOk());
+  systemPressure.pressurize(false);
+  handshake.setStatus(!(systemPressure.pressureOk()));
+  Serial.println(systemPressure.pressureOk());
   delay(100);
 }

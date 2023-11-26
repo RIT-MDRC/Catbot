@@ -7,8 +7,8 @@ class Pressure
 public:
     Pressure(){};
     Pressure(
-        uint8_t PRESSURE_SENSOR_PIN,
-        uint8_t COMPRESSOR_PIN,
+        byte PRESSURE_SENSOR_PIN,
+        byte COMPRESSOR_PIN,
         int RESOLUTION_BITS,
         float IDEAL_PRESSURE,
         float SUFFICIENT_PRESSURE,
@@ -19,14 +19,13 @@ public:
     void pressurize(bool override);
 
 private:
+    unsigned int _RESOLUTION_BITS;
+    unsigned int _SUFFICIENT_PRESSURE;
     unsigned int _IDEAL_PRESSURE;
     unsigned int _P_MAX;
     int _P_MIN;
     int _PRESSURE_SENSOR_PIN;
-    unsigned int _RESOLUTION_BITS;
     int _COMPRESSOR_PIN;
-
-    unsigned int _SUFFICIENT_PRESSURE;
 
     float _pressure;
 };

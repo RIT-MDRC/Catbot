@@ -13,13 +13,13 @@
 float Pressure::getPressure()
 {
   int max_read_value = pow(2, _RESOLUTION_BITS);
-  Pressure::_pressure = map(analogRead(_PRESSURE_SENSOR_PIN), max_read_value * 0.1, max_read_value * 0.9, _P_MIN, _P_MAX);
-  return Pressure::_pressure;
+  _pressure = map(analogRead(_PRESSURE_SENSOR_PIN), max_read_value * 0.1, max_read_value * 0.9, _P_MIN, _P_MAX);
+  return _pressure;
 }
 
 Pressure::Pressure(
-    uint8_t PRESSURE_SENSOR_PIN,
-    uint8_t COMPRESSOR_PIN,
+    byte PRESSURE_SENSOR_PIN,
+    byte COMPRESSOR_PIN,
     int RESOLUTION_BITS,
     float IDEAL_PRESSURE,
     float SUFFICIENT_PRESSURE,
@@ -37,6 +37,7 @@ Pressure::Pressure(
 
 void Pressure::init()
 {
+  _pressure = 0;
   pinMode(_PRESSURE_SENSOR_PIN, INPUT);
   pinMode(_COMPRESSOR_PIN, OUTPUT);
 }
