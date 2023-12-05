@@ -107,7 +107,7 @@ def turn_valve_off(valve) -> None:
 
 
 @valve_action
-def turn_value(valve, state: bool) -> None:
+def turn_valve(valve, state: bool) -> None:
     """
     Turn a valve on or off.
 
@@ -126,7 +126,7 @@ def toggle_valve(valve) -> None:
     Args:
         valve (DigitalOutputDevice): the valve to toggle
     """
-    turn_value(valve, not get_valve_state(valve))
+    turn_valve(valve, not get_valve_state(valve))
 
 
 @valve_action

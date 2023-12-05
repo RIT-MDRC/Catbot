@@ -8,7 +8,7 @@ class MotorController:
     pwm_pin: int
     current_speed = 0
     current_direction = 0  # 0 for forward, 1 for backward
-    address_output_devices: FakeOutputDevice | OutputDevice = []
+    address_output_devices: [FakeOutputDevice] | [OutputDevice] = []
 
     def __init__(
         self,
