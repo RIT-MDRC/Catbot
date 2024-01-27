@@ -1,2 +1,5 @@
-black==23.7.0
-gpiozero=1.6.2
+black
+gpiozero
+pygame
+smbus2; sys_platform == 'linux'
+RPi.GPIO; sys_platform == 'linux'

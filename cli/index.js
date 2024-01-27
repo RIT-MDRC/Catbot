@@ -15,7 +15,6 @@ yargs(hideBin(process.argv))
 				.option('f', {
 					alias: 'file',
 					describe: 'specify file to run',
-					default: 'main',
 					type: 'string',
 				})
 				.option('p', {

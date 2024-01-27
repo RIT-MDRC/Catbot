@@ -2,3 +2,5 @@
 **/arduino/build
 .vscode/c_cpp_properties.json
 .vscode/arduino.json
+**/.env
+*.pyc
