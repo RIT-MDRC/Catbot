@@ -1,3 +1,5 @@
+from gpiozero import DigitalOutputDevice
+
 from ..util.output_device import create_output_device_component
 
 (valve_action,) = create_output_device_component("valve")
@@ -11,7 +13,7 @@ __all__ = [
 
 
 @valve_action
-def turn_valve_on(valve) -> None:
+def turn_valve_on(valve: DigitalOutputDevice) -> None:
     """
     Turn a valve on.
 
@@ -22,7 +24,7 @@ def turn_valve_on(valve) -> None:
 
 
 @valve_action
-def turn_valve_off(valve) -> None:
+def turn_valve_off(valve: DigitalOutputDevice) -> None:
     """
     Turn a valve off.
 
@@ -33,7 +35,7 @@ def turn_valve_off(valve) -> None:
 
 
 @valve_action
-def turn_valve(valve, state: bool) -> None:
+def turn_valve(valve: DigitalOutputDevice, state: bool) -> None:
     """
     Turn a valve on or off.
 
@@ -45,7 +47,7 @@ def turn_valve(valve, state: bool) -> None:
 
 
 @valve_action
-def toggle_valve(valve) -> None:
+def toggle_valve(valve: DigitalOutputDevice) -> None:
     """
     Toggle a valve.
 
@@ -56,7 +58,7 @@ def toggle_valve(valve) -> None:
 
 
 @valve_action
-def get_valve_state(valve) -> bool:
+def get_valve_state(valve: DigitalOutputDevice) -> bool:
     """
     Get the state of a valve.
 

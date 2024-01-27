@@ -1,3 +1,5 @@
+from gpiozero import DigitalOutputDevice
+
 from ..util.output_device import create_output_device_component
 
 (compressor_action,) = create_output_device_component("compressor")
@@ -11,7 +13,7 @@ __all__ = [
 
 
 @compressor_action
-def turn_compressor_on(valve) -> None:
+def turn_compressor_on(valve: DigitalOutputDevice) -> None:
     """
     Turn a valve on.
 
@@ -22,7 +24,7 @@ def turn_compressor_on(valve) -> None:
 
 
 @compressor_action
-def turn_compressor_off(compressor) -> None:
+def turn_compressor_off(compressor: DigitalOutputDevice) -> None:
     """
     Turn a valve off.
 
@@ -33,7 +35,7 @@ def turn_compressor_off(compressor) -> None:
 
 
 @compressor_action
-def turn_valve(compressor, state: bool) -> None:
+def turn_valve(compressor: DigitalOutputDevice, state: bool) -> None:
     """
     Turn a valve on or off.
 
@@ -45,7 +47,7 @@ def turn_valve(compressor, state: bool) -> None:
 
 
 @compressor_action
-def toggle_valve(compressor) -> None:
+def toggle_valve(compressor: DigitalOutputDevice) -> None:
     """
     Toggle a valve.
 
@@ -56,7 +58,7 @@ def toggle_valve(compressor) -> None:
 
 
 @compressor_action
-def get_valve_state(compressor) -> bool:
+def get_valve_state(compressor: DigitalOutputDevice) -> bool:
     """
     Get the state of a valve.
 
