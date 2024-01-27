@@ -1,3 +1,3 @@
-import compressor as compressor_actions
-import pressure as pressure_actions
-import valve as valve_actions
+from compressor import compressor_actions
+from pressure import pressure_actions
+from valve import valve_actions
