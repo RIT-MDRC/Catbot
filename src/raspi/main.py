@@ -1,19 +1,21 @@
 from time import sleep
-from control.muscle.muscle_controller import contract, relax
-from io_controller.pneumatics.compressor import (
-    turn_compressor_off,
-    turn_compressor_on,
-)
+
+import pygame
 from control.motor.motor_controller import MotorController
+from control.muscle.muscle_controller import contract, relax
 from utils.cpu import setup_cpu
 from utils.interval import clear_intervals
 from utils.util import *
-from io_controller.pneumatics.pressure import (
+
+from raspi.io_controller.pneumatics.compressor.compressor import (
+    turn_compressor_off,
+    turn_compressor_on,
+)
+from raspi.io_controller.pneumatics.pressure.pressure import (
     is_pressure_ok,
     on_pressure_active,
     on_pressure_deactive,
 )
-import pygame
 
 SPEED = 0.1
 

@@ -1,12 +1,13 @@
-from functools import wraps
 from dataclasses import dataclass, field
+from functools import wraps
 
-from io_controller.pneumatics.pressure import is_pressure_ok
 from io_controller.pneumatics.valve import (
     get_valve_state,
     turn_valve_off,
     turn_valve_on,
 )
+
+from raspi.io_controller.pneumatics.pressure.pressure import is_pressure_ok
 
 muscles = dict()
 

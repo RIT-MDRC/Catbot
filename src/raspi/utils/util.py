@@ -1,16 +1,14 @@
 import json
-from gpiozero import DigitalInputDevice, DigitalOutputDevice, PWMOutputDevice
+
 from control.muscle.muscle_controller import MuscleObj, register_muscle
 from dotenv import dotenv_values
+from gpiozero import DigitalInputDevice, DigitalOutputDevice, PWMOutputDevice
 from io_controller.pneumatics.valve import register_valve_pin
-from io_controller.pneumatics.pressure import register_pressure_pin
-from io_controller.pneumatics.compressor import register_compressor_pin
-from utils.deviceMock import (
-    FakeInputDevice,
-    FakeOutputDevice,
-    FakePWMOutputDevice,
-)
+from utils.deviceMock import FakeInputDevice, FakeOutputDevice, FakePWMOutputDevice
 from utils.interval import set_interval
+
+from raspi.io_controller.pneumatics.compressor.compressor import register_compressor_pin
+from raspi.io_controller.pneumatics.pressure.pressure import register_pressure_pin
 
 
 def is_dev() -> bool:
