@@ -7,15 +7,8 @@ from utils.cpu import setup_cpu
 from utils.interval import clear_intervals
 from utils.util import *
 
-from raspi.io_controller.pneumatics.compressor.compressor import (
-    turn_compressor_off,
-    turn_compressor_on,
-)
-from raspi.io_controller.pneumatics.pressure.pressure import (
-    is_pressure_ok,
-    on_pressure_active,
-    on_pressure_deactive,
-)
+from raspi.io_controller import compressor_actions as comp
+from raspi.io_controller import pressure_actions as press
 
 SPEED = 0.1
 
@@ -56,13 +49,13 @@ def main():
     """Main program loop"""
     screen_setup()
     setup_cpu(render_temperature_status)
-    if is_pressure_ok("left_pressure"):
+    if press.is_pressure_ok("left_pressure"):
         change_compressor(True)
-    on_pressure_active(
+    press.on_pressure_active(
         "left_pressure",
         lambda: change_compressor(True),
     )
-    on_pressure_deactive(
+    press.on_pressure_deactive(
         "left_pressure",
         lambda: change_compressor(False),
     )
@@ -173,7 +166,7 @@ def change_compressor(status: bool):
     Args:
         status(bool): the status to render
     """
-    action = turn_compressor_on if status else turn_compressor_off
+    action = comp.turn_compressor_on if status else comp.turn_compressor_off
     action("main_compressor")
     render_pressure_status(status)
 
