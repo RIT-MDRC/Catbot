@@ -1,4 +1,13 @@
-from .util import compressor_action
+from ..util.output_device import create_output_device_component
+
+(compressor_action,) = create_output_device_component("compressor")
+__all__ = [
+    "turn_compressor_on",
+    "turn_compressor_off",
+    "turn_valve",
+    "toggle_compressor",
+    "get_compressor_state",
+]
 
 
 @compressor_action
@@ -24,7 +33,7 @@ def turn_compressor_off(compressor) -> None:
 
 
 @compressor_action
-def turn_value(compressor, state: bool) -> None:
+def turn_valve(compressor, state: bool) -> None:
     """
     Turn a valve on or off.
 
@@ -43,7 +52,7 @@ def toggle_valve(compressor) -> None:
     Args:
         valve (DigitalOutputDevice): the valve to toggle
     """
-    turn_value(compressor, not get_valve_state(compressor))
+    turn_valve(compressor, not get_valve_state(compressor))
 
 
 @compressor_action

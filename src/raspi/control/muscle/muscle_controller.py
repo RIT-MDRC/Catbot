@@ -1,13 +1,7 @@
 from dataclasses import dataclass, field
 from functools import wraps
 
-from io_controller.pneumatics.valve import (
-    get_valve_state,
-    turn_valve_off,
-    turn_valve_on,
-)
-
-from raspi.io_controller.pneumatics.pressure.pressure import is_pressure_ok
+from raspi.io_controller import pressure_actions, valve_actions
 
 muscles = dict()
 
@@ -134,12 +128,12 @@ def contract(muscle) -> bool:
     Returns:
         True if the muscle was contracted, False otherwise
     """
-    pressure = is_pressure_ok(muscle.pressure)
+    pressure = pressure_actions.is_pressure_ok(muscle.pressure)
     if pressure:
         print(f"{muscle.pressure}: Pressure check failed, cannot contract muscle")
         return False
     print("contracting muscle")
-    turn_valve_on(muscle.valve)
+    valve_actions.turn_valve_on(muscle.valve)
     return True
 
 
@@ -152,12 +146,12 @@ def relax(muscle) -> bool:
         muscle (Muscle): the muscle to relax
         check (callable): the function to check the state of the valve (default: get_valve_state from io/pneumatics/valve.py)
     """
-    check = not get_valve_state(muscle.valve)
+    check = not valve_actions.get_valve_state(muscle.valve)
     if check:
         print(f"{muscle.valve}: Valve check failed, Muscle is already relaxed")
         return False
     print("relaxing muscle")
-    turn_valve_off(muscle.valve)
+    valve_actions.turn_valve_off(muscle.valve)
     return True
 
 
@@ -169,7 +163,7 @@ def toggle_muscle_state(muscle) -> bool:
     Args:
         muscle (Muscle): the muscle to toggle
     """
-    is_contracted = get_valve_state(muscle.valve)
+    is_contracted = valve_actions.get_valve_state(muscle.valve)
     if is_contracted:
         return relax(muscle)
     return contract(muscle)

@@ -1,4 +1,13 @@
-from .util import valve_action
+from ..util.output_device import create_output_device_component
+
+(valve_action,) = create_output_device_component("valve")
+__all__ = [
+    "turn_valve_on",
+    "turn_valve_off",
+    "turn_valve",
+    "toggle_valve",
+    "get_valve_state",
+]
 
 
 @valve_action
