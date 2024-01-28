@@ -11,7 +11,7 @@ def create_device_global_store_definition(component_classes: list):
         component_classes (list): This is a list of classes that the device can be. For example, DigitalInputDevice and FakeInputDevice for DigitalInputDevices.
 
     Returns:
-        create_device_component (callable[[str, dict],[callable * 5]]): This is a function that creates a new device component.
+        create_device_component (callable[[str, dict], Tuple[callable * 5, dict]]): This is a function that creates a new device component.
 
     example:
         see src/device.py or src/raspi/io_controller/pneumatics/valve.py
@@ -28,7 +28,10 @@ def create_device_global_store_definition(component_classes: list):
         """
         Create a new output device component.
 
-        returns: (device_action, register_device, get_device, get_registered_devices, get_registered_device_names, gloabal_store)
+        Args:
+            component_name (str): the name of the component (used in error messages)
+            dict (dict): the dictionary to store the devices in
+        returns: Tuple[device_action, register_device, get_device, get_registered_devices, get_registered_device_names, gloabal_store]
         """
 
         def register_device(name: str, device) -> None:
@@ -57,7 +60,7 @@ def create_device_global_store_definition(component_classes: list):
             """
             return dict[name]
 
-        def get_registered_devices():
+        def get_registered_devices() -> list:
             """
             Get a list of all the device pins.
 
@@ -66,7 +69,7 @@ def create_device_global_store_definition(component_classes: list):
             """
             return list(dict.values())
 
-        def get_registered_device_names():
+        def get_registered_device_names() -> list[str]:
             """
             Get a list of all the device names.
 
@@ -113,11 +116,37 @@ def create_device_global_store_definition(component_classes: list):
     return create_device_component
 
 
+def create_component_store(
+    component_name: str, component_classes: list, dict: dict = dict()
+):
+    """_summary_
+
+    Args:
+        component_name (str): name of the component (used in error messages)
+        component_classes (list): classes that the device can be. For example, `[DigitalInputDevice, FakeInputDevice]` for DigitalInputDevice Store. (used to check if the device is a valid device)
+        dict (dict, optional): where the component instance is going to be stored in. Defaults to dict().
+
+    Returns:
+        Tuple[
+          device_action (callable): decorator for device actions,
+          register_device (callable): adds the device to the store,
+          get_device (callable): get the stored device by identifier,
+          get_registered_devices (callable): get a list of all the stored devices,
+          get_registered_device_names (callable): gets a list of stored names/identifiers,
+          gloabal_store (dict): the dictionary that stores the devices
+        ]
+    """
+    return create_device_global_store_definition(component_classes)(
+        component_name, dict
+    )
+
+
 create_input_device_component = create_device_global_store_definition(
     [DigitalInputDevice, FakeInputDevice]
 )
 """
 Create a new input device component.
+allowed device classes: DigitalInputDevice, FakeInputDevice
 returns: (device_action, register_device, get_device, get_registered_devices, get_registered_device_names, gloabal_store)
 """
 
@@ -127,5 +156,6 @@ create_output_device_component = create_device_global_store_definition(
 )
 """
 Create a new output device component.
+allowed device classes: DigitalOutputDevice, FakeOutputDevice
 returns: (device_action, register_device, get_device, get_registered_devices, get_registered_device_names, gloabal_store)
 """

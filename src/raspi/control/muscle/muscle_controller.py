@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 
 from raspi.io_controller import pressure_actions, valve_actions
 
-from ...io_controller.util.device import create_device_global_store_definition
+from ...io_controller.util.device import create_component_store
 
 
 @dataclass(slots=True)
@@ -35,12 +35,12 @@ class MuscleObj:
         setattr(self, key, value)
 
 
-(muscle_action,) = create_device_global_store_definition([MuscleObj])("muscle")
+(muscle_action,) = create_component_store("muscle", [MuscleObj])
 __all__ = ["contract", "relax", "toggle_muscle_state", "MuscleObj"]
 
 
 @muscle_action
-def contract(muscle, check=pressure_actions.is_pressure_ok) -> bool:
+def contract(muscle: MuscleObj, check=pressure_actions.is_pressure_ok) -> bool:
     """
     Contract a muscle.
 
@@ -59,7 +59,7 @@ def contract(muscle, check=pressure_actions.is_pressure_ok) -> bool:
 
 
 @muscle_action
-def relax(muscle, check=valve_actions.get_valve_state) -> bool:
+def relax(muscle: MuscleObj, check=valve_actions.get_valve_state) -> bool:
     """
     Relax a muscle.
 
@@ -75,7 +75,7 @@ def relax(muscle, check=valve_actions.get_valve_state) -> bool:
 
 
 @muscle_action
-def toggle_muscle_state(muscle) -> bool:
+def toggle_muscle_state(muscle: MuscleObj) -> bool:
     """
     Toggle a muscle.
 
