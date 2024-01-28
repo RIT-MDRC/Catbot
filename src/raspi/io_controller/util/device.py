@@ -1,5 +1,4 @@
 from functools import reduce, wraps
-from pydoc import classname
 
 from gpiozero import DigitalInputDevice, DigitalOutputDevice
 
