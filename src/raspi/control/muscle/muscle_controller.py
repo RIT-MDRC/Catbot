@@ -36,7 +36,7 @@ class MuscleObj:
 
 
 (muscle_action,) = create_device_global_store_definition([MuscleObj])("muscle")
-__all__ = ["contract", "relax", "toggle_muscle_state"]
+__all__ = ["contract", "relax", "toggle_muscle_state", "MuscleObj"]
 
 
 @muscle_action
