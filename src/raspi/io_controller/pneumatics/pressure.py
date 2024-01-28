@@ -29,8 +29,6 @@ def on_pressure_active(device: DigitalOutputDevice, action: callable) -> None:
         name (str): the name of the pressure sensor
         action (callable): the action to perform when the pressure sensor changes
     """
-    if isinstance(device, str):
-        return
     device.when_activated = action
 
 
@@ -43,6 +41,4 @@ def on_pressure_deactive(device: DigitalOutputDevice, action: callable) -> None:
         name (str): the name of the pressure sensor
         action (callable): the action to perform when the pressure sensor changes
     """
-    if isinstance(device, str):
-        return
     device.when_deactivated = action
