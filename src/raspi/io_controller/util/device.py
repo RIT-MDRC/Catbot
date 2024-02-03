@@ -1,6 +1,6 @@
 from functools import reduce, wraps
 
-from gpiozero import DigitalInputDevice, DigitalOutputDevice
+from gpiozero import DigitalInputDevice, DigitalOutputDevice, PWMOutputDevice
 
 from ...utils.deviceMock import FakeInputDevice, FakeOutputDevice
 
@@ -159,3 +159,8 @@ Create a new output device component.
 allowed device classes: DigitalOutputDevice, FakeOutputDevice
 returns: (device_action, register_device, get_device, get_registered_devices, get_registered_device_names, gloabal_store)
 """
+
+
+create_pwm_output_device_component = create_device_global_store_definition(
+    [PWMOutputDevice]
+)

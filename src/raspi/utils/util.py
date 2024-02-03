@@ -3,12 +3,10 @@ import json
 from control.muscle.muscle_controller import MuscleObj, register_muscle
 from dotenv import dotenv_values
 from gpiozero import DigitalInputDevice, DigitalOutputDevice, PWMOutputDevice
-from io_controller.pneumatics.valve import register_valve_pin
 from utils.deviceMock import FakeInputDevice, FakeOutputDevice, FakePWMOutputDevice
 from utils.interval import set_interval
 
-from raspi.io_controller.pneumatics.compressor.compressor import register_compressor_pin
-from raspi.io_controller.pneumatics.pressure.pressure import register_pressure_pin
+from raspi.io_controller import compressor_actions, pressure_actions, valve_actions
 
 
 def is_dev() -> bool:
@@ -113,12 +111,12 @@ def set_pin(config_data: dict, onDev: callable = None) -> dict:
         if str.endswith(key, "valve"):
             pin = config_data[key]
             od = create_output_device(pin)
-            register_valve_pin(key, od)
+            valve_actions.register_valve_pin(key, od)
             ret[key] = od
         elif str.endswith(key, "pressure"):
             pin = config_data[key]
             id = create_pressure_device(pin)
-            register_pressure_pin(key, id)
+            pressure_actions.register_pressure_pin(key, id)
             ret[key] = id
         elif str.endswith(key, "muscle"):
             raw_muscle = set_pin(config_data[key])
@@ -128,7 +126,7 @@ def set_pin(config_data: dict, onDev: callable = None) -> dict:
         elif str.endswith(key, "compressor"):
             pin = config_data[key]
             od = create_output_device(pin)
-            register_compressor_pin(key, od)
+            compressor_actions.register_compressor_pin(key, od)
             ret[key] = od
         else:
             raise ValueError(f"Invalid key {key}")

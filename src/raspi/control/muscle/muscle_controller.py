@@ -8,18 +8,6 @@ from ...io_controller.util.device import create_component_store
 @dataclass(slots=True)
 class MuscleObj:
     """
-    Dataclass for a muscle.
-    \nhow to use dataclass:
-    ```
-    muscle = MuscleObj(pressure="pressure_name", valve="valve_name")
-    print(muscle.pressure) // "pressure_name"
-    ```
-    \nhow not to use dataclass:
-    ```
-    muscle.pressure.get_pressure()
-    muscle.valve.turn_valve_on()
-    ```
-    \n remember that the dataclass should not contain any logic, only data.
     Args:
         pressure (str): the name of the pressure sensor
         valve (str): the name of the valve
@@ -28,14 +16,8 @@ class MuscleObj:
     pressure: str = field(default="not_set")
     valve: str = field(default="not_set")
 
-    def __getitem__(self, key):
-        return getattr(self, key)
 
-    def __setitem__(self, key, value):
-        setattr(self, key, value)
-
-
-(muscle_action,) = create_component_store("muscle", [MuscleObj])
+(muscle_action, register_muscle) = create_component_store("muscle", [MuscleObj])
 __all__ = ["contract", "relax", "toggle_muscle_state", "MuscleObj"]
 
 
