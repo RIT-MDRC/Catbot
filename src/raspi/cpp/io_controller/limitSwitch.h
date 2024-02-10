@@ -16,7 +16,7 @@ class LimitSwitch {
 
         
     private:
-        void executeCallbacks(int gpio, int level, unsigned int tick);
+        static void executeCallbacks(int gpio, int level, unsigned int tick);
         LimitSwitchEvent* callbacks;
         int callbackCount;
 
