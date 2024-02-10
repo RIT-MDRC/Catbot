@@ -1,5 +1,7 @@
 #include <pigpio.h>
 
+typedef void (*LimitSwitchEvent)(int);
+
 class LimitSwitch {
     public:
         /**
@@ -10,10 +12,12 @@ class LimitSwitch {
         /**
         *adds a callback to call
         */
-        void addCallback(void* func);
+        void addCallback(LimitSwitchEvent event);
+
+        
     private:
         void executeCallbacks(int gpio, int level, unsigned int tick);
-        void** callbacks;
+        LimitSwitchEvent* callbacks;
         int callbackCount;
 
 };
