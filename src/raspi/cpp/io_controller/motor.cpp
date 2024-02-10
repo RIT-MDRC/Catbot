@@ -1,5 +1,6 @@
 #include "motor.h"
 
+#define PWM_FREQUENCY 100   // Hz
 #define PWM_RANGE 255
 
 Motor::Motor(int pwmPin, int directionPin) {
@@ -8,6 +9,7 @@ Motor::Motor(int pwmPin, int directionPin) {
 
     gpioSetMode(pwmPin, PI_OUTPUT);
     gpioSetMode(directionPin, PI_OUTPUT);
+    gpioSetPWMfrequency(pwmPin, PWM_FREQUENCY);
 }
 
 void Motor::run(bool clockwise, int speed) {

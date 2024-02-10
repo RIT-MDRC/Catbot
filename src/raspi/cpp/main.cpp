@@ -11,9 +11,10 @@ int main()
     if (gpioInitialise() < 0) return 1;
 
     Motor *motor = new Motor(PIN_PWM, PIN_DIR);
-    motor->run(true, 64);
+    motor->run(true, 30);
     
-    time_sleep(1000);
+    time_sleep(5);
 
+    gpioTerminate();
     return 0;
 }
