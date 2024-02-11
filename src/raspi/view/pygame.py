@@ -35,8 +35,8 @@ def setup_pygame():
     GLOBAL_STORE["sysFont"] = pygame.font.SysFont("Ariel", 36)
     GLOBAL_STORE["screen"] = pygame.display.set_mode((640, 480))
     GLOBAL_STORE["clock"] = pygame.time.Clock()
-    logging.info("Initialized global variabled: Font, Screen, Clock")
     GLOBAL_STORE["screen"].fill(WHITE)
+    logging.info("Initialized global variabled: Font, Screen, Clock")
 
 
 def clock_tick(fps: int):
