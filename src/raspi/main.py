@@ -1,6 +1,5 @@
 from time import sleep
 
-import pygame
 from control.motor.motor_controller import MotorController
 from control.muscle.muscle_controller import contract, relax
 from io_controller import compressor_actions as comp
@@ -10,7 +9,7 @@ from utils.interval import clear_intervals
 from utils.util import *
 from view.pygame import *
 
-SPEED = 0.1
+SPEED = 0.1  # unit: %
 
 global motor
 """Global variables for pygame"""
@@ -33,7 +32,7 @@ def hydrate_screen():
     render_left_status(False)
     render_right_status(False)
     render_temperature_status(0)
-    pygame.display.update()
+    update_screen()
     logging.info("Screen Hydrated")
     if press.is_pressure_ok("left_pressure"):
         change_compressor(True)
@@ -53,44 +52,36 @@ def main():
     """Main program loop"""
     exit = False
     while not exit:
-        for event in pygame.event.get():
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_q:
-                    exit = True
-                elif event.key == pygame.K_w or event.key == pygame.K_UP:
-                    res = contract("left_muscle")
-                    if res:
+        for event in get_keys():
+            if is_event_type(event, "down"):
+                if is_key_pressed(event, ["w", "up"]):
+                    if contract("left_muscle"):
                         render_up_status(True)
-                elif event.key == pygame.K_a or event.key == pygame.K_LEFT:
-                    res = turn_motor_left(SPEED)
-                    if res:
+                elif is_key_pressed(event, ["a", "left"]):
+                    if turn_motor_left(SPEED):
                         render_left_status(True)
-                elif event.key == pygame.K_d or event.key == pygame.K_RIGHT:
-                    res = turn_motor_right(SPEED)
-                    if res:
+                elif is_key_pressed(event, ["d", "right"]):
+                    if turn_motor_right(SPEED):
                         render_right_status(True)
-                elif event.key == pygame.K_t:
+                elif is_key_pressed(event, ["t"]):
                     step(motor)
-            elif event.type == pygame.KEYUP:
-                if event.key == pygame.K_a or event.key == pygame.K_LEFT:
-                    res = turn_motor_left(0)
-                    if res:
-                        render_left_status(False)
-                elif event.key == pygame.K_d or event.key == pygame.K_RIGHT:
-                    res = turn_motor_right(0)
-                    if res:
-                        render_right_status(False)
-                elif event.key == pygame.K_w or event.key == pygame.K_UP:
-                    res = relax("left_muscle")
-                    if res:
+            elif is_event_type(event, "up"):
+                if is_key_pressed(event, ["w", "up"]):
+                    if relax("left_muscle"):
                         render_up_status(False)
-            elif event.type == pygame.QUIT:
+                elif is_key_pressed(event, ["a", "left"]):
+                    if turn_motor_left(0):
+                        render_left_status(False)
+                elif is_key_pressed(event, ["d", "right"]):
+                    if turn_motor_right(0):
+                        render_right_status(False)
+            elif is_key_pressed(event, ["q"]):
                 exit = True
-        pygame.display.update()
+        update_screen()
         clock_tick(60)
     print("Exiting...")
     logging.info("Exiting...")
-    pygame.quit()
+    quit_pygame()
     clear_intervals()
 
 

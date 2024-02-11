@@ -56,6 +56,9 @@ def relax(muscle: MuscleObj, check=valve_actions.get_valve_state) -> bool:
     Args:
         muscle (Muscle): the muscle to relax
         check (callable): the function to check the state of the valve (default: get_valve_state from valve_actions)
+
+    Returns:
+        True if the muscle was relaxed, False otherwise
     """
     if not check(muscle.valve):
         logging.warning(
@@ -73,6 +76,9 @@ def toggle_muscle_state(muscle: MuscleObj) -> bool:
 
     Args:
         muscle (Muscle): the muscle to toggle
+
+    Returns:
+        True if the muscle was toggled, False otherwise
     """
     is_contracted = valve_actions.get_valve_state(muscle.valve)
     if is_contracted:

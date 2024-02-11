@@ -88,3 +88,43 @@ def render_temperature_status(temperature: float):
         temperature(float): the temperature to render
     """
     render_text((0, 144, 640, 36), f"Temperature: {temperature}")
+
+
+def get_keys():
+    return pygame.event.get()
+
+
+def update_screen():
+    pygame.display.update()
+
+
+def quit_pygame():
+    pygame.quit()
+
+
+TYPES = {
+    "down": pygame.KEYDOWN,
+    "up": pygame.KEYUP,
+    "quit": pygame.QUIT,
+}
+
+KEYS = {
+    "q": pygame.K_q,
+    "w": pygame.K_w,
+    "a": pygame.K_a,
+    "d": pygame.K_d,
+    "t": pygame.K_t,
+    "up": pygame.K_UP,
+    "left": pygame.K_LEFT,
+    "right": pygame.K_RIGHT,
+    "down": pygame.K_DOWN,
+}
+
+
+def is_event_type(event, event_type: str):
+    return event.type == TYPES[event_type]
+
+
+def is_key_pressed(event, key: list[str]):
+    keys = map(lambda k: KEYS[k], key)
+    return event.key in keys
