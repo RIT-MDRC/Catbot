@@ -1,9 +1,8 @@
 from time import sleep
 
+from control import muscle_actions
 from control.motor.motor_controller import MotorController
-from control.muscle.muscle_controller import contract, relax
-from io_controller import compressor_actions as comp
-from io_controller import pressure_actions as press
+from io_controller import compressor_actions, pressure_actions
 from utils.cpu import setup_cpu
 from utils.interval import clear_intervals
 from utils.util import *
@@ -34,13 +33,13 @@ def hydrate_screen():
     render_temperature_status(0)
     update_screen()
     logging.info("Screen Hydrated")
-    if press.is_pressure_ok("left_pressure"):
+    if pressure_actions.is_pressure_ok("left_pressure"):
         change_compressor(True)
-    press.on_pressure_active(
+    pressure_actions.on_pressure_active(
         "left_pressure",
         lambda: change_compressor(True),
     )
-    press.on_pressure_deactive(
+    pressure_actions.on_pressure_deactive(
         "left_pressure",
         lambda: change_compressor(False),
     )
@@ -55,7 +54,7 @@ def main():
         for event in get_keys():
             if is_event_type(event, "down"):
                 if is_key_pressed(event, ["w", "up"]):
-                    if contract("left_muscle"):
+                    if muscle_actions.contract("left_muscle"):
                         render_up_status(True)
                 elif is_key_pressed(event, ["a", "left"]):
                     if turn_motor_left(SPEED):
@@ -65,9 +64,11 @@ def main():
                         render_right_status(True)
                 elif is_key_pressed(event, ["t"]):
                     step(motor)
+                elif is_key_pressed(event, ["q"]):
+                    exit = True
             elif is_event_type(event, "up"):
                 if is_key_pressed(event, ["w", "up"]):
-                    if relax("left_muscle"):
+                    if muscle_actions.relax("left_muscle"):
                         render_up_status(False)
                 elif is_key_pressed(event, ["a", "left"]):
                     if turn_motor_left(0):
@@ -75,8 +76,6 @@ def main():
                 elif is_key_pressed(event, ["d", "right"]):
                     if turn_motor_right(0):
                         render_right_status(False)
-            elif is_key_pressed(event, ["q"]):
-                exit = True
         update_screen()
         clock_tick(60)
     print("Exiting...")
@@ -91,7 +90,11 @@ def change_compressor(status: bool):
     Args:
         status(bool): the status to render
     """
-    action = comp.turn_compressor_on if status else comp.turn_compressor_off
+    action = (
+        compressor_actions.turn_compressor_on
+        if status
+        else compressor_actions.turn_compressor_off
+    )
     action("main_compressor")
     render_pressure_status(status)
 
@@ -115,13 +118,13 @@ def turn_motor_right(speed):
 
 
 def step():
-    contract("left_muscle")
+    muscle_actions.contract("left_muscle")
     sleep(1)
     turn_motor_right(SPEED)
     sleep(1)
     turn_motor_right(0)
     sleep(1)
-    relax("left_muscle")
+    muscle_actions.relax("left_muscle")
     sleep(1)
     turn_motor_left(SPEED)
     sleep(1)

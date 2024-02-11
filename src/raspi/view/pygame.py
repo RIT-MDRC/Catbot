@@ -6,6 +6,26 @@ WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 """Colors for pygame"""
 
+TYPES = {
+    "down": pygame.KEYDOWN,
+    "up": pygame.KEYUP,
+    "quit": pygame.QUIT,
+}
+"""Types of event"""
+
+KEYS = {
+    "q": pygame.K_q,
+    "w": pygame.K_w,
+    "a": pygame.K_a,
+    "d": pygame.K_d,
+    "t": pygame.K_t,
+    "up": pygame.K_UP,
+    "left": pygame.K_LEFT,
+    "right": pygame.K_RIGHT,
+    "down": pygame.K_DOWN,
+}
+"""Keys available to listen for in pygame"""
+
 GLOBAL_STORE = dict()
 
 
@@ -100,25 +120,6 @@ def update_screen():
 
 def quit_pygame():
     pygame.quit()
-
-
-TYPES = {
-    "down": pygame.KEYDOWN,
-    "up": pygame.KEYUP,
-    "quit": pygame.QUIT,
-}
-
-KEYS = {
-    "q": pygame.K_q,
-    "w": pygame.K_w,
-    "a": pygame.K_a,
-    "d": pygame.K_d,
-    "t": pygame.K_t,
-    "up": pygame.K_UP,
-    "left": pygame.K_LEFT,
-    "right": pygame.K_RIGHT,
-    "down": pygame.K_DOWN,
-}
 
 
 def is_event_type(event, event_type: str):
