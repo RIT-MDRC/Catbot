@@ -1,4 +1,3 @@
-from datetime import datetime as d
 from time import sleep
 
 import pygame
@@ -9,40 +8,11 @@ from io_controller import pressure_actions as press
 from utils.cpu import setup_cpu
 from utils.interval import clear_intervals
 from utils.util import *
-
-level_config = {
-    "Debug": logging.DEBUG,
-    "Info": logging.INFO,
-    "Warning": logging.WARNING,
-    "Error": logging.ERROR,
-    "Critical": logging.CRITICAL,
-}
-
-
-def map_level(level: str) -> int:
-    """
-    Maps the level string to the corresponding logging level.
-
-    :param level: the level string
-    :return: the logging level
-    """
-    return level_config.get(level, logging.DEBUG)
-
-
-start_time = d.now().strftime("%Y-%m-%d.%H:%M:%S")
-logging.basicConfig(
-    filename=f".log/{start_time}.debug.log",
-    format="%(filename)s: %(message)s",
-    level=map_level("Debug"),  # TODO: hook it to env or config file
-)
+from view.pygame import *
 
 SPEED = 0.1
 
-WHITE = (255, 255, 255)
-BLACK = (0, 0, 0)
-"""Colors for pygame"""
-
-global sysFont, screen, clock, motor
+global motor
 """Global variables for pygame"""
 
 
@@ -55,20 +25,9 @@ def setup():
     return motor
 
 
-def setup_pygame():
-    """Setup pygame"""
-    pygame.init()
-    sysFont = pygame.font.SysFont("Ariel", 36)
-    screen = pygame.display.set_mode((640, 480))
-    clock = pygame.time.Clock()
-    logging.info("Initialized global variabled: Font, Screen, Clock")
-    return sysFont, screen, clock
-
-
 def hydrate_screen():
     """Post setup for the screen (after pygame.init() and global variable are set)"""
     logging.info("Hydrating Screen with initial values")
-    screen.fill(WHITE)
     render_pressure_status(False)
     render_up_status(False)
     render_left_status(False)
@@ -128,69 +87,11 @@ def main():
             elif event.type == pygame.QUIT:
                 exit = True
         pygame.display.update()
-        clock.tick(60)
+        clock_tick(60)
+    print("Exiting...")
+    logging.info("Exiting...")
     pygame.quit()
     clear_intervals()
-
-
-def render_text(rect, text):
-    """Renders a text on the screen
-
-    Args:
-        rect([int,int,int,int]): the rectangle to render the text in
-        text(str): the text to render
-
-    Returns:
-        the rectangle of the rendered text
-    """
-    screen.fill(WHITE, rect)
-    surface = sysFont.render(text, True, BLACK)
-    return screen.blit(surface, (rect[0], rect[1]))
-
-
-def render_up_status(status: bool):
-    """Renders the up button status
-
-    Args:
-        status(bool): the status to render
-    """
-    render_text((0, 0, 640, 36), f"Up: {status}")
-
-
-def render_pressure_status(status: bool):
-    """Renders the pressure status
-
-    Args:
-        status(bool): the status to render
-    """
-    render_text((0, 36, 640, 36), f"Pressure: {status}")
-
-
-def render_left_status(status: bool):
-    """Renders the left button status
-
-    Args:
-        status(bool): the status to render
-    """
-    render_text((0, 72, 640, 36), f"Left: {status}")
-
-
-def render_right_status(status: bool):
-    """Renders the right button status
-
-    Args:
-        status(bool): the status to render
-    """
-    render_text((0, 108, 640, 36), f"Right: {status}")
-
-
-def render_temperature_status(temperature: float):
-    """Renders the temperature status
-
-    Args:
-        temperature(float): the temperature to render
-    """
-    render_text((0, 144, 640, 36), f"Temperature: {temperature}")
 
 
 def change_compressor(status: bool):
@@ -241,7 +142,7 @@ if __name__ == "__main__":
     logging.info("Initializing...")
     print("Initializing...")
     motor = setup()  # TODO: make motor not a global variable
-    sysFont, screen, clock = setup_pygame()  # global variables
+    setup_pygame()  # global variables
     hydrate_screen()  # hydrate the screen
     print("Initialization complete!")
     main()
