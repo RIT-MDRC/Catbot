@@ -1,1 +1,1 @@
-from muscle import muscle_actions
+from .muscle import muscle_actions

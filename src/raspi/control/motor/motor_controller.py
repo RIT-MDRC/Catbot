@@ -1,6 +1,8 @@
-from utils.deviceMock import FakeOutputDevice, FakePWMOutputDevice
+import logging
+
+from gpiozero import OutputDevice, PWMOutputDevice
+from utils.deviceMock import FakeDigitalOutputDevice, FakePWMOutputDevice
 from utils.util import create_output_device, create_pwm_device
-from gpiozero import PWMOutputDevice, OutputDevice
 
 
 class MotorController:
@@ -8,14 +10,14 @@ class MotorController:
     pwm_pin: int
     current_speed = 0
     current_direction = 0  # 0 for forward, 1 for backward
-    address_output_devices: [FakeOutputDevice] | [OutputDevice] = []
+    address_output_devices: list[FakeDigitalOutputDevice | OutputDevice] = []
 
     def __init__(
         self,
         pwm_pin: int,
         direction_address: int,
         direction_pin: int,
-        address_pins: [int],
+        address_pins: list[int],
     ):
         self.pwm_pin = pwm_pin
         self.direction_address = (
@@ -45,11 +47,11 @@ class MotorController:
 
     def set_speed_dir(self, new_speed, new_direction) -> bool:
         "Method for setting this ESC to a given speed and direction"
-        print(
+        logging.info(
             f"motor called {new_direction} {self.current_direction} {self.current_speed}"
         )
         if self.current_speed != 0 and self.current_direction != new_direction:
-            print("ERROR: Motor direction and speed do not match")
+            logging.warning("Motor direction and speed do not match")
             return False
         self.set_speed(new_speed)
         self.set_direction(new_direction)

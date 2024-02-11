@@ -1,8 +1,8 @@
+import logging
 from dataclasses import dataclass, field
 
-from raspi.io_controller import pressure_actions, valve_actions
-
-from ...io_controller.util.device import create_component_store
+from io_controller import pressure_actions, valve_actions
+from io_controller.util.device import create_component_store
 
 
 @dataclass(slots=True)
@@ -16,8 +16,14 @@ class MuscleObj:
     pressure: str = field(default="not_set")
     valve: str = field(default="not_set")
 
+    def __getitem__(self, key):
+        return getattr(self, key)
 
-(muscle_action, register_muscle) = create_component_store("muscle", [MuscleObj])
+    def __setitem__(self, key, value):
+        setattr(self, key, value)
+
+
+(muscle_action, register_muscle, *_) = create_component_store("muscle", [MuscleObj])
 __all__ = ["contract", "relax", "toggle_muscle_state", "MuscleObj"]
 
 
@@ -34,7 +40,9 @@ def contract(muscle: MuscleObj, check=pressure_actions.is_pressure_ok) -> bool:
         True if the muscle was contracted, False otherwise
     """
     if not check(muscle.pressure):
-        print(f"{muscle.pressure}: Pressure check failed, cannot contract muscle")
+        logging.warning(
+            f"{muscle.pressure}: Pressure check failed, cannot contract muscle"
+        )
         return False
     valve_actions.turn_valve_on(muscle.valve)
     return True
@@ -50,7 +58,9 @@ def relax(muscle: MuscleObj, check=valve_actions.get_valve_state) -> bool:
         check (callable): the function to check the state of the valve (default: get_valve_state from valve_actions)
     """
     if not check(muscle.valve):
-        print(f"{muscle.valve}: Valve check failed, Muscle is already relaxed")
+        logging.warning(
+            f"{muscle.valve}: Valve check failed, Muscle is already relaxed"
+        )
         return False
     valve_actions.turn_valve_off(muscle.valve)
     return True

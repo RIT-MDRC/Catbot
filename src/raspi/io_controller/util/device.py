@@ -1,8 +1,7 @@
 from functools import reduce, wraps
 
 from gpiozero import DigitalInputDevice, DigitalOutputDevice, PWMOutputDevice
-
-from ...utils.deviceMock import FakeInputDevice, FakeOutputDevice
+from utils.deviceMock import FakeDigitalInputDevice, FakeDigitalOutputDevice
 
 
 def create_device_global_store_definition(component_classes: list):
@@ -21,7 +20,7 @@ def create_device_global_store_definition(component_classes: list):
 
     def check_class_instance(x):
         return isinstance(x, str) or reduce(
-            lambda x, y: x or isinstance(x, y), component_classes, False
+            lambda res, y: res or isinstance(x, y), component_classes, False
         )
 
     def create_device_component(component_name: str, dict: dict = dict()):
@@ -142,7 +141,7 @@ def create_component_store(
 
 
 create_input_device_component = create_device_global_store_definition(
-    [DigitalInputDevice, FakeInputDevice]
+    [DigitalInputDevice, FakeDigitalInputDevice]
 )
 """
 Create a new input device component.
@@ -152,7 +151,7 @@ returns: (device_action, register_device, get_device, get_registered_devices, ge
 
 
 create_output_device_component = create_device_global_store_definition(
-    [DigitalOutputDevice, FakeOutputDevice]
+    [DigitalOutputDevice, FakeDigitalOutputDevice]
 )
 """
 Create a new output device component.

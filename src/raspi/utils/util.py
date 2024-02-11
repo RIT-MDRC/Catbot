@@ -1,12 +1,16 @@
 import json
+import logging
 
 from control.muscle.muscle_controller import MuscleObj, register_muscle
 from dotenv import dotenv_values
 from gpiozero import DigitalInputDevice, DigitalOutputDevice, PWMOutputDevice
-from utils.deviceMock import FakeInputDevice, FakeOutputDevice, FakePWMOutputDevice
+from io_controller import compressor_actions, pressure_actions, valve_actions
+from utils.deviceMock import (
+    FakeDigitalInputDevice,
+    FakeDigitalOutputDevice,
+    FakePWMOutputDevice,
+)
 from utils.interval import set_interval
-
-from raspi.io_controller import compressor_actions, pressure_actions, valve_actions
 
 
 def is_dev() -> bool:
@@ -18,7 +22,7 @@ def is_dev() -> bool:
     config = dotenv_values("src/raspi/.env")
     if config is None:
         raise ValueError("No config file found. Create a .env file in src/raspi")
-    return config["ENV"] == "dev"
+    return config.get("ENV") == "dev"
 
 
 def create_input_device(pin: int, onDev: callable = None):
@@ -29,9 +33,9 @@ def create_input_device(pin: int, onDev: callable = None):
     :return: the device object
     """
     if is_dev():
-        print("dev environment detected")
-        print("mocking input device")
-        obj = FakeInputDevice(pin)
+        logging.info("dev environment detected")
+        logging.info("mocking input device for pin %s", pin)
+        obj = FakeDigitalInputDevice(pin)
         if onDev is not None:
             onDev(obj)
     else:
@@ -51,9 +55,9 @@ def create_output_device(pin: int, onDev: callable = None):
     :return: the device class
     """
     if is_dev():
-        print("dev environment detected")
-        print("mocking output device")
-        obj = FakeOutputDevice(pin)
+        logging.info("dev environment detected")
+        logging.info("mocking output device for pin %s", pin)
+        obj = FakeDigitalOutputDevice(pin)
         if onDev is not None:
             onDev(obj)
     else:
@@ -76,8 +80,8 @@ def create_pwm_device(pin: int, onDev: callable = None):
     :return: the device class
     """
     if is_dev():
-        print("dev environment detected")
-        print("mocking output device")
+        logging.info("dev environment detected")
+        logging.info("mocking output device for pin %s", pin)
         obj = FakePWMOutputDevice(pin)
         if onDev is not None:
             onDev(obj)
@@ -111,12 +115,12 @@ def set_pin(config_data: dict, onDev: callable = None) -> dict:
         if str.endswith(key, "valve"):
             pin = config_data[key]
             od = create_output_device(pin)
-            valve_actions.register_valve_pin(key, od)
+            valve_actions.register_valve(key, od)
             ret[key] = od
         elif str.endswith(key, "pressure"):
             pin = config_data[key]
             id = create_pressure_device(pin)
-            pressure_actions.register_pressure_pin(key, id)
+            pressure_actions.register_pressure(key, id)
             ret[key] = id
         elif str.endswith(key, "muscle"):
             raw_muscle = set_pin(config_data[key])
@@ -126,7 +130,7 @@ def set_pin(config_data: dict, onDev: callable = None) -> dict:
         elif str.endswith(key, "compressor"):
             pin = config_data[key]
             od = create_output_device(pin)
-            compressor_actions.register_compressor_pin(key, od)
+            compressor_actions.register_compressor(key, od)
             ret[key] = od
         else:
             raise ValueError(f"Invalid key {key}")
@@ -134,7 +138,7 @@ def set_pin(config_data: dict, onDev: callable = None) -> dict:
 
 
 def on_test_pressure_reading(id):
-    if isinstance(id, DigitalInputDevice) or isinstance(id, FakeInputDevice):
+    if isinstance(id, DigitalInputDevice) or isinstance(id, FakeDigitalInputDevice):
 
         def func():
             id.toggle()

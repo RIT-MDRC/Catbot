@@ -2,7 +2,9 @@ from gpiozero import DigitalOutputDevice
 
 from ..util.device import create_output_device_component
 
-(compressor_action, register_compressor) = create_output_device_component("compressor")
+(compressor_action, register_compressor, *_) = create_output_device_component(
+    "compressor"
+)
 __all__ = [
     "register_compressor",
     "turn_compressor_on",

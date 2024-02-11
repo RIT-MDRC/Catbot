@@ -1,14 +1,40 @@
+from datetime import datetime as d
 from time import sleep
 
 import pygame
 from control.motor.motor_controller import MotorController
 from control.muscle.muscle_controller import contract, relax
+from io_controller import compressor_actions as comp
+from io_controller import pressure_actions as press
 from utils.cpu import setup_cpu
 from utils.interval import clear_intervals
 from utils.util import *
 
-from raspi.io_controller import compressor_actions as comp
-from raspi.io_controller import pressure_actions as press
+level_config = {
+    "Debug": logging.DEBUG,
+    "Info": logging.INFO,
+    "Warning": logging.WARNING,
+    "Error": logging.ERROR,
+    "Critical": logging.CRITICAL,
+}
+
+
+def map_level(level: str) -> int:
+    """
+    Maps the level string to the corresponding logging level.
+
+    :param level: the level string
+    :return: the logging level
+    """
+    return level_config.get(level, logging.DEBUG)
+
+
+start_time = d.now().strftime("%Y-%m-%d.%H:%M:%S")
+logging.basicConfig(
+    filename=f".log/{start_time}.debug.log",
+    format="%(filename)s: %(message)s",
+    level=map_level("Debug"),  # TODO: hook it to env or config file
+)
 
 SPEED = 0.1
 
@@ -24,18 +50,24 @@ def setup():
     """Setup the pins and pygame"""
     data = get_pinconfig()
     set_pin(data)
+    motor = MotorController(26, 0, 1, [5, 6, 12])
+    logging.info("Initialized components from pinconfig")
+    return motor
 
+
+def setup_pygame():
+    """Setup pygame"""
     pygame.init()
     sysFont = pygame.font.SysFont("Ariel", 36)
     screen = pygame.display.set_mode((640, 480))
     clock = pygame.time.Clock()
-    motor = MotorController(26, 0, 1, [5, 6, 12])
+    logging.info("Initialized global variabled: Font, Screen, Clock")
+    return sysFont, screen, clock
 
-    return sysFont, screen, clock, motor
 
-
-def screen_setup():
+def hydrate_screen():
     """Post setup for the screen (after pygame.init() and global variable are set)"""
+    logging.info("Hydrating Screen with initial values")
     screen.fill(WHITE)
     render_pressure_status(False)
     render_up_status(False)
@@ -43,12 +75,7 @@ def screen_setup():
     render_right_status(False)
     render_temperature_status(0)
     pygame.display.update()
-
-
-def main():
-    """Main program loop"""
-    screen_setup()
-    setup_cpu(render_temperature_status)
+    logging.info("Screen Hydrated")
     if press.is_pressure_ok("left_pressure"):
         change_compressor(True)
     press.on_pressure_active(
@@ -59,6 +86,12 @@ def main():
         "left_pressure",
         lambda: change_compressor(False),
     )
+    setup_cpu(render_temperature_status)  # Hook up CPU temp to the screen
+    logging.info("Completed Screen Update Events")
+
+
+def main():
+    """Main program loop"""
     exit = False
     while not exit:
         for event in pygame.event.get():
@@ -204,5 +237,11 @@ def step():
     sleep(1)
 
 
-sysFont, screen, clock, motor = setup()
-main()
+if __name__ == "__main__":
+    logging.info("Initializing...")
+    print("Initializing...")
+    motor = setup()  # TODO: make motor not a global variable
+    sysFont, screen, clock = setup_pygame()  # global variables
+    hydrate_screen()  # hydrate the screen
+    print("Initialization complete!")
+    main()
