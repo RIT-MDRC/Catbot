@@ -1,7 +1,7 @@
 import json
 import logging
 
-from control.muscle.muscle_controller import MuscleObj, register_muscle
+from control import muscle_actions
 from dotenv import dotenv_values
 from gpiozero import DigitalInputDevice, DigitalOutputDevice, PWMOutputDevice
 from io_controller import compressor_actions, pressure_actions, valve_actions
@@ -122,16 +122,16 @@ def set_pin(config_data: dict, onDev: callable = None) -> dict:
             id = create_pressure_device(pin)
             pressure_actions.register_pressure(key, id)
             ret[key] = id
-        elif str.endswith(key, "muscle"):
-            raw_muscle = set_pin(config_data[key])
-            muscle = create_dataclass(MuscleObj(), raw_muscle)
-            register_muscle(key, muscle)
-            ret[key] = muscle
         elif str.endswith(key, "compressor"):
             pin = config_data[key]
             od = create_output_device(pin)
             compressor_actions.register_compressor(key, od)
             ret[key] = od
+        elif str.endswith(key, "muscle"):
+            raw_muscle = set_pin(config_data[key])
+            muscle = create_dataclass(muscle_actions.MuscleObj(), raw_muscle)
+            muscle_actions.register_muscle(key, muscle)
+            ret[key] = muscle
         else:
             raise ValueError(f"Invalid key {key}")
     return ret
