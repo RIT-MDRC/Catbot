@@ -1,14 +1,14 @@
+import json
+from collections import namedtuple
 from functools import reduce, wraps
 
-from gpiozero import DigitalInputDevice, DigitalOutputDevice, PWMOutputDevice
-from utils.deviceMock import (
-    FakeDigitalInputDevice,
-    FakeDigitalOutputDevice,
-    FakePWMOutputDevice,
-)
+Parser = namedtuple("Parser", ["register_device", "parse_device", "store"])
+DEVICE_PARSERS: dict[str, Parser] = dict()
 
 
-def create_generic_device_store(component_classes: list):
+def create_generic_device_store(
+    generic_component_name: str, component_classes: list, parser_func: callable = None
+):
     """
     Create a generic device store.
     Use this to create a device that is usually renamed to a different component. Components that are just Pins are good examples.
@@ -37,7 +37,7 @@ def create_generic_device_store(component_classes: list):
         component_classes (list): This is a list of classes that the device can be. For example, DigitalInputDevice and FakeInputDevice for DigitalInputDevices used for type checking.
 
     Returns:
-        create_device_component (callable[[str, dict], Tuple[callable * 5, dict]]): This is a function that creates a new device component.
+        create_device_component (callable[[str], callable]]): This is a function that creates a new device component that is just a reskin of the generic device.
 
     example:
         see src/device.py or src/raspi/io_controller/pneumatics/valve.py
@@ -45,27 +45,70 @@ def create_generic_device_store(component_classes: list):
 
     class_names = "/".join([x.__name__ for x in component_classes])
 
+    generic_store: dict = dict()
+
+    if parser_func is not None:
+        device_parser(parser_func)
+
     def check_class_instance(x):
         return isinstance(x, str) or reduce(
             lambda res, y: res or isinstance(x, y), component_classes, False
         )
 
-    def create_device_component(component_name: str, dict: dict = dict()):
+    def generic_register_device(name: str, device=None) -> None:
+        """
+        Add a new device to the list of devices.
+
+        Args:
+            name (str): the name/identifier of the device
+            device (): the device number of the device
+        """
+        if name in generic_store:
+            raise ValueError(f"{generic_component_name} {name} already exists")
+        elif not check_class_instance(device):
+            raise ValueError(f"Must be a identifier(string) or " + class_names)
+        elif not device is None:
+            generic_store[name] = device
+
+    def device_parser(func: callable):
+        """
+        Decorator for device parsers.
+
+        Args:
+            func (callable): the function to decorate
+
+        Returns:
+            (callable) the decorated function
+        """
+        DEVICE_PARSERS[generic_component_name] = Parser(
+            generic_register_device, func, generic_store
+        )
+
+    def create_device_component(component_name: str):
         """
         Create a new output device component.
 
         Args:
             component_name (str): the name of the component (used in error messages)
             dict (dict): the dictionary to store the devices in
-        returns: Tuple[device_action, register_device, get_device, get_registered_devices, get_registered_device_names, gloabal_store]
+        returns: tuple[device_action, device_parser]
         """
 
         UNIQUE_COMPONENT_IDENTIFIERS = set()
 
-        def component_identifier(name: str) -> str:
+        DEVICE_PARSERS[component_name] = Parser(
+            local_register_device,
+            DEVICE_PARSERS[generic_component_name].parse_device,
+            DEVICE_PARSERS[generic_component_name].store,
+        )
+
+        def local_component_identifier(name: str) -> str:
+            """This is used to create a unique identifier for the component. This is used to store the device in the global store.
+            UNIQUE_COMPONENT_IDENTIFIERS does not use this and has the regualar name. This is used to store the device in the global store.
+            """
             return component_name + "_" + name
 
-        def register_device(name: str, device=None) -> None:
+        def local_register_device(name: str, device) -> None:
             """
             Add a new device to the list of devices.
 
@@ -75,13 +118,15 @@ def create_generic_device_store(component_classes: list):
             """
             if name in UNIQUE_COMPONENT_IDENTIFIERS:
                 raise ValueError(f"{component_name} {name} already exists")
-            elif not component_identifier(name) in dict and device is None:
+            elif (
+                not local_component_identifier(name) in generic_store and device is None
+            ):
                 raise ValueError(f"{component_name} {name} does not exist")
             elif not check_class_instance(device):
                 raise ValueError(f"Must be a identifier(string) or " + class_names)
             elif not device is None:
-                dict[name] = device
-            UNIQUE_COMPONENT_IDENTIFIERS.add(component_name + "_" + name)
+                generic_store[local_component_identifier(name)] = device
+            UNIQUE_COMPONENT_IDENTIFIERS.add(name)
 
         def get_device(name: str):
             """
@@ -95,25 +140,7 @@ def create_generic_device_store(component_classes: list):
             """
             if not name in UNIQUE_COMPONENT_IDENTIFIERS:
                 raise ValueError(f"{component_name} {name} does not exist")
-            return dict[name]
-
-        def get_registered_devices() -> list:
-            """
-            Get a list of all the device pins.
-
-            Returns:
-                (list[int]) a list of all the device pins
-            """
-            return (y for x, y in dict if x in UNIQUE_COMPONENT_IDENTIFIERS)
-
-        def get_registered_device_names() -> list[str]:
-            """
-            Get a list of all the device names.
-
-            Returns:
-                (list[str]) a list of all the device names
-            """
-            return UNIQUE_COMPONENT_IDENTIFIERS
+            return generic_store.get(local_component_identifier(name))
 
         def device_action(func: callable) -> callable:
             """
@@ -141,63 +168,48 @@ def create_generic_device_store(component_classes: list):
 
             return wrapper
 
-        return (
-            device_action,
-            register_device,
-            get_device,
-            get_registered_devices,
-            get_registered_device_names,
-            dict,
-        )
+        return device_action
 
-    return create_device_component
+    return create_device_component, device_parser
+
+
+def open_json(file_name: str = "pinconfig.json"):
+    with open(file_name, "r") as file:
+        config = json.load(file)
+    for key, value in config.items():
+        yield key, value
+
+
+def configure_device(file_name: str = "pinconfig.json", file_kv_generator=open_json):
+    """configure the devices from the pinconfig file. This will parse the devices and store them in the global store.
+
+    Args:
+        file_name (str, optional): file of the pinconfiguration. Defaults to "pinconfig.json".
+        file_kv_generator (callable[[file_name: str], Generator[tuple[str, Any], Any, None]], optional): function for opening the pinconfig. Defaults to open_json.
+    """
+    for key, config in file_kv_generator(file_name):
+        if not key in DEVICE_PARSERS:
+            continue
+        parser = DEVICE_PARSERS[key]
+        device = parser.parse_device(config)
+        parser.register_device(key, device)
 
 
 def create_component_store(
-    component_name: str, component_classes: list, dict: dict = None
+    component_name: str, component_classes: list, parser_func=None
 ):
     """_summary_
 
     Args:
         component_name (str): name of the component (used in error messages)
         component_classes (list): classes that the device can be. For example, `[DigitalInputDevice, FakeInputDevice]` for DigitalInputDevice Store. (used to check if the device is a valid device)
-        dict (dict, optional): where the component instance is going to be stored in. Defaults to dict().
+        parser_func (callable, optional): function to parse the device. Defaults to None.
 
     Returns:
-        Tuple[
-          device_action (callable): decorator for device actions,
-          register_device (callable): adds the device to the store,
-          get_device (callable): get the stored device by identifier,
-          get_registered_devices (callable): get a list of all the stored devices,
-          get_registered_device_names (callable): gets a list of stored names/identifiers,
-          gloabal_store (dict): the dictionary that stores the devices
-        ]
+        device_action (callable): decorator for device actions,
     """
-    if dict is None:
-        dict = dict()
-    return create_generic_device_store(component_classes)(component_name, dict)
-
-
-create_input_device_component = create_generic_device_store(
-    (DigitalInputDevice, FakeDigitalInputDevice)
-)
-"""
-Create a new input device component.
-allowed device classes: DigitalInputDevice, FakeInputDevice
-returns: (device_action, register_device, get_device, get_registered_devices, get_registered_device_names, gloabal_store)
-"""
-
-
-create_output_device_component = create_generic_device_store(
-    (DigitalOutputDevice, FakeDigitalOutputDevice)
-)
-"""
-Create a new output device component.
-allowed device classes: DigitalOutputDevice, FakeOutputDevice
-returns: (device_action, register_device, get_device, get_registered_devices, get_registered_device_names, gloabal_store)
-"""
-
-
-create_pwm_output_device_component = create_generic_device_store(
-    (PWMOutputDevice, FakePWMOutputDevice)
-)
+    create_device, device_parser = create_generic_device_store(
+        component_name, component_classes, parser_func
+    )
+    device_action = create_device(component_name)
+    return device_action, device_parser

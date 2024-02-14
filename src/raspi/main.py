@@ -1,12 +1,13 @@
 from time import sleep
 
 from control import muscle_actions
-from control.motor.motor_controller import MotorController
 from io_controller import compressor_actions, pressure_actions
 from utils.cpu import setup_cpu
 from utils.interval import clear_intervals
 from utils.util import *
 from view.pygame import *
+
+from raspi.control.motor.motor_controller import MotorController
 
 SPEED = 0.1  # unit: %
 
