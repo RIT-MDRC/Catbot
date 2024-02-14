@@ -1,8 +1,8 @@
 from gpiozero import DigitalOutputDevice
 
-from ...util.generic_devices import create_output_device_component
+from ...generic_devices.generic_devices import create_output_device_component
 
-(valve_action, *_) = create_output_device_component("valve")
+valve_action = create_output_device_component("valve")
 __all__ = [
     "register_valve",
     "turn_valve_on",

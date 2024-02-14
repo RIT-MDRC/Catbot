@@ -1,0 +1,14 @@
+# Core of the state management system
+
+## Description
+The state management system allows us to code procedurally and functionally to keep all of the state in a central location making it easier to debug, visualize, and edit the heirarchy of the state. The state management system is built with decorators to make it easier to create new components. The key concept of the state management system is that the state is stored in a central dictionary that is used in each action methods to grab the state of the component by their identifiers/keys and use the state. 
+
+## What is this style of code?
+In many programming courses, the students are taught to use OOP to create a program and OOP is not always the best solution for every problem especially with the idea of regid structure in classes and behaviors using polymorphism and Liskov Substitution Principle. For catbot we often found ourselves having to wipe a bunch of classes all together to support a new electrical component that is built differently than the previous one often done last minute before a fair. I (@hiromon0125) wondered why not make classes that can be reused? The problem is that making such class structure are complex and difficult. Especially when we do not know where that change could happen in the future. It is hard to predict and making every single class to be reusable is just not practical and triple in complexity with enormous amount of classes. We also had numerous issue with python's limited ability to support OOP techniques, so I (@hiromon0125) looked for an alternative solution to our problem and arrived to the best blend of Object oriented, Procedural, and Functional programming. This state management system is built with this blend in mind. Which resulted in the lowest coupling and highest cohesion in the code. 
+The OOP is used to declare the models used to describe the shape of the robot/hardware that are often just a struct and can be easily visualized within the pinconfig file. The procedural programming is used to declare the actions that can be called to change the state of the hardware. Making it easier than ever to write a small test function. The functional programming is used to abstract the link of the state to the actions. Majority of the code written for the state management system borrows many techniques from functional programming. 
+
+# Methods
+
+## create_generic_device_store
+
+This is the core method that initializes stores for all devices. This method if responsible for creating and storing the store for all devices. It checks for type errors and make method for registering device to the store, and a method for storing parsers of the device that the store is used for. The method is considered "generic" because it is the preferred method for creating generic devices (examples seen in the generic_devices folder). Non-generic devices can be created using the `create_device_store` method.

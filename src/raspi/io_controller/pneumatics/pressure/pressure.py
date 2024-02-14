@@ -1,8 +1,8 @@
 from gpiozero import DigitalOutputDevice
 
-from ...util.generic_devices import create_input_device_component
+from ...generic_devices.generic_devices import create_input_device_component
 
-(pressure_action, *_) = create_input_device_component("pressure")
+pressure_action = create_input_device_component("pressure")
 __all__ = [
     "register_pressure",
     "is_pressure_ok",

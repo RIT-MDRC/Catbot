@@ -5,10 +5,16 @@ from utils.deviceMock import (
     FakePWMOutputDevice,
 )
 
+from ...state_management.device import create_generic_device_store
 from ...utils.util import is_dev
-from .device import create_generic_device_store
 
-create_input_device_component, input_device_parser = create_generic_device_store(
+__all__ = [
+    "create_input_device_component",
+    "create_output_device_component",
+    "create_pwm_output_device_component",
+]
+
+create_input_device_component, _input_device_parser = create_generic_device_store(
     "Input_Device",
     (DigitalInputDevice, FakeDigitalInputDevice),
 )
@@ -19,7 +25,7 @@ returns: (device_action, register_device, get_device, get_registered_devices, ge
 """
 
 
-@input_device_parser
+@_input_device_parser
 def parse_input_device(config):
     """
     Parse a new input device.
@@ -38,7 +44,7 @@ def parse_input_device(config):
         return DigitalInputDevice(config)
 
 
-create_output_device_component, output_device_parser = create_generic_device_store(
+create_output_device_component, _output_device_parser = create_generic_device_store(
     "output_device", (DigitalOutputDevice, FakeDigitalOutputDevice)
 )
 """
@@ -48,7 +54,7 @@ returns: (device_action, register_device, get_device, get_registered_devices, ge
 """
 
 
-@output_device_parser
+@_output_device_parser
 def parse_output_device(config):
     """
     Parse a new output device.
@@ -67,14 +73,14 @@ def parse_output_device(config):
         return DigitalOutputDevice(config)
 
 
-create_pwm_output_device_component, pwm_output_device_parser = (
+create_pwm_output_device_component, _pwm_output_device_parser = (
     create_generic_device_store(
         "pwm_output_device", (PWMOutputDevice, FakePWMOutputDevice)
     )
 )
 
 
-@pwm_output_device_parser
+@_pwm_output_device_parser
 def parse_pwm_output_device(config):
     """
     Parse a new pwm output device.

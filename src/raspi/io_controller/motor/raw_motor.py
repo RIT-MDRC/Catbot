@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from ..util.device import create_component_store
+from ...state_management.device import create_component_store
 
 
 @dataclass(slots=True)

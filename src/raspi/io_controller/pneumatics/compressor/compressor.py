@@ -1,6 +1,6 @@
 from gpiozero import DigitalOutputDevice
 
-from ...util.generic_devices import create_output_device_component
+from ...generic_devices.generic_devices import create_output_device_component
 
 compressor_action = create_output_device_component("compressor")
 __all__ = [

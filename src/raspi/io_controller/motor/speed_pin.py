@@ -1,8 +1,8 @@
 from gpiozero import DigitalOutputDevice
 
-from ..util.generic_devices import create_output_device_component
+from ..generic_devices.generic_devices import create_output_device_component
 
-(speed_pin_action, register_speedPin) = create_output_device_component("speedPin")
+speed_pin_action = create_output_device_component("speedPin")
 __all__ = [
     "register_speedPin",
     "set",

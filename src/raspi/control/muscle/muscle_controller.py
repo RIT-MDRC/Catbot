@@ -2,7 +2,8 @@ import logging
 from dataclasses import dataclass, field
 
 from io_controller import pressure_actions, valve_actions
-from io_controller.util.device import create_component_store
+
+from raspi.state_management.device import create_component_store
 
 
 @dataclass(slots=True)
