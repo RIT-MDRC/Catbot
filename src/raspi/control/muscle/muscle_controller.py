@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 
 from io_controller import pressure_actions, valve_actions
 
-from raspi.state_management.device import create_component_store
+from raspi.state_management.device import create_device_store
 
 
 @dataclass(slots=True)
@@ -24,7 +24,7 @@ class MuscleObj:
         setattr(self, key, value)
 
 
-(muscle_action, register_muscle, *_) = create_component_store("muscle", [MuscleObj])
+muscle_action, muscle_parser = create_device_store("muscle", [MuscleObj])
 __all__ = ["contract", "relax", "toggle_muscle_state", "MuscleObj"]
 
 

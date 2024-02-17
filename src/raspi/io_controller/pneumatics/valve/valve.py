@@ -1,6 +1,6 @@
 from gpiozero import DigitalOutputDevice
 
-from ...generic_devices.generic_devices import create_output_device_component
+from raspi.state_management import create_output_device_component
 
 valve_action = create_output_device_component("valve")
 __all__ = [

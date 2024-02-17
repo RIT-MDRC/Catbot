@@ -5,8 +5,8 @@ from utils.deviceMock import (
     FakePWMOutputDevice,
 )
 
-from ...state_management.device import create_generic_device_store
-from ...utils.util import is_dev
+from raspi.state_management.device import create_generic_device_store
+from raspi.utils.util import is_dev
 
 __all__ = [
     "create_input_device_component",

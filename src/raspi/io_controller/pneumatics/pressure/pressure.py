@@ -1,6 +1,6 @@
 from gpiozero import DigitalOutputDevice
 
-from ...generic_devices.generic_devices import create_input_device_component
+from raspi.state_management import create_input_device_component
 
 pressure_action = create_input_device_component("pressure")
 __all__ = [

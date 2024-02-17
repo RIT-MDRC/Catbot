@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from ...state_management.device import create_component_store
+from raspi.state_management import create_device_store
 
 
 @dataclass(slots=True)
@@ -11,7 +11,7 @@ class RawMotor:
     direction: str
 
 
-(raw_motor_action,) = create_component_store("raw_motor", [RawMotor])
+(raw_motor_action,) = create_device_store("raw_motor", [RawMotor])
 
 
 @raw_motor_action

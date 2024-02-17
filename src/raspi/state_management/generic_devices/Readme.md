@@ -39,4 +39,4 @@ Example devices that uses this are:
 * create_pwm_output_device_component: allows the developer to create a renamed PWM output device component with an isolated store.
 
 ## Why not declare action methods for the generic devices?
-The action methods for the generic devices are purposely not implemented as a safety procausion. Although in the future this may change, if the generic device's action methods are used instead of renamed device's actions, the developer can accidentally use the wrong renamed device for the wrong action. This can lead to unexpected behavior and safety hazards. The developer should always use the renamed device's action methods to control the GPIO pins.
+The action methods for the generic devices are purposely not implemented as a safety procausion. Although in the future this may change, if the generic device's action methods are used instead of renamed device's actions, the developer can accidentally use the wrong renamed device for the wrong action. This can lead to unexpected behavior and a hazard. The developer should always use the renamed device's action methods to control the GPIO pins.
