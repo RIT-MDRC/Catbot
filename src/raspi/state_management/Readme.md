@@ -22,7 +22,7 @@ The result is a state management system that is organized per component and inte
 This is the core method that initializes stores for all devices. This method is responsible for creating and storing the store for all devices. It checks for type errors and makes a method for registering the device to the store and a method for storing parsers of the device that the store is used for. The method is considered "generic" because it is the preferred method for creating masked devices from the generic devices (examples seen in the generic_devices folder). 
 
 > [!WARNING]
-> Non-generic devices should use the [`create_device_store`](create_device_store) method.
+> Non-generic devices should use the [`create_device_store`](#create_device_store) method.
 
 ### Arguments
 * generic_device_name: str
