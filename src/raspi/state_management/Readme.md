@@ -3,15 +3,15 @@ last updated: 2024-2-17
 by @hiromon0125
 
 ## Description
-The state management system allows us to code procedurally and functionally to keep all of the state in a central location making it easier to debug, visualize, and edit the heirarchy of the state. The state management system is built with decorators to make it easier to create new components. The key concept of the state management system is that the state is stored in a central dictionary that is used in each action methods to grab the state of the component by their identifiers/keys and use the state. 
+The state management system allows us to code procedurally and functionally to keep all of the state in a central location making it easier to debug, visualize, and edit the hierarchy of the state. The state management system is built with decorators to make it easier to create new components. The key concept of the state management system is that the state is stored in a central dictionary that is used in each action method to grab the state of the component by their identifiers/keys and use the state. 
 
 <details>
 
 <summary>What is this style of code?</summary>
 
-In many programming courses, the students are taught to use OOP to create programs, but OOP is not always the best solution for every problem. Due to the regid structure in classes and behaviors using polymorphism and Liskov Substitution Principle. For catbot we often found ourselves having to wipe a bunch of classes all together to support a new electrical component that is built differently than the previous one; often times done last minute before an exihibition. I (@hiromon0125) wondered why not make classes that can be reused? The problem is that making such class structure are complex and difficult. Especially when we do not know where that change could happen in the future, it is hard to predict and making every single class to be reusable is just not practical and triple in complexity with enormous amount of classes. We also had numerous issue with python's limited ability to support OOP techniques, so I (@hiromon0125) looked for an alternative solution to our problem and arrived to the best blend of Object oriented, Procedural, and Functional programming. This state management system is built with techniques from all paradigms. Which resulted in the lowest coupling and highest cohesion in the code while also being explicite in the code. 
-The OOP is used to declare the models used to describe the shape of the robot/hardware that are often just a struct and can be easily visualized within the pinconfig file. The procedural programming is used to declare the actions that can be called to change the state of the hardware. Making it easier than ever to write a small test function. The functional programming is used to abstract the link of the state to the actions. Majority of the code written for the state management system borrows many techniques from functional programming. 
-The result is a state management system that is organized per component and integrated with pinconfig file. The state management system is also very easy to test and debug and also protect unwanted access to private methods and variables in the classes. There are also many other benefits like omitting unused component stores and actions that can be called from any locations; all a dev need to do is to import the action from the correct file and call the action. This result us to easily integrate the state management system with any higher level system like API or controllers.
+In many programming courses, the students are taught to use OOP to create programs, but OOP is not always the best solution for every problem. Due to the rigid structure in classes and behaviors using polymorphism and the Liskov Substitution Principle. For Catbot, we often found ourselves having to wipe a bunch of classes altogether to support a new electrical component that is built differently than the previous one; oftentimes done last minute before an exhibition. I (@hiromon0125) wondered why not make classes that can be reused. The problem is that making such a class structure is complex and difficult. Especially when we do not know where that change could happen in the future, it is hard to predict, and making every single class to be reusable is just not practical and triple in complexity with an enormous amount of classes. We also had numerous issues with Python's limited ability to support OOP techniques, so I (@hiromon0125) looked for an alternative solution to our problem and arrived at the best blend of Object-oriented, Procedural, and Functional programming. This state management system is built with techniques from all paradigms. Which resulted in the lowest coupling and highest cohesion in the code while also being explicit in the code. 
+The OOP is used to declare the models used to describe the shape of the robot/hardware that are often just a struct and can be easily visualized within the pin config file. Procedural programming is used to declare the actions that can be called to change the state of the hardware. Making it easier than ever to write a small test function. Functional programming is used to abstract the link of the state to the actions. The majority of the code written for the state management system borrows many techniques from functional programming. 
+The result is a state management system that is organized per component and integrated with a pin config file. The state management system is also very easy to test and debug and also protects unwanted access to private methods and variables in the classes. There are also many other benefits like omitting unused component stores and actions that can be called from any location; all a dev needs to do is import the action from the correct file and call the action. This allows us to easily integrate the state management system with any higher-level system like API or controllers.
 
 </details>
 
@@ -19,10 +19,10 @@ The result is a state management system that is organized per component and inte
 
 ## create_generic_device_store()
 
-This is the core method that initializes stores for all devices. This method is responsible for creating and storing the store for all devices. It checks for type errors and make method for registering device to the store, and a method for storing parsers of the device that the store is used for. The method is considered "generic" because it is the preferred method for creating masked devices from the generic devices (examples seen in the generic_devices folder). 
+This is the core method that initializes stores for all devices. This method is responsible for creating and storing the store for all devices. It checks for type errors and makes a method for registering the device to the store and a method for storing parsers of the device that the store is used for. The method is considered "generic" because it is the preferred method for creating masked devices from the generic devices (examples seen in the generic_devices folder). 
 
 > [!WARNING]
-> Non-generic devices should use the `create_device_store` method.
+> Non-generic devices should use the [`create_device_store`](create_device_store) method.
 
 ### Arguments
 * generic_device_name: str
@@ -39,7 +39,7 @@ This is the core method that initializes stores for all devices. This method is 
 * device_parser: callable[[dict], None]
 
 > [!WARNING]
-> The `device_parser` method should not exist outside of the file where it is initialized. Either use the `__all__` variable to protect the method or do not export the method in __init__.py. Violating this rule will result in a unexpected behavior.
+> The [`device_parser`](#device_parser) method should not exist outside of the file where it is initialized. Either use the `__all__` variable to protect the method or do not export the method in __init__.py. Violating this rule will result in an unexpected behavior.
 
 <details>
 
@@ -72,7 +72,7 @@ def parse_output_device(config):
 </details>
 
 ## device_parser()
-Decorator returned by the `create_generic_device_store` method and `create_device_store` method. This decorator is used to register component's parsing method to be triggerred by the pinconfig parser when it sees the parser's identifier(generic_device_name or device_name). 
+Decorator returned by the [`create_generic_device_store`](#create_generic_device_store) method and [`create_device_store`](#create_device_store) method. This decorator is used to register the component's parsing method to be triggered by the pinconfig parser when it sees the parser's identifier(generic_device_name or device_name). 
 
 ### Arguments
 * device_parser: `callable[[dict], Any]`
@@ -85,7 +85,7 @@ Decorator returned by the `create_generic_device_store` method and `create_devic
 
 <summary>Example usage of the decorated function</summary>
 
-Lets say you have the following config file:
+Let's say you have the following config file:
 ```json
 {
   "valve": {
@@ -99,7 +99,7 @@ Lets say you have the following config file:
     }
 }
 ```
-Then only the "1" or {"pressure": "left_pressure","valve": "left_valve"} will be passed to the parser function.
+Then only the "1" or {"pressure": "left_pressure", "valve": "left_valve"} will be passed to the parser function.
 
 Example:
 ```py
@@ -116,7 +116,7 @@ def parse_valve(attribute: int):
 
 
 ## create_masked_device()
-Decorator returned by the `create_generic_device_store` method. This method is used to create a renamed device component with an isolated store on runtime. 
+Decorator returned by the [`create_generic_device_store`](#create_generic_device_store) method. This method is used to create a renamed device component with an isolated store on runtime. 
 
 ### Arguments
 * device_name: str
@@ -158,13 +158,13 @@ def turn_valve_on(valve: DigitalOutputDevice) -> None:
 
 
 ## device_action()
-Decorator returned by the `create_device` method and `create_device_store` method. This method is used to decorate the action methods of the device such that the action method can be used with the device's identifier and the state management system will automatically grab the state of the device and pass it to the action method.
+Decorator returned by the [`create_device`](#create_masked_device) method and [`create_device_store`](#create_device_store) method. This method is used to decorate the action methods of the device such that the action method can be used with the device's identifier and the state management system will automatically grab the state of the device and pass it to the action method.
 
 ### Arguments
 * func: callable
 
 ### Description
-* func: The action method that is used to change the state of the device. The method is expected to take in a state as the first argument and the rest of the arguments are passed in. The method can return a new state or not. The decorator does not do any operation with extra parameter or returned value. 
+* func: The action method that is used to change the state of the device. The method is expected to take in a state as the first argument and the rest of the arguments are passed in. The method can return a new state or not. The decorator does not do any operation with the extra parameter or returned value. 
 
 ### Returns
 * func: callable = decoarted function. 
@@ -188,7 +188,7 @@ other examples can be found in valve.py or pressure.py
 
 ## create_device_store()
 
-This is the main method for creating a store for any device. This method under the hood calls the `create_generic_device_store` method and returns the `create_device` method and `device_parser` method. Use this to create non-generic devices.
+This is the main method for creating a store for any device. This method under the hood calls the [`create_generic_device_store`](#create_generic_device_store) method and returns the [`create_masked_device`](#create_masked_device) method and [`device_parser`](#device_parser) method. Use this to create non-generic devices.
 
 ### Arguments
 * `device_name`: str
@@ -201,7 +201,7 @@ This is the main method for creating a store for any device. This method under t
 
 * `device_name`: The name of the component that the store is used for. This is used as a trigger for the pinconfig parser to use the device's parsing method.
 * `device_classes`: A list of classes that the store is used for. This is used to check for type errors during registering devices after parsing.
-* `parser_func`: This is one of two ways of handing the parsing method for a device into the state management system. You can use this instead of the `device_parser` decorator.
+* `parser_func`: This is one of two ways of handing the parsing method for a device into the state management system. You can use this instead of the [`device_parser`](#device_parser) decorator.
 
 </detail>
 
@@ -213,8 +213,8 @@ This is the main method for creating a store for any device. This method under t
 
 <summary>Description</summary>
 
-* `device_action`: a decorator for device actions. This is used wrap a device action so that the device state is swapped with the state on runtime.
-* `device_parser`: a decorator for device initializers that parses the config and creates a new device instance and returns the device to be stored in the store. This parser function will be called during initialization for the application.
+* `device_action`: a decorator for device actions. This is used to wrap a device action so that the device state is swapped with the state on runtime.
+* `device_parser`: a decorator for device initializers that parses the config creates a new device instance and returns the device to be stored in the store. This parser function will be called during initialization for the application.
 
 </details>
 
