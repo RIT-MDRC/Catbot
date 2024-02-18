@@ -38,8 +38,9 @@ This is done by running the following command in the root directory of the repo 
 ```bash
 sudo npm install -g
 ```
-> note: You must have sudo permission and npm installed in your system.
-This also means that when ever you updated src, you need to run this command again to update the code to run for other members.
+> [!NOTE]
+> You must have sudo permission and npm installed in your system.
+> This also means that when ever you updated src, you need to run this command again to update the code to run for other members.
 
 ### Dev argument
 Because of this globally installed script system what ever we write in the repo's src folder will not be run by other users unless we run the npm install command.

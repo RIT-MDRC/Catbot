@@ -19,7 +19,7 @@ The result is a state management system that is organized per component and inte
 
 ## create_generic_device_store()
 
-This is the core method that initializes stores for all devices. This method is responsible for creating and storing the store for all devices. It checks for type errors and makes a method for registering the device to the store and a method for storing parsers of the device that the store is used for. The method is considered "generic" because it is the preferred method for creating masked devices from the generic devices (examples seen in the [generic_devices folder](https://github.com/RIT-MDRC/Catbot/blob/436d701f8afa5e397d5a098f036825c2add0c51c/src/raspi/state_management/generic_devices/Readme.md)). 
+This is the core method that initializes stores for all devices. This method is responsible for creating and storing the store for all devices. It checks for type errors and makes a method for registering the device to the store and a method for storing parsers of the device that the store is used for. The method is considered "generic" because it is the preferred method for creating masked devices from the generic devices (examples seen in the [generic_devices folder](./generic_devices/README.md)). 
 
 > [!WARNING]
 > Non-generic devices should use the [`create_device_store`](#create_device_store) method.
@@ -171,7 +171,7 @@ Decorator returned by the [`create_device`](#create_masked_device) method and [`
 
 <details>
 
-<summary>Eample</summary>
+<summary>Example</summary>
 
 ```py
 device_action = create_device("device_name")
