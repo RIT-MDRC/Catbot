@@ -1,4 +1,5 @@
 import json
+import logging
 from collections import namedtuple
 from functools import reduce, wraps
 
@@ -12,24 +13,15 @@ def create_generic_device_store(
     """
     # Create Generic Device Store
     Initializes a generic device store.
-    Use this to create a device that is usually renamed to a different component. Components that are just Pins are good examples like:
-    - InputDevice
-    - OutputDevice
-    - PWMOutputDevice
-    - DigitalInputDevice
-
-    Use the returned method from this method to rename the component.
-
-    For example:
-    - valve from generic digital output device
-    - handshake from generic digital input device
-    - speedPin from generic pwm output device
 
     Args:
         component_classes (list): This is a list of classes that the device can be. For example, DigitalInputDevice and FakeInputDevice for DigitalInputDevices used for type checking.
 
     Returns:
-        create_device_component (callable[[str], callable]]): This is a function that creates a new device component that is just a reskin of the generic device.
+        create_masked_device (callable[[str], callable]]): This is a function that creates a new device component that is just a reskin of the generic device.
+        *device_parser (callable): This is a function that parses the device from the config.
+
+    *device_parser should not be exportable outside of the file. This will overwrite the parser function for the generic device store and create unexpected behavior when parsed multiple times.
 
     example:
         see src/device.py or src/raspi/io_controller/pneumatics/valve.py
@@ -77,9 +69,9 @@ def create_generic_device_store(
             generic_register_device, func, generic_store
         )
 
-    def create_device_component(device_name: str):
+    def create_masked_device(device_name: str):
         """
-        # Create Device Component
+        # Create Masked Device
         Create a new device component from a generic device store.
 
         Args:
@@ -171,7 +163,7 @@ def create_generic_device_store(
 
         return device_action
 
-    return create_device_component, device_parser
+    return create_masked_device, device_parser
 
 
 def open_json(file_name: str = "pinconfig.json"):
@@ -190,11 +182,19 @@ def configure_device(
         file_name (str, optional): file of the pinconfiguration. Defaults to "pinconfig.json".
         file_kv_generator (callable[[file_name: str], Generator[tuple[str, Any], Any, None]], optional): function for opening the pinconfig. Defaults to open_json.
 
-    file_kv_generator is a function that takes in a file name and returns a generator that yields a tuple of the key and the value. This is used to open the pinconfig file and parse the devices.
-    The expected behavior is that the file_kv_generator will parse the config and return a generator for the first layer of key and value pairs. The key should be the identifier of the device parser and the value should be the object with device identifier and attributes.
+    Details:
+        file_kv_generator is a function that takes in a file name and returns a generator that yields a tuple of the key and the value. This is used to open the pinconfig file and parse the devices.
+        The expected behavior is that the file_kv_generator will parse the config and return a generator for the first layer of key and value pairs. The key should be the identifier of the device parser and the value should be the object with device identifier and attributes.
+
+    WARNING:
+        This method will skip any parser that was not registered in the device parser list.
+        This could happen for two reasons. The device store was not initialized due to the file that the initializer is in was not imported in the script file(memory benefit), or the parser's identifier had a typo in the pinconfig file(Will need to be fixed immediately).
     """
     for key, config in file_kv_generator(file_name):
         if not key in DEVICE_PARSERS:
+            logging.warning(
+                f"{key} does not registered in the device parser list. Skipping..."
+            )
             continue
         parser = DEVICE_PARSERS[key]
         for key, device_attr in config.items():
@@ -205,7 +205,9 @@ def configure_device(
 def create_device_store(
     component_name: str, component_classes: list, parser_func: callable = None
 ):
-    """_summary_
+    """
+    # Create Device Store
+    This is the main method for creating a store for any device. This method under the hood calls the `create_generic_device_store` method and returns the `create_device` method and `device_parser` method. Use this to create non-generic devices.
 
     Args:
         component_name (str): name of the component (used in error messages)
@@ -215,31 +217,6 @@ def create_device_store(
     Returns:
         device_action (callable): decorator for device actions,
         device_parser (callable): function to parse the device from config
-
-    Description:
-        This is used to create a new device store. This is used to create a new device store for a specific device. Do not use this for generic pin devices
-
-        device_action is a decorator for device actions. This is used wrap a device action so that the device state is swapped with the state on runtime.
-        device_parser is a decorator for device initializers that parses the config and creates a new device instance and returns the device to be stored in the store. This parser function will be called during initialization for the application.
-
-    Example:
-    ```python
-
-    device_action, device_parser = create_device_store("valve", [DigitalOutputDevice, FakeDigitalOutputDevice])
-
-    @device_parser
-    def parse_valve(config):
-        if not isinstance(config, int):
-            raise ValueError("Must be a pin number. Got " + str(config))
-        if is_dev():
-            return FakeDigitalOutputDevice(config)
-        else:
-            return DigitalOutputDevice(config)
-
-    @device_action
-    def turn_valve_on(valve: DigitalOutputDevice) -> None:
-        valve.on()
-    ```
     """
     create_device, device_parser = create_generic_device_store(
         component_name, component_classes, parser_func
