@@ -1,6 +1,9 @@
 #include <pigpio.h>
 #include <stdexcept>
 
+#define PWM_FREQUENCY 100   // (in hertz)
+#define PWM_RANGE 255
+
 class Motor {
 
     public:

@@ -31,3 +31,9 @@ The following keys are currently supported:
 ### Note about pinconfig
 - Although all the muscle is not specifically tied to a single pressure sensor it is still required to check for pressure. This is done so we can have the flexibility of the individual pressure system in the future.
 - The pressure and valve does not have to be in the muscle object. It can be declared outside of it. However, if it is declared outside of the muscle object, and the muscle object references it inside with the same name. Which ever pin comes after will override the previously declared pin number. For example, main_pressure will be pin 27 instead of 17. Whether the pin number is already declared or not does not matter the number will always have to be declared.
+
+
+## Boost
+
+### Install
+

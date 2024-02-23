@@ -1,8 +1,5 @@
 #include "motor.h"
 
-#define PWM_FREQUENCY 100   // Hz
-#define PWM_RANGE 255
-
 Motor::Motor(int pwmPin, int directionPin) {
     this->pwmPin = pwmPin;
     this->directionPin = directionPin;
