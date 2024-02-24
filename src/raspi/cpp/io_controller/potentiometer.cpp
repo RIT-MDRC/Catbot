@@ -1,4 +1,5 @@
 #include "potentiometer.h"
+#include <boost/python.hpp>
 
 Potentiometer::Potentiometer(int adcHandle, int index) {
     this->adcHandle = adcHandle;
@@ -21,4 +22,12 @@ unsigned int Potentiometer::getDegrees() {
     unsigned int degrees = (reading / pow(2, ADC_RESOLUTION_BITS)) * MAX_ROTATION;
 
     return degrees;
+}
+
+BOOST_PYTHON_MODULE(potentiometer){
+    using namespace boost::python;
+    class_<Potentiometer>("Potentiometer", init<std::int, std::int>())
+        .def("getDegrees", &Potentiometer::getDegrees)
+        .def_readonly("adcHandle", &Potentiometer::adcHandle)
+        .def_readonly("index", &Potentiometer::index)
 }
