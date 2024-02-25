@@ -163,6 +163,19 @@ def create_generic_device_store(
             return wrapper
 
         def device_attr(attr_name: str | tuple[str]):
+            """
+            # Device Attribute
+            Decorator for device attributes. This is used to change the class's initializer to define the device's attribute to either take in the parameter of the attribute device's value or the device's identifier.
+            If the value is passed into the constructor of the class, the value will be used to create the lower device's instance and registered in the global store. If the identifier or an instance of the lower device
+            is passed into the constructor of the class, no extra operation will be performed and the decorated class will be instantiated as normal.
+            NOTE: This decorated should be used once per class or else the behavior is not guaranteed.
+
+            Args:
+                attr_name (str|tuple[str]): the name of the attribute/s to change the type of
+
+            Returns:
+                (callable) the decorated function on the device that will be wrapping the class
+            """
             if isinstance(attr_name, str):
                 attr_name = (attr_name,)
 
