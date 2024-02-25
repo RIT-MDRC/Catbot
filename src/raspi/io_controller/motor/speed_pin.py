@@ -2,9 +2,10 @@ from gpiozero import DigitalOutputDevice
 
 from raspi.state_management import create_output_device_component
 
-speed_pin_action = create_output_device_component("speedPin")
+(speed_pin_action, speed_pin_attr) = create_output_device_component("speedPin")
 __all__ = [
     "register_speedPin",
+    "speed_pin_attr",
     "set",
 ]
 

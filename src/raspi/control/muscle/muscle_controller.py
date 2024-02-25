@@ -6,6 +6,7 @@ from io_controller import pressure_actions, valve_actions
 from raspi.state_management.device import create_device_store
 
 
+@pressure_actions.pressure_attr("pressure")
 @dataclass(slots=True)
 class MuscleObj:
     """
@@ -24,8 +25,8 @@ class MuscleObj:
         setattr(self, key, value)
 
 
-muscle_action, muscle_parser = create_device_store("muscle", [MuscleObj])
-__all__ = ["contract", "relax", "toggle_muscle_state", "MuscleObj"]
+muscle_action, muscle_parser, muscle_attr = create_device_store("muscle", [MuscleObj])
+__all__ = ["contract", "relax", "toggle_muscle_state", "MuscleObj", "muscle_attr"]
 
 
 @muscle_action

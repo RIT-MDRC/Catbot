@@ -1,3 +1,4 @@
+import inspect
 import json
 import logging
 from collections import namedtuple
@@ -161,7 +162,50 @@ def create_generic_device_store(
 
             return wrapper
 
-        return device_action
+        def device_attr(attr_name: str | tuple[str]):
+            if isinstance(attr_name, str):
+                attr_name = (attr_name,)
+
+            def class_wrapper(cls):
+                original_init = cls.__init__
+                parameters = inspect.signature(original_init).parameters
+
+                def new_init(self, *args, **kwargs):
+                    arg_key_value_pairs = [
+                        (key, value)
+                        for (key, value) in zip(parameters.keys(), args)
+                        if value is not None
+                    ]
+                    kwarg_key_value_pairs = list(kwargs.items())
+
+                    all_key_value_pairs = arg_key_value_pairs + kwarg_key_value_pairs
+
+                    parser = DEVICE_PARSERS[device_name]
+
+                    def check(key, value):
+                        return key in attr_name and not check_class_instance(value)
+
+                    new_kwargs = {
+                        (
+                            key
+                            if not check(key, value)
+                            else f"{device_name}.{key}_{str(hash(value))}"
+                        ): (
+                            value
+                            if not check(key, value)
+                            else parser.parse_device(value)
+                        )
+                        for (key, value) in all_key_value_pairs
+                    }
+
+                    original_init(self, **new_kwargs)
+
+                cls.__init__ = new_init
+                return cls
+
+            return class_wrapper
+
+        return device_action, device_attr
 
     return create_masked_device, device_parser
 
@@ -216,10 +260,11 @@ def create_device_store(
 
     Returns:
         device_action (callable): decorator for device actions,
-        device_parser (callable): function to parse the device from config
+        device_parser (callable): function to parse the device from config,
+        devcie_attr (callable): decorator for higher level device attributes
     """
     create_device, device_parser = create_generic_device_store(
         component_name, component_classes, parser_func
     )
-    device_action = create_device(component_name)
-    return device_action, device_parser
+    device_action, device_attr = create_device(component_name)
+    return device_action, device_parser, device_attr

@@ -2,8 +2,9 @@ from gpiozero import DigitalOutputDevice
 
 from raspi.state_management import create_input_device_component
 
-pressure_action = create_input_device_component("pressure")
+pressure_action, pressure_attr = create_input_device_component("pressure")
 __all__ = [
+    "pressure_attr",
     "register_pressure",
     "is_pressure_ok",
     "on_pressure_active",

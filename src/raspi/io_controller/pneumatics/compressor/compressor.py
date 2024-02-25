@@ -2,8 +2,9 @@ from gpiozero import DigitalOutputDevice
 
 from raspi.state_management import create_output_device_component
 
-compressor_action = create_output_device_component("compressor")
+compressor_action, compressor_attr = create_output_device_component("compressor")
 __all__ = [
+    "compressor_attr",
     "turn_compressor_on",
     "turn_compressor_off",
     "turn_valve",
