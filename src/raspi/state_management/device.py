@@ -10,21 +10,21 @@ from typing import Union
 Parser = namedtuple(
     "Parser",
     [
-        "register_device",
-        "parse_device",
-        "store",
-        "masked_device_parsers",
-        "stored_keys",
+        "register_device",  # callable[[str, any], None]:   the function to register a new device
+        "parse_device",  # callable[[dict, str], any]:      the function to parse a new device from the config file
+        "store",  # dict:                                   the dictionary to store the devices
+        "masked_device_parsers",  # list:                   the list of masked device parsers
+        "stored_keys",  # set:                              the set of keys that are stored in the store for masked devices
     ],
 )
 """Parser Class
 
     Attributes:
-        register_device (callable[[str], callable]): the function to register a new device
-        parse_device (callable[[str], callable]): the function to parse a new device
-        store (dict): the dictionary to store the devices' state
-        masked_device_parsers (list): the list of sub parsers
-        stored_keys (set): the set of keys that are stored in the store for masked devices
+        register_device (callable[[str, any], None]):   function to register a new device
+        parse_device (callable[[dict, str], any]):      function to parse a new device
+        store (dict):                                   dictionary to store the devices' state
+        masked_device_parsers (list):                   list of sub parsers
+        stored_keys (set):                              set of keys that are stored in the store for masked devices
 """
 DEVICE_PARSERS: dict[str, Parser] = dict()
 
@@ -94,6 +94,7 @@ def create_generic_device_store(
             device = func(value)
             return device
 
+        # Update parser_device
         if generic_device_name in DEVICE_PARSERS:
             parser = DEVICE_PARSERS[generic_device_name]
             DEVICE_PARSERS[generic_device_name] = Parser(
@@ -156,6 +157,7 @@ def create_generic_device_store(
                 generic_store[name] = device
             UNIQUE_COMPONENT_IDENTIFIERS.add(name)
 
+        # Create parser for the masked device
         DEVICE_PARSERS[device_name] = Parser(
             register_device=local_register_device,
             parse_device=DEVICE_PARSERS[generic_device_name].parse_device,
@@ -231,7 +233,7 @@ def create_generic_device_store(
 
             def class_wrapper(cls):
                 original_init = cls.__init__
-                # check if the original init needs _indentifer
+                # check if the original init needs _indentifer to allow nesting of class decorators
                 needsIdentifier = (
                     "_identifier" in inspect.signature(original_init).parameters
                 )
@@ -243,18 +245,13 @@ def create_generic_device_store(
                         if check_only_class_instance(value) or key not in attr_name:
                             return value
                         elif isinstance(value, str):
-                            # when an identifier is passed in as an attribute value
-                            try:
-                                get_device(value)
+                            if value in UNIQUE_COMPONENT_IDENTIFIERS:
                                 return value
-                            except:
-                                if value in parser.store:
-                                    parser.register_device(value, parser.store[value])
-                                    return value
-                                else:
-                                    raise ValueError(
-                                        f"{device_name}: {value} does not exist"
-                                    )
+                            elif value in parser.store:
+                                parser.register_device(value, parser.store[value])
+                                return value
+
+                            raise ValueError(f"{device_name}: {value} does not exist")
                         # when an attribute's parameter is passed in as an attribute value
                         newDevice = parser.parse_device(value, _identifier=_identifier)
                         newKey = f"{_identifier}.{key}"
