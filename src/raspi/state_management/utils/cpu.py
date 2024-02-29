@@ -1,7 +1,8 @@
 import logging
 
 from gpiozero import CPUTemperature
-from utils.util import is_dev, set_interval
+
+from .util import is_dev, set_interval
 
 
 def make_cpu() -> CPUTemperature:

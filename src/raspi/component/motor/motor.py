@@ -1,8 +1,12 @@
 import logging
 
 from gpiozero import OutputDevice, PWMOutputDevice
-from utils.deviceMock import FakeDigitalOutputDevice, FakePWMOutputDevice
-from utils.util import create_output_device, create_pwm_device
+from state_management import (
+    FakeDigitalOutputDevice,
+    FakePWMOutputDevice,
+    create_output_device,
+    create_pwm_device,
+)
 
 
 class MotorController:

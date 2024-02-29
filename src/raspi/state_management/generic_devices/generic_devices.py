@@ -1,11 +1,11 @@
 from gpiozero import DigitalInputDevice, DigitalOutputDevice, PWMOutputDevice
 from state_management.device import create_generic_device_store
-from utils.deviceMock import (
+from state_management.utils import (
     FakeDigitalInputDevice,
     FakeDigitalOutputDevice,
     FakePWMOutputDevice,
+    is_dev,
 )
-from utils.util import is_dev
 
 __all__ = [
     "create_input_device_component",

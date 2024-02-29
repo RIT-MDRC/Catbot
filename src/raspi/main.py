@@ -1,13 +1,13 @@
 from time import sleep
 
-from control import muscle_actions
-from control.motor.motor_controller import MotorController
-from io_controller import compressor_actions, pressure_actions
-from state_management.device import configure_device
-from utils.cpu import setup_cpu
-from utils.interval import clear_intervals
-from utils.logger import configure_logger
-from utils.util import *
+from component import MotorController, compressor_actions, muscle_actions
+from component.muscle.pneumatics import pressure_actions
+from state_management import (
+    clear_intervals,
+    configure_device,
+    configure_logger,
+    setup_cpu,
+)
 from view.pygame import *
 
 SPEED = 0.1  # unit: %

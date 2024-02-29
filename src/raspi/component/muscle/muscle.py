@@ -1,8 +1,9 @@
 import logging
 from dataclasses import dataclass, field
 
-from io_controller import pressure_actions, valve_actions
-from state_management.device import create_device_store
+from state_management import create_device_store
+
+from .pneumatics import pressure_actions, valve_actions
 
 
 @pressure_actions.pressure_attr("pressure")

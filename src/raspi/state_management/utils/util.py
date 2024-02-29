@@ -4,12 +4,13 @@ import os
 
 from dotenv import dotenv_values
 from gpiozero import DigitalInputDevice, DigitalOutputDevice, PWMOutputDevice
-from utils.deviceMock import (
+
+from .deviceMock import (
     FakeDigitalInputDevice,
     FakeDigitalOutputDevice,
     FakePWMOutputDevice,
 )
-from utils.interval import set_interval
+from .interval import set_interval
 
 
 def is_dev() -> bool:
