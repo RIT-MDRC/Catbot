@@ -1,10 +1,31 @@
 import inspect
 import json
 import logging
+from ast import parse
 from collections import namedtuple
 from functools import reduce, wraps
+from operator import ge
+from typing import Union
 
-Parser = namedtuple("Parser", ["register_device", "parse_device", "store"])
+Parser = namedtuple(
+    "Parser",
+    [
+        "register_device",
+        "parse_device",
+        "store",
+        "masked_device_parsers",
+        "stored_keys",
+    ],
+)
+"""Parser Class
+
+    Attributes:
+        register_device (callable[[str], callable]): the function to register a new device
+        parse_device (callable[[str], callable]): the function to parse a new device
+        store (dict): the dictionary to store the devices' state
+        masked_device_parsers (list): the list of sub parsers
+        stored_keys (set): the set of keys that are stored in the store for masked devices
+"""
 DEVICE_PARSERS: dict[str, Parser] = dict()
 
 
@@ -32,15 +53,15 @@ def create_generic_device_store(
 
     generic_store: dict = dict()
 
-    if parser_func is not None:
-        device_parser(parser_func)
+    def check_only_class_instance(x):
+        return reduce(lambda res, y: res or isinstance(x, y), device_classes, False)
 
     def check_class_instance(x):
         return isinstance(x, str) or reduce(
             lambda res, y: res or isinstance(x, y), device_classes, False
         )
 
-    def generic_register_device(name: str, device) -> None:
+    def register_generic_device(name: str, device) -> None:
         """
         Add a new device to the list of devices.
 
@@ -55,7 +76,7 @@ def create_generic_device_store(
         elif not device is None:
             generic_store[name] = device
 
-    def device_parser(func: callable):
+    def device_parser(func: callable = None):
         """
         # Device Parser
         Decorator for device parsers.
@@ -66,9 +87,39 @@ def create_generic_device_store(
         Returns:
             None
         """
-        DEVICE_PARSERS[generic_device_name] = Parser(
-            generic_register_device, func, generic_store
+
+        def wrapped_func(value, _identifier):
+            if isinstance(value, dict):
+                value["_identifier"] = _identifier
+            device = func(value)
+            return device
+
+        if generic_device_name in DEVICE_PARSERS:
+            parser = DEVICE_PARSERS[generic_device_name]
+            DEVICE_PARSERS[generic_device_name] = Parser(
+                register_device=parser.register_device,
+                parse_device=wrapped_func,
+                store=generic_store,
+                masked_device_parsers=parser.masked_device_parsers,
+                stored_keys=parser.stored_keys,
+            )
+            for sub_parser in parser.masked_device_parsers:
+                parser = DEVICE_PARSERS[sub_parser]
+                DEVICE_PARSERS[sub_parser] = Parser(
+                    register_device=parser.register_device,
+                    parse_device=wrapped_func,
+                    store=parser.store,
+                    masked_device_parsers=parser.masked_device_parsers,
+                    stored_keys=parser.stored_keys,
+                )
+            return
+
+        parser = Parser(
+            register_generic_device, wrapped_func, generic_store, list(), None
         )
+        DEVICE_PARSERS[generic_device_name] = parser
+
+    device_parser(parser_func)
 
     def create_masked_device(device_name: str):
         """
@@ -85,18 +136,6 @@ def create_generic_device_store(
 
         UNIQUE_COMPONENT_IDENTIFIERS = set()
 
-        DEVICE_PARSERS[device_name] = Parser(
-            local_register_device,
-            DEVICE_PARSERS[generic_device_name].parse_device,
-            DEVICE_PARSERS[generic_device_name].store,
-        )
-
-        def local_component_identifier(name: str) -> str:
-            """This is used to create a unique identifier for the component. This is used to store the device in the global store.
-            UNIQUE_COMPONENT_IDENTIFIERS does not use this and has the regualar name. This is used to store the device in the global store.
-            """
-            return device_name + "_" + name
-
         def local_register_device(name: str, device) -> None:
             """
             Add a new device to the list of devices.
@@ -107,15 +146,24 @@ def create_generic_device_store(
             """
             if name in UNIQUE_COMPONENT_IDENTIFIERS:
                 raise ValueError(f"{device_name} {name} already exists")
-            elif (
-                not local_component_identifier(name) in generic_store and device is None
-            ):
-                raise ValueError(f"{device_name} {name} does not exist")
+            elif not name in generic_store and device is None:
+                raise ValueError(
+                    f"{device_name}: {name} does not exist in generic store and device is None"
+                )
             elif not check_class_instance(device):
                 raise ValueError(f"Must be a identifier(string) or " + class_names)
-            elif not device is None:
-                generic_store[local_component_identifier(name)] = device
+            elif name not in generic_store:
+                generic_store[name] = device
             UNIQUE_COMPONENT_IDENTIFIERS.add(name)
+
+        DEVICE_PARSERS[device_name] = Parser(
+            register_device=local_register_device,
+            parse_device=DEVICE_PARSERS[generic_device_name].parse_device,
+            store=DEVICE_PARSERS[generic_device_name].store,
+            masked_device_parsers=list(),
+            stored_keys=UNIQUE_COMPONENT_IDENTIFIERS,
+        )
+        DEVICE_PARSERS[generic_device_name].masked_device_parsers.append(device_name)
 
         def get_device(name: str):
             """
@@ -128,8 +176,8 @@ def create_generic_device_store(
                 (int) the device number of the device
             """
             if not name in UNIQUE_COMPONENT_IDENTIFIERS:
-                raise ValueError(f"{device_name} {name} does not exist")
-            return generic_store.get(local_component_identifier(name))
+                raise ValueError(f"{device_name}: {name} does not exist")
+            return generic_store.get(name)
 
         def device_action(func: callable) -> callable:
             """
@@ -155,14 +203,16 @@ def create_generic_device_store(
                     raise ValueError(
                         "First argument must be a identifier(string) or " + class_names
                     )
-                valve = get_device(args[0]) if isinstance(args[0], str) else args[0]
-                if valve is None:
-                    raise ValueError(f"{device_name} {args[0]} does not exist")
-                return func(valve, *args[1:], **kwargs)
+                value = get_device(args[0]) if isinstance(args[0], str) else args[0]
+                if value is None:
+                    raise ValueError(
+                        f"{UNIQUE_COMPONENT_IDENTIFIERS} {device_name} {args[0]} does not exist"
+                    )
+                return func(value, *args[1:], **kwargs)
 
             return wrapper
 
-        def device_attr(attr_name: str | tuple[str]):
+        def device_attr(attr_name: Union[str, tuple[str]]):
             """
             # Device Attribute
             Decorator for device attributes. This is used to change the class's initializer to define the device's attribute to either take in the parameter of the attribute device's value or the device's identifier.
@@ -181,35 +231,42 @@ def create_generic_device_store(
 
             def class_wrapper(cls):
                 original_init = cls.__init__
-                parameters = inspect.signature(original_init).parameters
+                # check if the original init needs _indentifer
+                needsIdentifier = (
+                    "_identifier" in inspect.signature(original_init).parameters
+                )
 
-                def new_init(self, *args, **kwargs):
-                    arg_key_value_pairs = [
-                        (key, value)
-                        for (key, value) in zip(parameters.keys(), args)
-                        if value is not None
-                    ]
-                    kwarg_key_value_pairs = list(kwargs.items())
-
-                    all_key_value_pairs = arg_key_value_pairs + kwarg_key_value_pairs
-
+                def new_init(self, _identifier: str, **kwargs):
                     parser = DEVICE_PARSERS[device_name]
 
-                    def check(key, value):
-                        return key in attr_name and not check_class_instance(value)
+                    def convert_value(key, value):
+                        if check_only_class_instance(value) or key not in attr_name:
+                            return value
+                        elif isinstance(value, str):
+                            # when an identifier is passed in as an attribute value
+                            try:
+                                get_device(value)
+                                return value
+                            except:
+                                if value in parser.store:
+                                    parser.register_device(value, parser.store[value])
+                                    return value
+                                else:
+                                    raise ValueError(
+                                        f"{device_name}: {value} does not exist"
+                                    )
+                        # when an attribute's parameter is passed in as an attribute value
+                        newDevice = parser.parse_device(value, _identifier=_identifier)
+                        newKey = f"{_identifier}.{key}"
+                        parser.register_device(newKey, newDevice)
+                        return newKey
 
                     new_kwargs = {
-                        (
-                            key
-                            if not check(key, value)
-                            else f"{device_name}.{key}_{str(hash(value))}"
-                        ): (
-                            value
-                            if not check(key, value)
-                            else parser.parse_device(value)
-                        )
-                        for (key, value) in all_key_value_pairs
+                        key: convert_value(key, value)
+                        for (key, value) in kwargs.items()
                     }
+                    if needsIdentifier:
+                        new_kwargs["_identifier"] = _identifier
 
                     original_init(self, **new_kwargs)
 
@@ -220,7 +277,10 @@ def create_generic_device_store(
 
         return device_action, device_attr
 
-    return create_masked_device, device_parser
+    return (
+        create_masked_device,
+        device_parser,
+    )
 
 
 def open_json(file_name: str = "pinconfig.json"):
@@ -250,13 +310,46 @@ def configure_device(
     for key, config in file_kv_generator(file_name):
         if not key in DEVICE_PARSERS:
             logging.warning(
-                f"{key} does not registered in the device parser list. Skipping..."
+                f"{key} is not registered in the device parser list. Skipping..."
             )
             continue
         parser = DEVICE_PARSERS[key]
         for key, device_attr in config.items():
-            device = parser.parse_device(device_attr)
+            logging.info(f"Configuring {key}...")
+            device = parser.parse_device(device_attr, _identifier=key)
             parser.register_device(key, device)
+
+    logging.info("Device configuration complete")
+    logging.info("Total of %s device parsers configured", len(DEVICE_PARSERS))
+    logging.debug("Device parsers: \n%s", "\n".join(DEVICE_PARSERS.keys()))
+    logging.info(
+        "Total of %s devices configured",
+        sum([len(x.store) for x in DEVICE_PARSERS.values()]),
+    )
+    logging.debug(
+        "Devices: \n%s",
+        "\n".join(
+            [
+                f"{z}:{w}"
+                for z, w in {
+                    f'"{x}"': "\n\t\t"
+                    + "\n\t\t".join(
+                        [
+                            f'"{i}":{j}'
+                            for i, j in y.store.items()
+                            if y.stored_keys is None or i in y.stored_keys
+                        ]
+                    )
+                    + (
+                        "\n\t\t masked devices: " + str(y.stored_keys)
+                        if y.stored_keys is not None
+                        else ""
+                    )
+                    for x, y in DEVICE_PARSERS.items()
+                }.items()
+            ]
+        ),
+    )
 
 
 def create_device_store(

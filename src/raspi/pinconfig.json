@@ -1,7 +1,14 @@
 {
-	"left_muscle": {
-		"left_pressure": 27,
-		"left_valve": 24
+	"input_device": {
+		"left_pressure": 27
 	},
-	"main_compressor": 22
+	"compressor": {
+		"main_compressor": 22
+	},
+	"muscle": {
+		"left_muscle": {
+			"pressure": "left_pressure",
+			"valve": 24
+		}
+	}
 }

@@ -1,13 +1,14 @@
 from time import sleep
 
 from control import muscle_actions
+from control.motor.motor_controller import MotorController
 from io_controller import compressor_actions, pressure_actions
+from state_management.device import configure_device
 from utils.cpu import setup_cpu
 from utils.interval import clear_intervals
+from utils.logger import configure_logger
 from utils.util import *
 from view.pygame import *
-
-from raspi.control.motor.motor_controller import MotorController
 
 SPEED = 0.1  # unit: %
 
@@ -17,8 +18,7 @@ global motor
 
 def setup():
     """Setup the pins and pygame"""
-    data = get_pinconfig()
-    set_pin(data)
+    configure_device("src/raspi/pinconfig.json")
     motor = MotorController(26, 0, 1, [5, 6, 12])
     logging.info("Initialized components from pinconfig")
     return motor
@@ -134,6 +134,7 @@ def step():
 
 
 if __name__ == "__main__":
+    configure_logger()
     logging.info("Initializing...")
     print("Initializing...")
     motor = setup()  # TODO: make motor not a global variable

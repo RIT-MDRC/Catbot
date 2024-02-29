@@ -1,1 +1,1 @@
-import compressor as compressor_actions
+from . import compressor as compressor_actions

@@ -2,12 +2,12 @@ import logging
 from dataclasses import dataclass, field
 
 from io_controller import pressure_actions, valve_actions
-
-from raspi.state_management.device import create_device_store
+from state_management.device import create_device_store
 
 
 @pressure_actions.pressure_attr("pressure")
-@dataclass(slots=True)
+@valve_actions.valve_attr("valve")
+@dataclass()
 class MuscleObj:
     """
     Args:
@@ -27,6 +27,20 @@ class MuscleObj:
 
 muscle_action, muscle_parser, muscle_attr = create_device_store("muscle", [MuscleObj])
 __all__ = ["contract", "relax", "toggle_muscle_state", "MuscleObj", "muscle_attr"]
+
+
+@muscle_parser
+def parse_muscle(data: dict) -> MuscleObj:
+    """
+    Parse a muscle from a dictionary.
+
+    Args:
+        data (dict): the dictionary to parse
+
+    Returns:
+        (Muscle) the parsed muscle
+    """
+    return MuscleObj(**data)
 
 
 @muscle_action

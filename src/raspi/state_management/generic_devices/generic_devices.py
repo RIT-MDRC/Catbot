@@ -1,12 +1,11 @@
 from gpiozero import DigitalInputDevice, DigitalOutputDevice, PWMOutputDevice
+from state_management.device import create_generic_device_store
 from utils.deviceMock import (
     FakeDigitalInputDevice,
     FakeDigitalOutputDevice,
     FakePWMOutputDevice,
 )
-
-from raspi.state_management.device import create_generic_device_store
-from raspi.utils.util import is_dev
+from utils.util import is_dev
 
 __all__ = [
     "create_input_device_component",
@@ -15,7 +14,7 @@ __all__ = [
 ]
 
 create_input_device_component, _input_device_parser = create_generic_device_store(
-    "Input_Device",
+    "input_device",
     (DigitalInputDevice, FakeDigitalInputDevice),
 )
 """

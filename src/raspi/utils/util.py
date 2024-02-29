@@ -1,10 +1,9 @@
 import json
 import logging
+import os
 
-from control import muscle_actions
 from dotenv import dotenv_values
 from gpiozero import DigitalInputDevice, DigitalOutputDevice, PWMOutputDevice
-from io_controller import compressor_actions, pressure_actions, valve_actions
 from utils.deviceMock import (
     FakeDigitalInputDevice,
     FakeDigitalOutputDevice,
@@ -19,10 +18,10 @@ def is_dev() -> bool:
 
     :return: True if the environment is set to development, False otherwise
     """
-    config = dotenv_values("src/raspi/.env")
-    if config is None:
+    config_data = dotenv_values("src/raspi/.env")
+    if config_data is None:
         raise ValueError("No config file found. Create a .env file in src/raspi")
-    return config.get("ENV") == "dev"
+    return config_data.get("ENV") == "dev"
 
 
 def create_input_device(pin: int, onDev: callable = None):
@@ -36,15 +35,9 @@ def create_input_device(pin: int, onDev: callable = None):
         logging.info("dev environment detected")
         logging.info("mocking input device for pin %s", pin)
         obj = FakeDigitalInputDevice(pin)
-        if onDev is not None:
-            onDev(obj)
     else:
         obj = DigitalInputDevice(pin)
     return obj
-
-
-create_pressure_device = lambda pin: create_input_device(pin, on_test_pressure_reading)
-"""Create a new pressure device (alias for create_input_device)"""
 
 
 def create_output_device(pin: int, onDev: callable = None):
@@ -99,42 +92,6 @@ def get_pinconfig(filepath: str = "src/raspi/pinconfig.json") -> dict:
     """
     with open(filepath, "r") as file:
         return json.load(file)
-
-
-def set_pin(config_data: dict, onDev: callable = None) -> dict:
-    """
-    Set the pin configuration.
-
-    Args:
-        config_data (dict): the pin configuration
-
-    """
-    ret = {}
-    keys = config_data.keys()
-    for key in keys:
-        if str.endswith(key, "valve"):
-            pin = config_data[key]
-            od = create_output_device(pin)
-            valve_actions.register_valve(key, od)
-            ret[key] = od
-        elif str.endswith(key, "pressure"):
-            pin = config_data[key]
-            id = create_pressure_device(pin)
-            pressure_actions.register_pressure(key, id)
-            ret[key] = id
-        elif str.endswith(key, "compressor"):
-            pin = config_data[key]
-            od = create_output_device(pin)
-            compressor_actions.register_compressor(key, od)
-            ret[key] = od
-        elif str.endswith(key, "muscle"):
-            raw_muscle = set_pin(config_data[key])
-            muscle = create_dataclass(muscle_actions.MuscleObj(), raw_muscle)
-            muscle_actions.register_muscle(key, muscle)
-            ret[key] = muscle
-        else:
-            raise ValueError(f"Invalid key {key}")
-    return ret
 
 
 def on_test_pressure_reading(id):
