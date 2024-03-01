@@ -2,6 +2,7 @@
 	"input_device": {
 		"left_pressure": 27
 	},
+	"latch": {},
 	"compressor": {
 		"main_compressor": 22
 	},
