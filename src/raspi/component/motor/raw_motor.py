@@ -20,5 +20,6 @@ __all__ = ["set_speed", "RawMotor", "raw_motor_attr"]
 
 
 @raw_motor_action
-def set_speed(raw_motor: RawMotor, speed: float):
+def set_speed(raw_motor: RawMotor, speed: float) -> None:
     """Set the speed of a raw motor."""
+    raw_motor.speed = speed
