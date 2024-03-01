@@ -1,5 +1,5 @@
 #include "motor.h"
-
+#include <boost/python.hpp>
 Motor::Motor(int pwmPin, int directionPin) {
     this->pwmPin = pwmPin;
     this->directionPin = directionPin;
@@ -19,4 +19,13 @@ void Motor::run(bool clockwise, int speed) {
 
 void Motor::stop() {
     gpioPWM(pwmPin, 0);
+}
+
+BOOST_PYTHON_MODULE(motor){
+    using namespace boost::python;
+    class_<Motor>("Motor", init<std::int, std::int>())
+        .def("run", &Motor::run)
+        .def("stop", &Motor::stop)
+        .def_readonly("pwmPin", &Motor::pwmPin)
+        .def_readonly("directionPin", &Motor::directionPin)
 }
