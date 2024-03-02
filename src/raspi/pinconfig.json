@@ -2,7 +2,20 @@
 	"input_device": {
 		"left_pressure": 27
 	},
-	"latch": {},
+	"latch": {
+		"motor_direaction": {
+			"data": 23,
+			"enab": 25,
+			"addr_1": 5,
+			"addr_2": 6,
+			"addr_3": 13,
+			"pins": {
+				"motor_1": 10,
+				"motor_2": 11,
+				"motor_3": 12
+			}
+		}
+	},
 	"compressor": {
 		"main_compressor": 22
 	},
