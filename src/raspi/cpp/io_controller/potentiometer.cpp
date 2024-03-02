@@ -23,11 +23,3 @@ unsigned int Potentiometer::getDegrees() {
 
     return degrees;
 }
-
-BOOST_PYTHON_MODULE(potentiometer){
-    using namespace boost::python;
-    class_<Potentiometer>("Potentiometer", init<std::int, std::int>())
-        .def("getDegrees", &Potentiometer::getDegrees)
-        .def_readonly("adcHandle", &Potentiometer::adcHandle)
-        .def_readonly("index", &Potentiometer::index)
-}
