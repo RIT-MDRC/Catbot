@@ -1,7 +1,7 @@
 import inspect
 import json
 import logging
-from collections import namedtuple
+from collections import OrderedDict, namedtuple
 from functools import reduce, wraps
 from typing import Union
 
@@ -149,8 +149,6 @@ def create_generic_device_store(
                 raise ValueError(
                     f"{device_name}: {name} does not exist in generic store and device is None"
                 )
-            elif not check_class_instance(device):
-                raise ValueError(f"Must be a identifier(string) or " + class_names)
             elif name not in generic_store:
                 generic_store[name] = device
             UNIQUE_COMPONENT_IDENTIFIERS.add(name)
@@ -176,7 +174,9 @@ def create_generic_device_store(
                 (int) the device number of the device
             """
             if not name in UNIQUE_COMPONENT_IDENTIFIERS:
-                raise ValueError(f"{device_name}: {name} does not exist")
+                raise ValueError(
+                    f"{device_name}: {name} does not exist. Unique identifiers: \n{UNIQUE_COMPONENT_IDENTIFIERS}"
+                )
             return generic_store.get(name)
 
         def device_action(func: callable) -> callable:
@@ -249,7 +249,9 @@ def create_generic_device_store(
                                 parser.register_device(value, parser.store[value])
                                 return value
 
-                            raise ValueError(f"{device_name}: {value} does not exist")
+                            raise ValueError(
+                                f"{device_name}: {value} does not exist. Unique identifiers: \n{UNIQUE_COMPONENT_IDENTIFIERS}"
+                            )
                         # when an attribute's parameter is passed in as an attribute value
                         newDevice = parser.parse_device(value, _identifier=_identifier)
                         newKey = f"{_identifier}.{key}"
@@ -280,7 +282,7 @@ def create_generic_device_store(
 
 def open_json(file_name: str = "pinconfig.json"):
     with open(file_name, "r") as file:
-        config = json.load(file)
+        config = json.load(file, object_pairs_hook=OrderedDict)
     for key, value in config.items():
         yield key, value
 
@@ -325,20 +327,14 @@ def configure_device(
         "Devices: \n%s",
         "\n".join(
             [
-                f"{z}:{w}"
+                f"\n{z}:\n\t\t{w}"
                 for z, w in {
-                    f'"{x}"': "\n\t\t"
-                    + "\n\t\t".join(
+                    f'"{x}"': "\n\t\t".join(
                         [
                             f'"{i}":{j}'
                             for i, j in y.store.items()
                             if y.stored_keys is None or i in y.stored_keys
                         ]
-                    )
-                    + (
-                        "\n\t\t masked devices: " + str(y.stored_keys)
-                        if y.stored_keys is not None
-                        else ""
                     )
                     for x, y in DEVICE_PARSERS.items()
                 }.items()

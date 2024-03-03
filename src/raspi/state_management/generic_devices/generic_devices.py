@@ -1,3 +1,5 @@
+import logging
+
 from gpiozero import DigitalInputDevice, DigitalOutputDevice, PWMOutputDevice
 from state_management.device import create_generic_device_store
 from state_management.utils import (
@@ -38,6 +40,9 @@ def parse_input_device(config):
     if not isinstance(config, int):
         raise ValueError("Must be a pin number. Got " + str(config))
     if is_dev():
+        logging.info(
+            "dev environment detected. Mocking digital input device for pin %s", config
+        )
         return FakeDigitalInputDevice(config)
     else:
         return DigitalInputDevice(config)
@@ -67,6 +72,9 @@ def parse_output_device(config):
     if not isinstance(config, int):
         raise ValueError("Must be a pin number. Got " + str(config))
     if is_dev():
+        logging.info(
+            "dev environment detected. Mocking digital output device for pin %s", config
+        )
         return FakeDigitalOutputDevice(config)
     else:
         return DigitalOutputDevice(config)
@@ -93,6 +101,9 @@ def parse_pwm_output_device(config):
     if not isinstance(config, int):
         raise ValueError("Must be a pin number. Got " + str(config))
     if is_dev():
+        logging.info(
+            "dev environment detected. Mocking PWM output device for pin %s", config
+        )
         return FakePWMOutputDevice(config)
     else:
         return PWMOutputDevice(config)

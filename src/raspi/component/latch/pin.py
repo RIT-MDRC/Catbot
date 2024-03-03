@@ -1,9 +1,9 @@
 from gpiozero import DigitalOutputDevice
 from state_management.generic_devices import create_output_device_component
 
-addr_pin_action, addr_pin_attr = create_output_device_component("addr_pin")
-data_pin_action, data_pin_attr = create_output_device_component("data_pin")
 enab_pin_action, enab_pin_attr = create_output_device_component("enab_pin")
+data_pin_action, data_pin_attr = create_output_device_component("data_pin")
+addr_pin_action, addr_pin_attr = create_output_device_component("addr_pin")
 
 __all__ = [
     "addr_pin_attr",
@@ -24,7 +24,7 @@ def set_addr(dev: DigitalOutputDevice, state: int) -> None:
         dev (DigitalOutputDevice): the address pin
         state (int): 1 to turn the pin on, 0 to turn it off
     """
-    dev.on() if state / state else dev.off()
+    dev.on() if state > 0 else dev.off()
 
 
 @data_pin_action
@@ -36,7 +36,7 @@ def set_data(dev: DigitalOutputDevice, state: int) -> None:
         dev (DigitalOutputDevice): the data pin
         state (int): 1 to turn the pin on, 0 to turn it off
     """
-    dev.on() if state / state else dev.off()
+    dev.on() if state > 0 else dev.off()
 
 
 @enab_pin_action
@@ -48,4 +48,4 @@ def set_enab(dev: DigitalOutputDevice, state: int) -> None:
         dev (DigitalOutputDevice): the enable pin
         state (int): 1 to turn the pin on, 0 to turn it off
     """
-    dev.on() if state / state else dev.off()
+    dev.on() if state > 0 else dev.off()
