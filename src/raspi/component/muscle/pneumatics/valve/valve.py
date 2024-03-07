@@ -1,19 +1,10 @@
 from gpiozero import DigitalOutputDevice
-from state_management import create_output_device_component
+from state_management import create_masked_context, device_action, output_device_ctx
 
-valve_action, valve_attr = create_output_device_component("valve")
-__all__ = [
-    "valve_attr",
-    "register_valve",
-    "turn_valve_on",
-    "turn_valve_off",
-    "turn_valve",
-    "toggle_valve",
-    "get_valve_state",
-]
+valve_ctx = create_masked_context(output_device_ctx, "valve")
 
 
-@valve_action
+@device_action(valve_ctx)
 def turn_valve_on(valve: DigitalOutputDevice) -> None:
     """
     Turn a valve on.
@@ -24,7 +15,7 @@ def turn_valve_on(valve: DigitalOutputDevice) -> None:
     valve.on()
 
 
-@valve_action
+@device_action(valve_ctx)
 def turn_valve_off(valve: DigitalOutputDevice) -> None:
     """
     Turn a valve off.
@@ -35,7 +26,7 @@ def turn_valve_off(valve: DigitalOutputDevice) -> None:
     valve.off()
 
 
-@valve_action
+@device_action(valve_ctx)
 def turn_valve(valve: DigitalOutputDevice, state: bool) -> None:
     """
     Turn a valve on or off.
@@ -47,7 +38,7 @@ def turn_valve(valve: DigitalOutputDevice, state: bool) -> None:
     turn_valve_on(valve) if state else turn_valve_off(valve)
 
 
-@valve_action
+@device_action(valve_ctx)
 def toggle_valve(valve: DigitalOutputDevice) -> None:
     """
     Toggle a valve.
@@ -58,7 +49,7 @@ def toggle_valve(valve: DigitalOutputDevice) -> None:
     turn_valve(valve, not get_valve_state(valve))
 
 
-@valve_action
+@device_action(valve_ctx)
 def get_valve_state(valve: DigitalOutputDevice) -> bool:
     """
     Get the state of a valve.

@@ -1,7 +1,7 @@
 import logging
 
 from gpiozero import DigitalInputDevice, DigitalOutputDevice, PWMOutputDevice
-from state_management.device import create_generic_device_store
+from state_management.device import create_generic_context, device_parser
 from state_management.utils import (
     FakeDigitalInputDevice,
     FakeDigitalOutputDevice,
@@ -10,12 +10,12 @@ from state_management.utils import (
 )
 
 __all__ = [
-    "create_input_device_component",
-    "create_output_device_component",
-    "create_pwm_output_device_component",
+    "input_device_ctx",
+    "output_device_ctx",
+    "pwm_output_device_ctx",
 ]
 
-create_input_device_component, _input_device_parser = create_generic_device_store(
+input_device_ctx = create_generic_context(
     "input_device",
     (DigitalInputDevice, FakeDigitalInputDevice),
 )
@@ -26,7 +26,7 @@ returns: (device_action, register_device, get_device, get_registered_devices, ge
 """
 
 
-@_input_device_parser
+@device_parser(input_device_ctx)
 def parse_input_device(config):
     """
     Parse a new input device.
@@ -48,7 +48,7 @@ def parse_input_device(config):
         return DigitalInputDevice(config)
 
 
-create_output_device_component, _output_device_parser = create_generic_device_store(
+output_device_ctx = create_generic_context(
     "output_device", (DigitalOutputDevice, FakeDigitalOutputDevice)
 )
 """
@@ -58,7 +58,7 @@ returns: (device_action, register_device, get_device, get_registered_devices, ge
 """
 
 
-@_output_device_parser
+@device_parser(output_device_ctx)
 def parse_output_device(config):
     """
     Parse a new output device.
@@ -80,14 +80,12 @@ def parse_output_device(config):
         return DigitalOutputDevice(config)
 
 
-create_pwm_output_device_component, _pwm_output_device_parser = (
-    create_generic_device_store(
-        "pwm_output_device", (PWMOutputDevice, FakePWMOutputDevice)
-    )
+pwm_output_device_ctx = create_generic_context(
+    "pwm_output_device", (PWMOutputDevice, FakePWMOutputDevice)
 )
 
 
-@_pwm_output_device_parser
+@device_parser(pwm_output_device_ctx)
 def parse_pwm_output_device(config):
     """
     Parse a new pwm output device.

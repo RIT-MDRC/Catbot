@@ -1,20 +1,16 @@
-from state_management.generic_devices import create_output_device_component
+from state_management import create_masked_context, device_action, output_device_ctx
 
-direction_pin_action, direction_pin_attr = create_output_device_component(
-    "directionPin"
-)
-
-__all__ = ["direction_pin_attr", "set_direction", "check_direction"]
+dirction_pin_ctx = create_masked_context(output_device_ctx, "directionPin")
 
 
-@direction_pin_action
+@device_action(dirction_pin_ctx)
 def check_direction(directionPin, direction) -> bool:
     if direction not in [0, 1]:
         raise ValueError("direction must be either 0 or 1")
     return directionPin.value == direction
 
 
-@direction_pin_action
+@device_action(dirction_pin_ctx)
 def set_direction(directionPin, direction) -> bool:
     if direction not in [0, 1]:
         raise ValueError("direction must be either 0 or 1")
@@ -22,6 +18,6 @@ def set_direction(directionPin, direction) -> bool:
     return True
 
 
-@direction_pin_action
+@device_action(dirction_pin_ctx)
 def get_direction(directionPin) -> int:
     return directionPin.value

@@ -3,7 +3,12 @@ from dataclasses import dataclass, field
 from multiprocessing import Process
 
 from gpiozero import DigitalOutputDevice
-from state_management.device import DEVICE_PARSERS, create_device_store
+from state_management import (
+    create_generic_context,
+    device_attr,
+    device_parser,
+    get_context,
+)
 from state_management.utils.deviceMock import value_change
 
 from . import latch_pin_actions
@@ -56,9 +61,9 @@ class VirtualDigitalOutputDevice:
         return f"VirtualDigitalOutputDevice(pin={self.pin}, value={self._value})"
 
 
-@latch_pin_actions.data_pin_attr("data")
-@latch_pin_actions.enab_pin_attr("enab")
-@latch_pin_actions.addr_pin_attr(("addr_1", "addr_2", "addr_3"))
+@device_attr(latch_pin_actions.data_pin_ctx, "data")
+@device_attr(latch_pin_actions.enab_pin_ctx, "enab")
+@device_attr(latch_pin_actions.addr_pin_ctx, ("addr_1", "addr_2", "addr_3"))
 @dataclass
 class Latch:
     data: DigitalOutputDevice
@@ -72,7 +77,7 @@ class Latch:
     _identifier: str = field(default="latch")
 
     def __post_init__(self):
-        output_device_parser = DEVICE_PARSERS.get("output_device", None)
+        output_device_parser = get_context("output_device")
         if output_device_parser is None:
             raise ValueError(
                 "No output device parser found. Makesure to define output device before the latch"
@@ -107,10 +112,10 @@ class Latch:
         self.lock = False
 
 
-latch_action, latch_parser, latch_attr = create_device_store("latch", [Latch])
+latch_ctx = create_generic_context("latch", [Latch])
 
 
-@latch_parser
+@device_parser(latch_ctx)
 def parse_latch(data: dict) -> Latch:
     """
     Parse a latch from a dictionary.
