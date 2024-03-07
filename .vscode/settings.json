@@ -4,5 +4,6 @@
   },
   "C_Cpp.default.includePath": [
     "${workspaceFolder}/src/arduino/libraries/**"
-  ]
+  ],
+  "git.ignoreLimitWarning": true
 }
