@@ -12,7 +12,7 @@ class Motor {
          * pwmPin: The pin number of the PWM pin.
          * directionPin: The pin number of the direction pin.
         */
-        Motor(int pwmPin, int directionPin);
+        Motor(int pwmPin, int latchAddress);
 
         /**
          * Updates the speed and direction of the motor
@@ -27,5 +27,5 @@ class Motor {
         void stop();
     private:
         int pwmPin;
-        int directionPin;
+        int latchAddress;
 };
