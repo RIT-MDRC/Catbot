@@ -3,7 +3,7 @@ import pigpio
 from time import sleep
 
 def main():
-	x = potentiometer.Potentiometer(5)
+	x = potentiometer.Potentiometer(3)
 
 	while(True):
 		print(x.getDegrees())
