@@ -1,10 +1,10 @@
 from gpiozero import PWMOutputDevice
 from state_management import create_masked_context, device_action, pwm_output_device_ctx
 
-speed_pin_ctx = create_masked_context(pwm_output_device_ctx, "speedPin")
+ctx = create_masked_context(pwm_output_device_ctx, "speedPin")
 
 
-@device_action(speed_pin_ctx)
+@device_action(ctx)
 def get(speedPin: PWMOutputDevice) -> float:
     """
     Get the current PWM output
@@ -15,7 +15,7 @@ def get(speedPin: PWMOutputDevice) -> float:
     return speedPin.value
 
 
-@device_action(speed_pin_ctx)
+@device_action(ctx)
 def set(speedPin: PWMOutputDevice, speed: int) -> float:
     """
     Set the PWM outout to be the absolute number of the speed value
@@ -28,7 +28,7 @@ def set(speedPin: PWMOutputDevice, speed: int) -> float:
     return get(speedPin)
 
 
-@device_action(speed_pin_ctx)
+@device_action(ctx)
 def stop(speedPin: PWMOutputDevice) -> float:
     """
     Stop the PWM output

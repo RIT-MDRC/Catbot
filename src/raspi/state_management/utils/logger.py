@@ -1,7 +1,9 @@
 import logging
 from datetime import datetime as d
 
-level_config = {
+import __main__
+
+LOG_LEVEL = {
     "Debug": logging.DEBUG,
     "Info": logging.INFO,
     "Warning": logging.WARNING,
@@ -17,7 +19,7 @@ def map_level(level: str) -> int:
     :param level: the level string
     :return: the logging level
     """
-    return level_config.get(level, logging.DEBUG)
+    return LOG_LEVEL.get(level, logging.DEBUG)
 
 
 def configure_logger(level: str = "Debug"):
@@ -26,9 +28,13 @@ def configure_logger(level: str = "Debug"):
 
     :param level: the level to log at
     """
+    lvl = map_level(level)
+    print(f"Configuring logger {lvl}...")
     start_time = d.now().strftime("%Y-%m-%d.%H:%M:%S")
+    filename = __main__.__file__.split("/")[-1].split(".")[0]
     logging.basicConfig(
-        filename=f".log/{start_time}.debug.log",
+        filename=f".log/{start_time}.{filename}.{level}.log",
         format="%(filename)s: %(message)s",
-        level=map_level(level),  # TODO: hook it to env or config file
+        level=lvl,  # TODO: hook it to env or config file
+        force=True,
     )

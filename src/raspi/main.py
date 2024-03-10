@@ -1,17 +1,17 @@
+import logging
 from time import sleep
 
-from component import compressor_actions, muscle_actions
-from component.motor import raw_motor_action
-from component.muscle.pneumatics import pressure_actions
-from state_management import (
-    clear_intervals,
-    configure_device,
-    configure_logger,
-    setup_cpu,
+from component import (
+    compressor_actions,
+    muscle_actions,
+    pressure_actions,
+    raw_motor_action,
 )
+from state_management import clear_intervals, configure_device, setup_cpu
 from view.pygame import *
 
-SPEED = 0.1  # unit: %
+LEFT_SPEED = 0.1  # unit: %
+RIGHT_SPEED = -0.1  # unit: %
 
 
 def setup():
@@ -54,10 +54,16 @@ def main():
                     if muscle_actions.contract("left_muscle"):
                         render_up_status(True)
                 elif is_key_pressed(event, ["a", "left"]):
-                    if raw_motor_action.set_speed_direction("motor_1", SPEED):
+                    print("left call")
+                    if raw_motor_action.set_speed_direction(
+                        "motor_1", value=LEFT_SPEED
+                    ):
                         render_left_status(True)
                 elif is_key_pressed(event, ["d", "right"]):
-                    if raw_motor_action.set_speed_direction("motor_1", -SPEED):
+                    print("right call")
+                    if raw_motor_action.set_speed_direction(
+                        "motor_1", value=RIGHT_SPEED
+                    ):
                         render_right_status(True)
                 elif is_key_pressed(event, ["t"]):
                     step()
@@ -99,21 +105,19 @@ def change_compressor(status: bool):
 def step():
     muscle_actions.contract("left_muscle")
     sleep(1)
-    raw_motor_action.set_speed_direction("motor_1", SPEED)
+    raw_motor_action.set_speed_direction("motor_1", LEFT_SPEED)
     sleep(1)
     raw_motor_action.stop("motor_1")
     sleep(1)
     muscle_actions.relax("left_muscle")
     sleep(1)
-    raw_motor_action.set_speed_direction("motor_1", -SPEED)
+    raw_motor_action.set_speed_direction("motor_1", -LEFT_SPEED)
     sleep(1)
     raw_motor_action.stop("motor_1")
     sleep(1)
 
 
 if __name__ == "__main__":
-    configure_logger()
-    logging.info("Initializing...")
     print("Initializing...")
     setup()  # TODO: make motor not a global variable
     setup_pygame()  # global variables

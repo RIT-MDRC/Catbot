@@ -7,11 +7,12 @@ from state_management import (
     create_generic_context,
     device_attr,
     device_parser,
-    get_context,
+    output_device_ctx,
+    register_device,
 )
 from state_management.utils.deviceMock import value_change
 
-from . import latch_pin_actions
+from .pin import latch_pin_actions
 
 ENABLE_DURATION = 0.1
 
@@ -77,17 +78,19 @@ class Latch:
     _identifier: str = field(default="latch")
 
     def __post_init__(self):
-        output_device_parser = get_context("output_device")
-        if output_device_parser is None:
+        if output_device_ctx is None:
             raise ValueError(
                 "No output device parser found. Makesure to define output device before the latch"
+            )
+        if not VirtualDigitalOutputDevice in output_device_ctx.allowed_classes:
+            output_device_ctx.allowed_classes = (
+                VirtualDigitalOutputDevice,
+                *output_device_ctx.allowed_classes,
             )
         for identifier, addr in self.pins.items():
             dev_identifier = f"{self._identifier}.{identifier}"
             virtualDevice = VirtualDigitalOutputDevice(self, addr)
-            if dev_identifier in output_device_parser.store:
-                raise ValueError(f"Device {dev_identifier} already exists")
-            output_device_parser.store[dev_identifier] = virtualDevice
+            register_device(output_device_ctx, dev_identifier, virtualDevice)
 
     def set(self, addr: str, state: int) -> None:
         self.queue.append((addr, state))
@@ -112,10 +115,10 @@ class Latch:
         self.lock = False
 
 
-latch_ctx = create_generic_context("latch", [Latch])
+ctx = create_generic_context("latch", [Latch])
 
 
-@device_parser(latch_ctx)
+@device_parser(ctx)
 def parse_latch(data: dict) -> Latch:
     """
     Parse a latch from a dictionary.
