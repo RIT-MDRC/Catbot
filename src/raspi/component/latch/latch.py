@@ -110,6 +110,7 @@ class Latch:
             latch_pin_actions.set_addr(self.addr_3, b2)
             latch_pin_actions.set_data(self.data, newState)
             latch_pin_actions.set_enab(self.enab, 0)
+            # not using asyncio.sleep because real output devices are not async
             sleep(ENABLE_DURATION)
         latch_pin_actions.set_enab(self.enab, 0)
         self.lock = False
