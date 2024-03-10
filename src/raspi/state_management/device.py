@@ -102,6 +102,14 @@ def device_parser(ctx: Context):
     return decorator
 
 
+def device_exit(ctx: Context):
+    def decorator(func: callable):
+        ctx.on_exit = func
+        return func
+
+    return decorator
+
+
 def device_action(ctx: Context):
     def decorator(func: callable):
         @wraps(func)
