@@ -1,12 +1,10 @@
 import logging
 from time import sleep
 
-from component import (
-    compressor_actions,
-    muscle_actions,
-    pressure_actions,
-    raw_motor_action,
-)
+from component.compressor import compressor_actions
+from component.motor import raw_motor_action
+from component.muscle import muscle_actions
+from component.muscle.pneumatics import pressure_actions
 from state_management import clear_intervals, configure_device, setup_cpu
 from view.pygame import *
 

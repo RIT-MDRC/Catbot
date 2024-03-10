@@ -1,6 +1,7 @@
-from asyncio import sleep
+import asyncio
 from dataclasses import dataclass, field
 from multiprocessing import Process
+from time import sleep
 
 from gpiozero import DigitalOutputDevice
 from state_management import (
@@ -19,8 +20,9 @@ ENABLE_DURATION = 0.1
 
 # helper method to convert an integer to a bitfield
 # returns a list of 1s and 0s
-def bitfield(n):
-    return [1 if digit == "1" else 0 for digit in bin(n)[2:]]
+def bitfield(n, length=3):
+    res = [1 if digit == "1" else 0 for digit in bin(n)[2:]]
+    return [0] * (length - len(res)) + res
 
 
 class VirtualDigitalOutputDevice:
@@ -94,10 +96,8 @@ class Latch:
 
     def set(self, addr: str, state: int) -> None:
         self.queue.append((addr, state))
-        if self.lock:
-            return
-        # Process the queue in a separate core to avoid blocking the main thread
-        Process(target=self.process_queue).start()
+        if not self.lock:
+            self.process_queue()
 
     def process_queue(self):
         self.lock = True

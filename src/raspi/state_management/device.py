@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from functools import reduce, wraps
 from typing import Union
 
-from .utils import configure_logger
+from .utils.logger import configure_logger
 
 
 @dataclass
@@ -40,7 +40,6 @@ def register_device(ctx: Context, name: str, device):
 def create_generic_context(
     generic_device_name: str, device_classes: list, parser_func: callable = None
 ):
-    logging.info(f"Creating context for {generic_device_name}...")
     ctx = Context(
         allowed_classes=device_classes,
         parse_device=parser_func,
@@ -59,7 +58,6 @@ def create_context(
 
 
 def create_masked_context(ctx: Context, device_name: str):
-    logging.info(f"Creating context for {device_name}...")
     new_ctx = Context(
         allowed_classes=ctx.allowed_classes,
         parse_device=ctx.parse_device,
@@ -106,7 +104,6 @@ def device_action(ctx: Context):
                     + "/".join([x.__name__ for x in ctx.allowed_classes])
                 )
             value = ctx.store.get(args[0]) if isinstance(args[0], str) else args[0]
-            print(args, kwargs)
             return func(value, *args[1:], **kwargs)
 
         return wrapper
@@ -170,7 +167,7 @@ def open_json(file_name: str = "pinconfig.json"):
 def configure_device(
     file_name: str = "pinconfig.json",
     file_kv_generator: callable = open_json,
-    logLevel="Debug",
+    log_level: str = "Debug",
 ):
     """configure the devices from the pinconfig file. This will parse the devices and store them in the global store.
 
@@ -186,7 +183,7 @@ def configure_device(
         This method will skip any parser that was not registered in the device parser list.
         This could happen for two reasons. The device store was not initialized due to the file that the initializer is in was not imported in the script file(memory benefit), or the parser's identifier had a typo in the pinconfig file(Will need to be fixed immediately).
     """
-    configure_logger(logLevel)
+    configure_logger(log_level)
     logging.info("Configuring devices...")
     for key, config in file_kv_generator(file_name):
         ctx = get_context(key)
@@ -194,7 +191,6 @@ def configure_device(
             logging.warning(f"Context for {key} not found. Skipping...")
             continue
         for key, device_attr in config.items():
-            logging.info(f"Configuring {key}...")
             device = ctx.parse_device(device_attr, _identifier=key)
             register_device(ctx, key, device)
 

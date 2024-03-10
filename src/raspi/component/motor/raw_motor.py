@@ -1,5 +1,5 @@
+from asyncio import sleep
 from dataclasses import dataclass
-from time import sleep
 
 from state_management import (
     create_generic_context,
@@ -38,18 +38,17 @@ def set_speed(raw_motor: RawMotor, speed: float) -> bool:
 
 
 @device_action(ctx)
-def stop(raw_motor: RawMotor, wait: bool = False) -> bool:
-    """Stop a raw motor."""
-    isStopped = speed_pin_action.stop(raw_motor.speed) == 0.0
-    if wait:
-        sleep(raw_motor.stop_duration)
-    return isStopped
-
-
-@device_action(ctx)
 def get_speed(raw_motor: RawMotor) -> float:
     """Get the speed of a raw motor."""
     return speed_pin_action.get(raw_motor.speed)
+
+
+@device_action(ctx)
+async def stop(raw_motor: RawMotor) -> bool:
+    """Stop a raw motor."""
+    speed_pin_action.stop(raw_motor.speed) == 0.0
+    await sleep(raw_motor.stop_duration)
+    return get_speed(raw_motor) == 0.0
 
 
 @device_action(ctx)
@@ -67,22 +66,23 @@ def get_direction(raw_motor: RawMotor) -> int:
 
 
 @device_action(ctx)
-def set_direction(raw_motor: RawMotor, direction: int) -> bool:
+async def set_direction(raw_motor: RawMotor, direction: int) -> bool:
     """Set the direction of a raw motor."""
     if check_direction(raw_motor, direction):
         return True
-    if not get_speed(raw_motor) == 0 and stop(raw_motor, True):
+    if not get_speed(raw_motor) == 0 and not await stop(raw_motor):
         raise ValueError("Failed to stop the motor")
     return direction_pin_action.set_direction(raw_motor.direction, direction)
 
 
 @device_action(ctx)
-def set_speed_direction(raw_motor: RawMotor, value: float) -> bool:
-    """Set the speed and direction of a raw motor."""
-    print(f"Setting speed and direction {raw_motor} {value}")
+async def set_speed_direction(raw_motor: RawMotor, value: float) -> bool:
+    """Set the speed and direction of a raw motor.
+    value: the speed of the motor in percentage (-100 to 100)
+    """
     if value == 0:
-        return stop(raw_motor)
+        return await stop(raw_motor)
     direction = value < 0
-    if not set_direction(raw_motor, int(direction)):
+    if not await set_direction(raw_motor, int(direction)):
         return False
     return set_speed(raw_motor, value)
