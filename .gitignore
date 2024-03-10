@@ -4,3 +4,5 @@
 .vscode/arduino.json
 **/.env
 *.pyc
+.log/*.log
+__pycache__/
