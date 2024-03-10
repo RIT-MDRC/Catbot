@@ -2,6 +2,7 @@ import inspect
 import json
 import logging
 from collections import OrderedDict
+from contextlib import contextmanager
 from dataclasses import dataclass
 from functools import reduce, wraps
 from typing import Union
@@ -16,6 +17,7 @@ class Context:
     store: dict
     stored_keys: set
     masked_device_contexts: list
+    on_exit: callable
 
 
 DEVICE_CONTEXT_COLLECTION = {}
@@ -38,7 +40,10 @@ def register_device(ctx: Context, name: str, device):
 
 
 def create_generic_context(
-    generic_device_name: str, device_classes: list, parser_func: callable = None
+    generic_device_name: str,
+    device_classes: list,
+    parser_func: callable = None,
+    on_exit: callable = None,
 ):
     ctx = Context(
         allowed_classes=device_classes,
@@ -46,15 +51,21 @@ def create_generic_context(
         store=dict(),
         stored_keys=set(),
         masked_device_contexts=list(),
+        on_exit=on_exit,
     )
     DEVICE_CONTEXT_COLLECTION[generic_device_name] = ctx
     return ctx
 
 
 def create_context(
-    generic_device_name: str, device_classes: list, parser_func: callable = None
+    generic_device_name: str,
+    device_classes: list,
+    parser_func: callable = None,
+    on_exit: callable = None,
 ):
-    return create_generic_context(generic_device_name, device_classes, parser_func)
+    return create_generic_context(
+        generic_device_name, device_classes, parser_func, on_exit
+    )
 
 
 def create_masked_context(ctx: Context, device_name: str):
@@ -64,6 +75,7 @@ def create_masked_context(ctx: Context, device_name: str):
         store=ctx.store,
         stored_keys=set(),
         masked_device_contexts=list(),
+        on_exit=ctx.on_exit,
     )
     ctx.masked_device_contexts.append(device_name)
     DEVICE_CONTEXT_COLLECTION[device_name] = new_ctx
@@ -164,36 +176,7 @@ def open_json(file_name: str = "pinconfig.json"):
         yield key, value
 
 
-def configure_device(
-    file_name: str = "pinconfig.json",
-    file_kv_generator: callable = open_json,
-    log_level: str = "Debug",
-):
-    """configure the devices from the pinconfig file. This will parse the devices and store them in the global store.
-
-    Args:
-        file_name (str, optional): file of the pinconfiguration. Defaults to "pinconfig.json".
-        file_kv_generator (callable[[file_name: str], Generator[tuple[str, Any], Any, None]], optional): function for opening the pinconfig. Defaults to open_json.
-
-    Details:
-        file_kv_generator is a function that takes in a file name and returns a generator that yields a tuple of the key and the value. This is used to open the pinconfig file and parse the devices.
-        The expected behavior is that the file_kv_generator will parse the config and return a generator for the first layer of key and value pairs. The key should be the identifier of the device parser and the value should be the object with device identifier and attributes.
-
-    WARNING:
-        This method will skip any parser that was not registered in the device parser list.
-        This could happen for two reasons. The device store was not initialized due to the file that the initializer is in was not imported in the script file(memory benefit), or the parser's identifier had a typo in the pinconfig file(Will need to be fixed immediately).
-    """
-    configure_logger(log_level)
-    logging.info("Configuring devices...")
-    for key, config in file_kv_generator(file_name):
-        ctx = get_context(key)
-        if ctx is None:
-            logging.warning(f"Context for {key} not found. Skipping...")
-            continue
-        for key, device_attr in config.items():
-            device = ctx.parse_device(device_attr, _identifier=key)
-            register_device(ctx, key, device)
-
+def log_states():
     logging.info("Device configuration complete")
     logging.info(
         "Total of %s device parsers configured", len(DEVICE_CONTEXT_COLLECTION)
@@ -217,3 +200,59 @@ def configure_device(
             ]
         ),
     )
+
+
+@contextmanager
+def configure_device(
+    file_name: str = "pinconfig.json",
+    file_kv_generator: callable = open_json,
+    log_level: str = "Debug",
+):
+    """configure the devices from the pinconfig file. This will parse the devices and store them in the global store.
+
+    Args:
+        file_name (str, optional): file of the pinconfiguration. Defaults to "pinconfig.json".
+        file_kv_generator (callable[[file_name: str], Generator[tuple[str, Any], Any, None]], optional): function for opening the pinconfig. Defaults to open_json.
+
+    Details:
+        file_kv_generator is a function that takes in a file name and returns a generator that yields a tuple of the key and the value. This is used to open the pinconfig file and parse the devices.
+        The expected behavior is that the file_kv_generator will parse the config and return a generator for the first layer of key and value pairs.
+        The key should be the identifier of the device parser and the value should be the object with device identifier and attributes.
+
+    WARNING:
+        This method will skip any parser that was not registered in the device parser list.
+        This could happen for two reasons. The device store was not initialized due to the file that the initializer is in was not imported in the script file(memory benefit), or the parser's identifier had a typo in the pinconfig file(Will need to be fixed immediately).
+    """
+    configure_logger(log_level)
+    logging.info("Configuring devices...")
+    for key, config in file_kv_generator(file_name):
+        ctx = get_context(key)
+        if ctx is None:
+            logging.warning(f"Context for {key} not found. Skipping...")
+            continue
+        for key, device_attr in config.items():
+            device = ctx.parse_device(device_attr, _identifier=key)
+            register_device(ctx, key, device)
+
+    log_states()
+    logging.info("Device configuration complete")
+
+
+@contextmanager
+def configure_device_w_context(
+    file_name: str = "pinconfig.json",
+    file_kv_generator: callable = open_json,
+    log_level: str = "Debug",
+):
+    configure_device(
+        file_name=file_name, file_kv_generator=file_kv_generator, log_level=log_level
+    )
+
+    yield
+
+    logging.info("Exiting system...")
+    for ctx in DEVICE_CONTEXT_COLLECTION.values():
+        if ctx.on_exit is not None:
+            ctx.on_exit()
+    logging.info("Successfully Exiting system...")
+    logging.shutdown()
