@@ -21,6 +21,7 @@ def setup():
 def hydrate_screen():
     """Post setup for the screen (after pygame.init() and global variable are set)"""
     logging.info("Hydrating Screen with initial values")
+    logging.info("Hydrating Screen with initial values")
     render_pressure_status(False)
     render_up_status(False)
     render_left_status(False)
@@ -29,11 +30,16 @@ def hydrate_screen():
     update_screen()
     logging.info("Screen Hydrated")
     if pressure_actions.is_pressure_ok("left_pressure"):
+    update_screen()
+    logging.info("Screen Hydrated")
+    if pressure_actions.is_pressure_ok("left_pressure"):
         change_compressor(True)
+    pressure_actions.on_pressure_active(
     pressure_actions.on_pressure_active(
         "left_pressure",
         lambda: change_compressor(True),
     )
+    pressure_actions.on_pressure_deactive(
     pressure_actions.on_pressure_deactive(
         "left_pressure",
         lambda: change_compressor(False),
@@ -44,8 +50,18 @@ def hydrate_screen():
 
 def main():
     """Main program loop"""
+    setup_cpu(render_temperature_status)  # Hook up CPU temp to the screen
+    logging.info("Completed Screen Update Events")
+
+
+def main():
+    """Main program loop"""
     exit = False
     while not exit:
+        for event in get_keys():
+            if is_event_type(event, "down"):
+                if is_key_pressed(event, ["w", "up"]):
+                    if muscle_actions.contract("left_muscle"):
         for event in get_keys():
             if is_event_type(event, "down"):
                 if is_key_pressed(event, ["w", "up"]):
@@ -82,6 +98,11 @@ def main():
     print("Exiting...")
     logging.info("Exiting...")
     quit_pygame()
+        update_screen()
+        clock_tick(60)
+    print("Exiting...")
+    logging.info("Exiting...")
+    quit_pygame()
     clear_intervals()
 
 
@@ -96,17 +117,24 @@ def change_compressor(status: bool):
         if status
         else compressor_actions.turn_compressor_off
     )
+    action = (
+        compressor_actions.turn_compressor_on
+        if status
+        else compressor_actions.turn_compressor_off
+    )
     action("main_compressor")
     render_pressure_status(status)
 
 
 def step():
     muscle_actions.contract("left_muscle")
+    muscle_actions.contract("left_muscle")
     sleep(1)
     raw_motor_action.set_speed_direction("motor_1", LEFT_SPEED)
     sleep(1)
     raw_motor_action.stop("motor_1")
     sleep(1)
+    muscle_actions.relax("left_muscle")
     muscle_actions.relax("left_muscle")
     sleep(1)
     raw_motor_action.set_speed_direction("motor_1", -LEFT_SPEED)
