@@ -30,16 +30,11 @@ def hydrate_screen():
     update_screen()
     logging.info("Screen Hydrated")
     if pressure_actions.is_pressure_ok("left_pressure"):
-    update_screen()
-    logging.info("Screen Hydrated")
-    if pressure_actions.is_pressure_ok("left_pressure"):
         change_compressor(True)
-    pressure_actions.on_pressure_active(
     pressure_actions.on_pressure_active(
         "left_pressure",
         lambda: change_compressor(True),
     )
-    pressure_actions.on_pressure_deactive(
     pressure_actions.on_pressure_deactive(
         "left_pressure",
         lambda: change_compressor(False),
@@ -58,10 +53,6 @@ def main():
     """Main program loop"""
     exit = False
     while not exit:
-        for event in get_keys():
-            if is_event_type(event, "down"):
-                if is_key_pressed(event, ["w", "up"]):
-                    if muscle_actions.contract("left_muscle"):
         for event in get_keys():
             if is_event_type(event, "down"):
                 if is_key_pressed(event, ["w", "up"]):
@@ -93,11 +84,6 @@ def main():
                 elif is_key_pressed(event, ["d", "right"]):
                     if raw_motor_action.stop("motor_1"):
                         render_right_status(False)
-        update_screen()
-        clock_tick(60)
-    print("Exiting...")
-    logging.info("Exiting...")
-    quit_pygame()
         update_screen()
         clock_tick(60)
     print("Exiting...")
