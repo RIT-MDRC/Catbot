@@ -1,24 +1,25 @@
 from asyncio import sleep
 from dataclasses import dataclass
 
+from gpiozero import DigitalOutputDevice, PWMOutputDevice
 from state_management import (
     create_generic_context,
+    device,
     device_action,
-    device_attr,
     device_parser,
+    identifier,
 )
 
 from .pin import direction_pin_action, speed_pin_action
 
 
-@device_attr(speed_pin_action.ctx, "speed")
-@device_attr(direction_pin_action.ctx, "direction")
+@device
 @dataclass(slots=True)
 class RawMotor:
     """A data class for a raw motor."""
 
-    speed: str
-    direction: str
+    speed: PWMOutputDevice = identifier(speed_pin_action.ctx)
+    direction: DigitalOutputDevice = identifier(direction_pin_action.ctx)
     stop_duration: float
 
 

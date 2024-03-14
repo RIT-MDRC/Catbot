@@ -3,7 +3,7 @@ import json
 import logging
 from collections import OrderedDict
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import reduce, wraps
 from typing import Union
 
@@ -129,6 +129,56 @@ def device_action(ctx: Context):
         return wrapper
 
     return decorator
+
+
+@dataclass(slots=True, frozen=True)
+class Identifier:
+    ctx: Context
+
+
+def identifier(ctx: Context):
+    return Identifier(ctx)
+
+
+def device(cls):
+    original_init = cls.__init__
+    needsIdentifier = "_identifier" in inspect.signature(original_init).parameters
+    identifier_attrs = {
+        k: v.ctx for k, v in cls.__dict__.items() if isinstance(v, Identifier)
+    }
+
+    def new_init(self, _identifier: str, **kwargs):
+        def convert_value(key, value):
+            if key not in identifier_attrs or check_only_class_instance(
+                (ctx := identifier_attrs[key]), value
+            ):
+                # irrelevant attribute values
+                return value
+
+            if isinstance(value, str):
+                # identifier
+                if not (value in ctx.store or value in ctx.stored_keys):
+                    raise ValueError(
+                        f"{ctx}: {value} does not exist. Unique identifiers: \n{ctx.stored_keys}"
+                    )
+                if not value in ctx.stored_keys:
+                    ctx.stored_keys.add(value)
+
+                return value
+
+            # when an attribute's parameter is passed in as an attribute value
+            newDevice = ctx.parse_device(value, _identifier=_identifier)
+            newKey = f"{_identifier}.{key}"
+            register_device(ctx, newKey, newDevice)
+            return newKey
+
+        new_kwargs = {k: convert_value(k, v) for k, v in kwargs.items()}
+        if not needsIdentifier:
+            del new_kwargs["_identifier"]
+        original_init(self, **new_kwargs)
+
+    cls.__init__ = new_init
+    return cls
 
 
 def device_attr(ctx: Context, attr_name: Union[str, tuple[str]]):
