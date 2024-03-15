@@ -189,52 +189,6 @@ def device(cls):
     return cls
 
 
-def device_attr(ctx: Context, attr_name: Union[str, tuple[str]]):
-    if isinstance(attr_name, str):
-        attr_name = (attr_name,)
-
-    def class_wrapper(cls):
-        original_init = cls.__init__
-        # check if the original init needs _indentifer to allow nesting of class decorators
-        needsIdentifier = "_identifier" in inspect.signature(original_init).parameters
-
-        def new_init(self, _identifier: str, **kwargs):
-            def convert_value(key, value):
-                if check_only_class_instance(ctx, value) or key not in attr_name:
-                    # irrelevant attribute values
-                    return value
-
-                if isinstance(value, str):
-                    # identifier
-                    if not (value in ctx.store or value in ctx.stored_keys):
-                        raise ValueError(
-                            f"{ctx}: {value} does not exist. Unique identifiers: \n{ctx.stored_keys}"
-                        )
-                    if not value in ctx.stored_keys:
-                        ctx.stored_keys.add(value)
-
-                    return value
-
-                # when an attribute's parameter is passed in as an attribute value
-                newDevice = ctx.parse_device(value, _identifier=_identifier)
-                newKey = f"{_identifier}.{key}"
-                register_device(ctx, newKey, newDevice)
-                return newKey
-
-            new_kwargs = {
-                key: convert_value(key, value) for (key, value) in kwargs.items()
-            }
-            if needsIdentifier:
-                new_kwargs["_identifier"] = _identifier
-
-            original_init(self, **new_kwargs)
-
-        cls.__init__ = new_init
-        return cls
-
-    return class_wrapper
-
-
 def open_json(file_name: str = "pinconfig.json"):
     with open(file_name, "r") as file:
         config = json.load(file, object_pairs_hook=OrderedDict)

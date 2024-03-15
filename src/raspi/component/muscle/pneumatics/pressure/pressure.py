@@ -1,11 +1,11 @@
-from gpiozero import DigitalOutputDevice
+from gpiozero import DigitalInputDevice
 from state_management import create_masked_context, device_action, input_device_ctx
 
-pressure_ctx = create_masked_context(input_device_ctx, "pressure")
+ctx = create_masked_context(input_device_ctx, "pressure")
 
 
-@device_action(pressure_ctx)
-def is_pressure_ok(device: DigitalOutputDevice) -> bool:
+@device_action(ctx)
+def is_pressure_ok(device: DigitalInputDevice) -> bool:
     """
     Check if the pressure sensor is ok.
 
@@ -18,8 +18,8 @@ def is_pressure_ok(device: DigitalOutputDevice) -> bool:
     return device.is_active
 
 
-@device_action(pressure_ctx)
-def on_pressure_active(device: DigitalOutputDevice, action: callable) -> None:
+@device_action(ctx)
+def on_pressure_active(device: DigitalInputDevice, action: callable) -> None:
     """
     Add a new pressure sensor change event.
 
@@ -30,8 +30,8 @@ def on_pressure_active(device: DigitalOutputDevice, action: callable) -> None:
     device.when_activated = action
 
 
-@device_action(pressure_ctx)
-def on_pressure_deactive(device: DigitalOutputDevice, action: callable) -> None:
+@device_action(ctx)
+def on_pressure_deactive(device: DigitalInputDevice, action: callable) -> None:
     """
     Add a new pressure sensor change event.
 

@@ -6,8 +6,9 @@ from time import sleep
 from gpiozero import DigitalOutputDevice
 from state_management import (
     create_generic_context,
-    device_attr,
+    device,
     device_parser,
+    identifier,
     output_device_ctx,
     register_device,
 )
@@ -64,19 +65,17 @@ class VirtualDigitalOutputDevice:
         return f"VirtualDigitalOutputDevice(pin={self.pin}, value={self._value})"
 
 
-@device_attr(latch_pin_actions.data_pin_ctx, "data")
-@device_attr(latch_pin_actions.enab_pin_ctx, "enab")
-@device_attr(latch_pin_actions.addr_pin_ctx, ("addr_1", "addr_2", "addr_3"))
+@device
 @dataclass
 class Latch:
-    data: DigitalOutputDevice
-    enab: DigitalOutputDevice
-    addr_1: DigitalOutputDevice
-    addr_2: DigitalOutputDevice
-    addr_3: DigitalOutputDevice
     pins: dict[str, int]
     queue: list[tuple[str, int]] = field(default_factory=list)
     lock: bool = False
+    data: DigitalOutputDevice = identifier(latch_pin_actions.data_pin_ctx)
+    enab: DigitalOutputDevice = identifier(latch_pin_actions.enab_pin_ctx)
+    addr_1: DigitalOutputDevice = identifier(latch_pin_actions.addr_pin_ctx)
+    addr_2: DigitalOutputDevice = identifier(latch_pin_actions.addr_pin_ctx)
+    addr_3: DigitalOutputDevice = identifier(latch_pin_actions.addr_pin_ctx)
     _identifier: str = field(default="latch")
 
     def __post_init__(self):
