@@ -137,6 +137,14 @@ class Identifier:
 
 
 def identifier(ctx: Context):
+    """function used to mark an attribute of a class as an identifier for the device decorator to find and correctly parse the device.
+
+    Args:
+        ctx (Context): context of where the attribute device is stored
+
+    Returns:
+        Identifier: Identifier class that stores the context for the device decorator to find and correctly parse the device.
+    """
     return Identifier(ctx)
 
 
@@ -173,8 +181,8 @@ def device(cls):
             return newKey
 
         new_kwargs = {k: convert_value(k, v) for k, v in kwargs.items()}
-        if not needsIdentifier:
-            del new_kwargs["_identifier"]
+        if needsIdentifier:
+            new_kwargs["_identifier"] = _identifier
         original_init(self, **new_kwargs)
 
     cls.__init__ = new_init

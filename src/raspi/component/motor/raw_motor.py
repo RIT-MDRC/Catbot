@@ -18,9 +18,9 @@ from .pin import direction_pin_action, speed_pin_action
 class RawMotor:
     """A data class for a raw motor."""
 
+    stop_duration: float
     speed: PWMOutputDevice = identifier(speed_pin_action.ctx)
     direction: DigitalOutputDevice = identifier(direction_pin_action.ctx)
-    stop_duration: float
 
 
 ctx = create_generic_context("raw_motor", [RawMotor])
