@@ -12,6 +12,9 @@
 	"pwm_output_device": {
 		"motor_1_speed": 26
 	},
+	"smbus2": {
+		"smbus": 1
+	},
 	"latch": {
 		"motor_latch": {
 			"data": "lat_data",
@@ -38,6 +41,12 @@
 		"left_muscle": {
 			"pressure": "left_pressure",
 			"valve": 24
+		}
+	},
+	"adc": {
+		"pot1": {
+			"i2c": "smbus",
+			"address": 3
 		}
 	}
 }
