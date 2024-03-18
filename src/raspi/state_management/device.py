@@ -3,9 +3,8 @@ import json
 import logging
 from collections import OrderedDict
 from contextlib import contextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from functools import reduce, wraps
-from typing import Union
 
 from .utils.logger import configure_logger
 

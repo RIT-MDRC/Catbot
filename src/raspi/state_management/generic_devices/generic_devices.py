@@ -1,6 +1,7 @@
 import logging
 
 from gpiozero import DigitalInputDevice, DigitalOutputDevice, PWMOutputDevice
+from smbus2 import SMBus
 from state_management.device import create_generic_context, device_parser
 from state_management.utils import (
     FakeDigitalInputDevice,
@@ -8,6 +9,8 @@ from state_management.utils import (
     FakePWMOutputDevice,
     is_dev,
 )
+
+from ..utils.deviceMock import FakeSMBus
 
 __all__ = [
     "input_device_ctx",
@@ -105,3 +108,27 @@ def parse_pwm_output_device(config):
         return FakePWMOutputDevice(config)
     else:
         return PWMOutputDevice(config)
+
+
+smbus2_ctx = create_generic_context("smbus2", (SMBus, FakeSMBus))
+
+
+@device_parser(smbus2_ctx)
+def parse_smbus2(config):
+    """
+    Parse a new smbus2 device.
+
+    Args:
+        bus_num (int): the bus number of the device
+
+    Returns:
+        (SMBus) the new smbus2 device
+    """
+    if not isinstance(config, int):
+        raise ValueError("Must be a bus number. Got " + str(config))
+    if is_dev():
+        logging.info(
+            "dev environment detected. Mocking smbus2 device for bus %s", config
+        )
+        return FakeSMBus(config)
+    return SMBus(config)

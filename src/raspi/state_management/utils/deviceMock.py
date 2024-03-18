@@ -127,3 +127,51 @@ class FakePWMOutputDevice:
 
     def __repr__(self) -> str:
         return f"FakePWMOutputDevice(pin={self.pin}, value={self.value})"
+
+
+class FakeSMBus:
+    def __init__(self, bus: int):
+        self.bus = bus
+
+    def read_byte_data(self, i2c_addr: int, register: int) -> int:
+        logging.info(
+            f"FakeSMBus.read_byte_data: Reading from address:{i2c_addr} at register:{register}"
+        )
+        return 0
+
+    def write_byte_data(self, i2c_addr: int, register: int, value: int) -> None:
+        logging.info(
+            f"FakeSMBus.write_byte_data: Writing value:{value} to address:{i2c_addr} at register:{register}"
+        )
+        pass
+
+    def read_word_data(self, i2c_addr: int, register: int) -> int:
+        logging.info(
+            f"FakeSMBus.read_word_data: Reading from address:{i2c_addr} at register:{register}"
+        )
+        return 0
+
+    def write_word_data(self, i2c_addr: int, register: int, value: int) -> None:
+        logging.info(
+            f"FakeSMBus.write_word_data: Writing value:{value} to address:{i2c_addr} at register:{register}"
+        )
+        pass
+
+    def read_i2c_block_data(self, i2c_addr: int, register: int, length: int) -> list:
+        logging.info(
+            f"FakeSMBus.read_i2c_block_data: Reading from address:{i2c_addr} at register:{register} with length:{length}"
+        )
+        return [0] * length
+
+    def write_i2c_block_data(self, i2c_addr: int, register: int, data: list) -> None:
+        logging.info(
+            f"FakeSMBus.write_i2c_block_data: Writing data:{data} to address:{i2c_addr} at register:{register}"
+        )
+        pass
+
+    def close(self) -> None:
+        logging.info("FakeSMBus.close: Closing the bus")
+        pass
+
+    def __repr__(self) -> str:
+        return f"FakeSMBus(bus={self.bus})"

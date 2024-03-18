@@ -1,5 +1,5 @@
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from gpiozero import DigitalInputDevice, DigitalOutputDevice
 from state_management import (
