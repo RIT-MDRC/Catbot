@@ -39,7 +39,7 @@ def parse_adc(config):
 
 
 @device_action(ctx)
-def get_degrees(device: ADC):
+def read_byte_data(device: ADC, register: int = 0):
     """
     Get the degrees from the adc device.
 
@@ -49,4 +49,16 @@ def get_degrees(device: ADC):
     Returns:
         (float) the degrees
     """
-    return device.i2c.read_byte_data(device.address, 0)
+    return device.i2c.read_byte_data(device.address, register)
+
+
+@device_action(ctx)
+def write_byte_data(device: ADC, value: int):
+    """
+    Set the degrees on the adc device.
+
+    Args:
+        device (ADC): the adc device
+        value (int): the value to set
+    """
+    device.i2c.write_byte_data(device.address, 0, value)
