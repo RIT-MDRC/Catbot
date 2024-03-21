@@ -5,3 +5,5 @@
 **/.env
 *.pyc
 **/output
+.log
+.vscode

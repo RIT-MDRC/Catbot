@@ -24,9 +24,10 @@ class Potentiometer {
         static int adcHandle;
         int index;
 
-        // 4 most significant bits for ADC command byte, used to select channel.
-        // (see page 11 of https://www.ti.com/lit/ds/symlink/ads7828.pdf)
-        const uint8_t CHANNEL_SELECTION_MSB[8] = {
+        // 4 most significant bits for ADC command byte, used to select channel (see page 11
+        // of https://www.ti.com/lit/ds/symlink/ads7828.pdf). Index 0 represents bits sent for potentiometer at CH0,
+        // index 1 represents bits sent for potentiometer at CH1, and so on.
+        const uint8_t CHANNEL_TO_ADDR_MAP[8] = {
             0b1000,  // CH0
             0b1100,  // CH1
             0b1001,  // ...

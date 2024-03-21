@@ -17,7 +17,7 @@ unsigned int Potentiometer::getDegrees() {
 
     // 0b1100 represents the least significant bits of the command byte, where 11 is our
     // power-down selection and 00 are placeholders for unused bits.
-    uint8_t commandByte = (CHANNEL_SELECTION_MSB[index] << 4) + 0b1100;
+    uint8_t commandByte = (CHANNEL_TO_ADDR_MAP[index] << 4) | 0b1100;
     i2cWriteByte(Potentiometer::adcHandle, commandByte);
 
     i2cReadDevice(Potentiometer::adcHandle, readBuffer, 2);
