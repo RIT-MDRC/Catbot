@@ -2,7 +2,6 @@
 #include <cmath>
 
 #define I2C_BUS 1
-#define ADC_I2C_ADDR 0x48
 #define ADC_RESOLUTION_BITS 12
 #define MAX_ROTATION 285.0    // Range of rotation of the potentiometer, in degrees.
 
@@ -12,8 +11,10 @@ class Potentiometer {
         /**
          * Creates an instance of a potentiometer. There should only be one instance of this per real-world potentiometer.
          * index: The index of this potentiometer [0-7]. This is labeled on the circuit board as POT0, POT1, ...
+         * adcIndex: The index of the ADC that this potentiometer is connected to. 0 is the ADC with address 0x48, and 1 is the
+         *           one at address [TODO: other address]
         */
-        Potentiometer(int index);
+        Potentiometer(int index, int adcIndex);
         /**
          * Gets the current rotation of the potentiometer.
          * returns: The current rotation of the potentiometer, in degrees [0-285].
@@ -21,8 +22,10 @@ class Potentiometer {
         unsigned int getDegrees();
 
     private:
-        static int adcHandle;
+        static int adcHandles[] = { 0, 0 };
+        static int adcAddresses[] = { 0x48, 0x48 };  // TODO: need to figure out address of other periph board
         int index;
+        int adcIndex;
 
         // 4 most significant bits for ADC command byte, used to select channel (see page 11
         // of https://www.ti.com/lit/ds/symlink/ads7828.pdf). Index 0 represents bits sent for potentiometer at CH0,

@@ -1,15 +1,17 @@
 #include "potentiometer.h"
 #include <boost/python.hpp>
 
-int Potentiometer::adcHandle = 0;
+int Potentiometer::adcHandles[] = { 0, 0 };
+int Potentiometer::adcAddresses[] = { 0x48, 0x48 };
 
-Potentiometer::Potentiometer(int index) {
+Potentiometer::Potentiometer(int index, int adcIndex) {
     this->index = index;
+    this->adcIndex = adcIndex;
     
-    gpioInitialise();  // TODO: put this somewhere else later
+    gpioInitialise();  // TODO: put this somewhere else later, e.g. in the python code during init
 
-    if (Potentiometer::adcHandle == 0)
-        Potentiometer::adcHandle = i2cOpen(I2C_BUS, ADC_I2C_ADDR, 0);
+    if (Potentiometer::adcHandle[adcIndex] == 0)
+        Potentiometer::adcHandle[adcIndex] = i2cOpen(I2C_BUS, adcAddresses[adcIndex], 0);
 }
 
 unsigned int Potentiometer::getDegrees() {
@@ -22,16 +24,13 @@ unsigned int Potentiometer::getDegrees() {
 
     i2cReadDevice(Potentiometer::adcHandle, readBuffer, 2);
 
-    uint16_t reading = (readBuffer[0] << 8) + readBuffer[1];
-    //unsigned int degrees = (reading / pow(2, ADC_RESOLUTION_BITS)) * MAX_ROTATION;
-
-    return reading;
-    //return degrees;
+    unsigned int degrees = (reading / pow(2, ADC_RESOLUTION_BITS)) * MAX_ROTATION;
+    return degrees;
 }
 
 
 BOOST_PYTHON_MODULE(potentiometer){
     using namespace boost::python;
-    class_<Potentiometer>("Potentiometer", init<int>())
+    class_<Potentiometer>("Potentiometer", init<int, int>())
         .def("getDegrees", &Potentiometer::getDegrees);
 }
