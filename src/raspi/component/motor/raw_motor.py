@@ -76,11 +76,9 @@ async def set_direction(raw_motor: RawMotor, direction: int) -> bool:
     """Set the direction of a raw motor."""
     
     if check_direction(raw_motor, direction):
-        print("direction is correct continue")
         return True
     if not get_speed(raw_motor) == 0 and not await stop(raw_motor):
         raise ValueError("Failed to stop the motor")
-    print(f"setting direction {direction}")
     return direction_pin_action.set_direction(raw_motor.direction, direction)
 
 
@@ -90,10 +88,8 @@ async def set_speed_direction(raw_motor: RawMotor, value: float) -> bool:
     value: the speed of the motor in percentage (-100 to 100)
     """
     if value == 0:
-        print(f"stopping {raw_motor}")
         return await stop(raw_motor)
     direction = value < 0
     if not await set_direction(raw_motor, int(direction)):
         return False
-    print(f"setting speed {raw_motor} to {value}")
     return set_speed(raw_motor, value)

@@ -7,7 +7,6 @@ ctx = create_masked_context(output_device_ctx, "directionPin")
 def check_direction(directionPin, direction) -> bool:
     if direction not in [0, 1]:
         raise ValueError("direction must be either 0 or 1")
-    print(directionPin.value)
     return directionPin.value == direction
 
 
