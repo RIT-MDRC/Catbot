@@ -1,13 +1,18 @@
 import logging
 from dataclasses import dataclass, field
 
-from state_management import create_device_store
+from state_management import (
+    create_generic_context,
+    device_action,
+    device_attr,
+    device_parser,
+)
 
 from .pneumatics import pressure_actions, valve_actions
 
 
-@pressure_actions.pressure_attr("pressure")
-@valve_actions.valve_attr("valve")
+@device_attr(pressure_actions.pressure_ctx, "pressure")
+@device_attr(valve_actions.valve_ctx, "valve")
 @dataclass()
 class MuscleObj:
     """
@@ -26,11 +31,11 @@ class MuscleObj:
         setattr(self, key, value)
 
 
-muscle_action, muscle_parser, muscle_attr = create_device_store("muscle", [MuscleObj])
+muscle_ctx = create_generic_context("muscle", [MuscleObj])
 __all__ = ["contract", "relax", "toggle_muscle_state", "MuscleObj", "muscle_attr"]
 
 
-@muscle_parser
+@device_parser(muscle_ctx)
 def parse_muscle(data: dict) -> MuscleObj:
     """
     Parse a muscle from a dictionary.
@@ -44,7 +49,7 @@ def parse_muscle(data: dict) -> MuscleObj:
     return MuscleObj(**data)
 
 
-@muscle_action
+@device_action(muscle_ctx)
 def contract(muscle: MuscleObj, check=pressure_actions.is_pressure_ok) -> bool:
     """
     Contract a muscle.
@@ -65,7 +70,7 @@ def contract(muscle: MuscleObj, check=pressure_actions.is_pressure_ok) -> bool:
     return True
 
 
-@muscle_action
+@device_action(muscle_ctx)
 def relax(muscle: MuscleObj, check=valve_actions.get_valve_state) -> bool:
     """
     Relax a muscle.
@@ -86,7 +91,7 @@ def relax(muscle: MuscleObj, check=valve_actions.get_valve_state) -> bool:
     return True
 
 
-@muscle_action
+@device_action(muscle_ctx)
 def toggle_muscle_state(muscle: MuscleObj) -> bool:
     """
     Toggle a muscle.

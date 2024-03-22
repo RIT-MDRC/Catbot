@@ -47,6 +47,9 @@ class FakeDigitalOutputDevice:
     def toggle(self):
         self.value = 1 - self.value
 
+    def __repr__(self) -> str:
+        return f"FakeDigitalOutputDevice(pin={self.pin}, value={self.value})"
+
 
 class FakeDigitalInputDevice:
     pin: int
@@ -74,14 +77,19 @@ class FakeDigitalInputDevice:
             self.when_deactivated()
             logging.debug("FakeDigitalInputDevice.toggle: Called when_deactivated")
 
+    def __repr__(self) -> str:
+        return f"FakeDigitalInputDevice(pin={self.pin}, value={self.value}, is_active={self.is_active})"
+
 
 class FakePWMOutputDevice:
     pin: int
     value: float
+    frequency: int
 
-    def __init__(self, pin: int, initial_value=0.0):
+    def __init__(self, pin: int, initial_value=0.0, frequency=1000):
         self.pin = pin
         self.value = initial_value
+        self.frequency = frequency
 
     @value_change
     def is_active(self):
@@ -118,3 +126,6 @@ class FakePWMOutputDevice:
     @value_change
     def pulse(self, fade_in_time=1, fade_out_time=1, n=None, background=True):
         pass
+
+    def __repr__(self) -> str:
+        return f"FakePWMOutputDevice(pin={self.pin}, value={self.value})"

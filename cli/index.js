@@ -4,7 +4,7 @@ import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 
 const DEFAULT_FOLDER = '/opt/catbot/src';
-const DEV_SRC_FOLDER = 'src';
+const DEV_SRC_FOLDER = './src';
 const DEFAULT_FILE_PATH = 'raspi/main';
 
 yargs(hideBin(process.argv))
@@ -82,9 +82,10 @@ yargs(hideBin(process.argv))
 			const sourcePath =
 				args.D || args.dev ? DEV_SRC_FOLDER : DEFAULT_FOLDER;
 			const childProcess = spawn(
-				'python3',
+				`python3`,
 				[`${sourcePath}/raspi/samples/${file}.py`],
 				{
+					env: { ...process.env, PYTHONPATH: sourcePath + '/raspi' },
 					stdio: 'inherit',
 				}
 			);
