@@ -1,7 +1,9 @@
 #! /usr/bin/env node
+import { execSync } from 'child_process';
 import fs from 'fs';
 import os from 'node:os';
 import url from 'url';
+
 /**
  * This is a postinstall script that runs after `npm -g install`.
  * This is a script only for raspberry pi.
@@ -11,6 +13,19 @@ import url from 'url';
 
 // __dirname is not defined in ES6 modules
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
+
+const DIR = __dirname.split('/').slice(0, -2).join('/'); // remove cli/postinstall.js
+
+try {
+	console.log(`export PYTHONPATH="${DIR}/src/raspi"`);
+	execSync(`export PYTHONPATH="${DIR}/src/raspi"`);
+	const res = execSync('echo $PYTHONPATH');
+	console.log(`PYTHONPATH set to: ${res.toString()}`);
+} catch (error) {
+	console.log(`Status Code: ${error.status} with '${error.message}'`);
+	console.log('WARNING: Failed to set PYTHONPATH');
+	console.log('WARNING: Sample code maybe not run as expected');
+}
 
 if (os.arch() !== 'arm64' || os.platform() !== 'linux') {
 	console.log('This is not a Linux system. Skipping postinstall.');
@@ -64,4 +79,5 @@ try {
 	);
 	process.exit(1);
 }
+
 console.log('Catbot installed successfully!');

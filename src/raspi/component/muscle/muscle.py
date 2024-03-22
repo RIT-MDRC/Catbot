@@ -1,14 +1,20 @@
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
-from state_management import create_device_store
+from gpiozero import DigitalInputDevice, DigitalOutputDevice
+from state_management import (
+    create_generic_context,
+    device,
+    device_action,
+    device_parser,
+    identifier,
+)
 
 from .pneumatics import pressure_actions, valve_actions
 
 
-@pressure_actions.pressure_attr("pressure")
-@valve_actions.valve_attr("valve")
-@dataclass()
+@device
+@dataclass(slots=True)
 class MuscleObj:
     """
     Args:
@@ -16,8 +22,8 @@ class MuscleObj:
         valve (str): the name of the valve
     """
 
-    pressure: str = field(default="not_set")
-    valve: str = field(default="not_set")
+    pressure: DigitalInputDevice = identifier(pressure_actions.ctx)
+    valve: DigitalOutputDevice = identifier(valve_actions.ctx)
 
     def __getitem__(self, key):
         return getattr(self, key)
@@ -26,11 +32,10 @@ class MuscleObj:
         setattr(self, key, value)
 
 
-muscle_action, muscle_parser, muscle_attr = create_device_store("muscle", [MuscleObj])
-__all__ = ["contract", "relax", "toggle_muscle_state", "MuscleObj", "muscle_attr"]
+ctx = create_generic_context("muscle", [MuscleObj])
 
 
-@muscle_parser
+@device_parser(ctx)
 def parse_muscle(data: dict) -> MuscleObj:
     """
     Parse a muscle from a dictionary.
@@ -44,7 +49,7 @@ def parse_muscle(data: dict) -> MuscleObj:
     return MuscleObj(**data)
 
 
-@muscle_action
+@device_action(ctx)
 def contract(muscle: MuscleObj, check=pressure_actions.is_pressure_ok) -> bool:
     """
     Contract a muscle.
@@ -65,7 +70,7 @@ def contract(muscle: MuscleObj, check=pressure_actions.is_pressure_ok) -> bool:
     return True
 
 
-@muscle_action
+@device_action(ctx)
 def relax(muscle: MuscleObj, check=valve_actions.get_valve_state) -> bool:
     """
     Relax a muscle.
@@ -86,7 +91,7 @@ def relax(muscle: MuscleObj, check=valve_actions.get_valve_state) -> bool:
     return True
 
 
-@muscle_action
+@device_action(ctx)
 def toggle_muscle_state(muscle: MuscleObj) -> bool:
     """
     Toggle a muscle.

@@ -1,5 +1,8 @@
+import logging
+
 from gpiozero import DigitalInputDevice, DigitalOutputDevice, PWMOutputDevice
-from state_management.device import create_generic_device_store
+from smbus2 import SMBus
+from state_management.device import create_generic_context, device_parser
 from state_management.utils import (
     FakeDigitalInputDevice,
     FakeDigitalOutputDevice,
@@ -7,13 +10,15 @@ from state_management.utils import (
     is_dev,
 )
 
+from ..utils.deviceMock import FakeSMBus
+
 __all__ = [
-    "create_input_device_component",
-    "create_output_device_component",
-    "create_pwm_output_device_component",
+    "input_device_ctx",
+    "output_device_ctx",
+    "pwm_output_device_ctx",
 ]
 
-create_input_device_component, _input_device_parser = create_generic_device_store(
+input_device_ctx = create_generic_context(
     "input_device",
     (DigitalInputDevice, FakeDigitalInputDevice),
 )
@@ -24,7 +29,7 @@ returns: (device_action, register_device, get_device, get_registered_devices, ge
 """
 
 
-@_input_device_parser
+@device_parser(input_device_ctx)
 def parse_input_device(config):
     """
     Parse a new input device.
@@ -38,12 +43,15 @@ def parse_input_device(config):
     if not isinstance(config, int):
         raise ValueError("Must be a pin number. Got " + str(config))
     if is_dev():
+        logging.info(
+            "dev environment detected. Mocking digital input device for pin %s", config
+        )
         return FakeDigitalInputDevice(config)
     else:
         return DigitalInputDevice(config)
 
 
-create_output_device_component, _output_device_parser = create_generic_device_store(
+output_device_ctx = create_generic_context(
     "output_device", (DigitalOutputDevice, FakeDigitalOutputDevice)
 )
 """
@@ -53,7 +61,7 @@ returns: (device_action, register_device, get_device, get_registered_devices, ge
 """
 
 
-@_output_device_parser
+@device_parser(output_device_ctx)
 def parse_output_device(config):
     """
     Parse a new output device.
@@ -67,19 +75,20 @@ def parse_output_device(config):
     if not isinstance(config, int):
         raise ValueError("Must be a pin number. Got " + str(config))
     if is_dev():
+        logging.info(
+            "dev environment detected. Mocking digital output device for pin %s", config
+        )
         return FakeDigitalOutputDevice(config)
     else:
         return DigitalOutputDevice(config)
 
 
-create_pwm_output_device_component, _pwm_output_device_parser = (
-    create_generic_device_store(
-        "pwm_output_device", (PWMOutputDevice, FakePWMOutputDevice)
-    )
+pwm_output_device_ctx = create_generic_context(
+    "pwm_output_device", (PWMOutputDevice, FakePWMOutputDevice)
 )
 
 
-@_pwm_output_device_parser
+@device_parser(pwm_output_device_ctx)
 def parse_pwm_output_device(config):
     """
     Parse a new pwm output device.
@@ -90,9 +99,36 @@ def parse_pwm_output_device(config):
     Returns:
         (PWMOutputDevice) the new pwm output device
     """
-    if not isinstance(config, int):
-        raise ValueError("Must be a pin number. Got " + str(config))
+    input = {"pin": config} if isinstance(config, int) else config
+    input = {k: v for k, v in input.items() if k != "_identifier"}
     if is_dev():
-        return FakePWMOutputDevice(config)
+        logging.info(
+            "dev environment detected. Mocking PWM output device for pin %s", config
+        )
+        return FakePWMOutputDevice(**input)
     else:
-        return PWMOutputDevice(config)
+        return PWMOutputDevice(**input)
+
+
+smbus2_ctx = create_generic_context("smbus2", (SMBus, FakeSMBus))
+
+
+@device_parser(smbus2_ctx)
+def parse_smbus2(config):
+    """
+    Parse a new smbus2 device.
+
+    Args:
+        bus_num (int): the bus number of the device
+
+    Returns:
+        (SMBus) the new smbus2 device
+    """
+    if not isinstance(config, int):
+        raise ValueError("Must be a bus number. Got " + str(config))
+    if is_dev():
+        logging.info(
+            "dev environment detected. Mocking smbus2 device for bus %s", config
+        )
+        return FakeSMBus(config)
+    return SMBus(config)
