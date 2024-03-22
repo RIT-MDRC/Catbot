@@ -84,10 +84,12 @@ class FakeDigitalInputDevice:
 class FakePWMOutputDevice:
     pin: int
     value: float
+    frequency: int
 
-    def __init__(self, pin: int, initial_value=0.0):
+    def __init__(self, pin: int, initial_value=0.0, frequency=1000):
         self.pin = pin
         self.value = initial_value
+        self.frequency = frequency
 
     @value_change
     def is_active(self):
