@@ -101,6 +101,6 @@ def parse_pwm_output_device(config):
         logging.info(
             "dev environment detected. Mocking PWM output device for pin %s", config
         )
-        return FakePWMOutputDevice(input)
+        return FakePWMOutputDevice(**input)
     else:
-        return PWMOutputDevice(input)
+        return PWMOutputDevice(**input)
