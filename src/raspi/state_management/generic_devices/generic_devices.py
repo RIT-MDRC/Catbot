@@ -97,6 +97,7 @@ def parse_pwm_output_device(config):
         (PWMOutputDevice) the new pwm output device
     """
     input = {"pin": config} if isinstance(config, int) else config
+    input = {k: v for k, v in input.items() if k != "_identifier"}
     if is_dev():
         logging.info(
             "dev environment detected. Mocking PWM output device for pin %s", config

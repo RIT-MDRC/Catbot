@@ -10,7 +10,10 @@
 		"lat_addr_3": 12
 	},
 	"pwm_output_device": {
-		"motor_1_speed": 4
+		"motor_1_speed": {
+			"pin":4,
+			"frequency": 1000
+		}
 	},
 	"latch": {
 		"motor_latch": {
