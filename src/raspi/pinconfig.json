@@ -10,7 +10,7 @@
 		"lat_addr_3": 12
 	},
 	"pwm_output_device": {
-		"motor_1_speed": 26
+		"motor_1_speed": 4
 	},
 	"latch": {
 		"motor_latch": {
@@ -20,7 +20,14 @@
 			"addr_2": "lat_addr_2",
 			"addr_3": "lat_addr_3",
 			"pins": {
-				"motor_1": 0
+				"motor_1": 0,
+				"motor_2": 1,
+				"motor_3": 2,
+				"motor_4": 3,
+				"motor_5": 4,
+				"motor_6": 5,
+				"motor_7": 6,
+				"motor_8": 7
 			}
 		}
 	},
@@ -30,7 +37,7 @@
 	"raw_motor": {
 		"motor_1": {
 			"speed": "motor_1_speed",
-			"direction": "motor_latch.motor_1",
+			"direction": "motor_latch.motor_5",
 			"stop_duration": 0.1
 		}
 	},

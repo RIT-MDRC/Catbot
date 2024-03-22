@@ -49,6 +49,8 @@ class VirtualDigitalOutputDevice:
 
     def set_value(self, value):
         self.latch.set(self.addr, value)
+        # this might need to change in the future as it might need to be check if the latch has actually switched state
+        self._value = value 
 
     @property
     def value(self):
