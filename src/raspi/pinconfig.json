@@ -4,7 +4,7 @@
 	},
 	"output_device": {
 		"lat_enab": 15,
-		"lat_data": 23,
+		"lat_data": 20,
 		"lat_addr_1": 5,
 		"lat_addr_2": 6,
 		"lat_addr_3": 12

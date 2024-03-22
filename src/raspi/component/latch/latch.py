@@ -51,7 +51,7 @@ class VirtualDigitalOutputDevice:
     def set_value(self, value):
         self.latch.set(self.addr, value)
         # this might need to change in the future as it might need to be check if the latch has actually switched state
-        self._value = value 
+        self._value = value
 
     @property
     def value(self):
@@ -118,11 +118,11 @@ class Latch:
         latch_pin_actions.set_addr(self.addr_1, b0)
         latch_pin_actions.set_addr(self.addr_2, b1)
         latch_pin_actions.set_addr(self.addr_3, b2)
-        latch_pin_actions.set_enab(self.enab, 0)
         latch_pin_actions.set_data(self.data, newState)
+        latch_pin_actions.set_enab(self.enab, 0)
         sleep(ENABLE_DURATION)
         latch_pin_actions.set_enab(self.enab, 1)
-        
+
 
 ctx = create_generic_context("latch", [Latch])
 
