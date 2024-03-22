@@ -5,15 +5,6 @@ enab_pin_ctx = create_masked_context(output_device_ctx, "enab_pin")
 data_pin_ctx = create_masked_context(output_device_ctx, "data_pin")
 addr_pin_ctx = create_masked_context(output_device_ctx, "addr_pin")
 
-__all__ = [
-    "enab_pin_ctx",
-    "data_pin_ctx",
-    "addr_pin_ctx",
-    "set_addr",
-    "set_data",
-    "set_enab",
-]
-
 
 @device_action(addr_pin_ctx)
 def set_addr(dev: DigitalOutputDevice, state: int) -> None:
@@ -25,6 +16,34 @@ def set_addr(dev: DigitalOutputDevice, state: int) -> None:
         state (int): 1 to turn the pin on, 0 to turn it off
     """
     dev.on() if state > 0 else dev.off()
+
+
+@device_action(addr_pin_ctx)
+def get_addr(dev: DigitalOutputDevice) -> int:
+    """
+    Get the state of the address pin.
+
+    Args:
+        dev (DigitalOutputDevice): the address pin
+
+    Returns:
+        int: 1 if the pin is on, 0 if the pin is off
+    """
+    return dev.value
+
+
+@device_action(addr_pin_ctx)
+def toggle_addr(dev: DigitalOutputDevice) -> int:
+    """
+    Toggle the state of the address pin.
+
+    Args:
+        dev (DigitalOutputDevice): the address pin
+
+    Returns:
+        int: 1 if the pin is on, 0 if the pin is off
+    """
+    return dev.toggle()
 
 
 @device_action(data_pin_ctx)
@@ -39,6 +58,34 @@ def set_data(dev: DigitalOutputDevice, state: int) -> None:
     dev.on() if state > 0 else dev.off()
 
 
+@device_action(data_pin_ctx)
+def get_data(dev: DigitalOutputDevice) -> int:
+    """
+    Get the state of the address pin.
+
+    Args:
+        dev (DigitalOutputDevice): the address pin
+
+    Returns:
+        int: 1 if the pin is on, 0 if the pin is off
+    """
+    return dev.value
+
+
+@device_action(data_pin_ctx)
+def toggle_data(dev: DigitalOutputDevice) -> int:
+    """
+    Toggle the state of the data pin.
+
+    Args:
+        dev (DigitalOutputDevice): the address pin
+
+    Returns:
+        int: 1 if the pin is on, 0 if the pin is off
+    """
+    return dev.toggle()
+
+
 @device_action(enab_pin_ctx)
 def set_enab(dev: DigitalOutputDevice, state: int) -> None:
     """
@@ -49,3 +96,31 @@ def set_enab(dev: DigitalOutputDevice, state: int) -> None:
         state (int): 1 to turn the pin on, 0 to turn it off
     """
     dev.on() if state > 0 else dev.off()
+
+
+@device_action(enab_pin_ctx)
+def get_enab(dev: DigitalOutputDevice) -> int:
+    """
+    Get the state of the address pin.
+
+    Args:
+        dev (DigitalOutputDevice): the address pin
+
+    Returns:
+        int: 1 if the pin is on, 0 if the pin is off
+    """
+    return dev.value
+
+
+@device_action(enab_pin_ctx)
+def toggle_enab(dev: DigitalOutputDevice) -> int:
+    """
+    Toggle the state of the enab pin.
+
+    Args:
+        dev (DigitalOutputDevice): the address pin
+
+    Returns:
+        int: 1 if the pin is on, 0 if the pin is off
+    """
+    return dev.toggle()
