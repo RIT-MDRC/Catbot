@@ -38,3 +38,7 @@ def stop(speedPin: PWMOutputDevice) -> float:
     """
     speedPin.off()
     return get(speedPin)
+
+@device_action(ctx)
+def check_speed(speedPin: PWMOutputDevice, speed: float) -> bool:
+    return speedPin.value == speed

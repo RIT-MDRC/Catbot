@@ -99,15 +99,15 @@ def parse_pwm_output_device(config):
     Returns:
         (PWMOutputDevice) the new pwm output device
     """
-    if not isinstance(config, int):
-        raise ValueError("Must be a pin number. Got " + str(config))
+    input = {"pin": config} if isinstance(config, int) else config
+    input = {k: v for k, v in input.items() if k != "_identifier"}
     if is_dev():
         logging.info(
             "dev environment detected. Mocking PWM output device for pin %s", config
         )
-        return FakePWMOutputDevice(config)
+        return FakePWMOutputDevice(**input)
     else:
-        return PWMOutputDevice(config)
+        return PWMOutputDevice(**input)
 
 
 smbus2_ctx = create_generic_context("smbus2", (SMBus, FakeSMBus))

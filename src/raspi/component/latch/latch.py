@@ -20,6 +20,7 @@ ENABLE_DURATION = 0.1
 
 
 # helper method to convert an integer to a bitfield
+# used for converting address of the devices hooked on the latch to a bitfield
 # returns a list of 1s and 0s
 def bitfield(n, length=3):
     res = [1 if digit == "1" else 0 for digit in bin(n)[2:]]
@@ -50,6 +51,8 @@ class VirtualDigitalOutputDevice:
 
     def set_value(self, value):
         self.latch.set(self.addr, value)
+        # this might need to change in the future as it might need to be check if the latch has actually switched state
+        self._value = value
 
     @property
     def value(self):
@@ -101,18 +104,20 @@ class Latch:
     def process_queue(self):
         self.lock = True
         while len(self.queue) > 0:
-            latch_pin_actions.set_enab(self.enab, 1)
             addr, newState = self.queue.pop(0)
-            b0, b1, b2 = bitfield(addr)
-            latch_pin_actions.set_addr(self.addr_1, b0)
-            latch_pin_actions.set_addr(self.addr_2, b1)
-            latch_pin_actions.set_addr(self.addr_3, b2)
-            latch_pin_actions.set_data(self.data, newState)
-            latch_pin_actions.set_enab(self.enab, 0)
+            self._set_one_device(addr, newState)
             # not using asyncio.sleep because real output devices are not async
-            sleep(ENABLE_DURATION)
-        latch_pin_actions.set_enab(self.enab, 0)
         self.lock = False
+
+    def _set_one_device(self, addr, newState):
+        b0, b1, b2 = bitfield(addr)
+        latch_pin_actions.set_addr(self.addr_1, b0)
+        latch_pin_actions.set_addr(self.addr_2, b1)
+        latch_pin_actions.set_addr(self.addr_3, b2)
+        latch_pin_actions.set_data(self.data, newState)
+        latch_pin_actions.set_enab(self.enab, 0)
+        sleep(ENABLE_DURATION)
+        latch_pin_actions.set_enab(self.enab, 1)
 
 
 ctx = create_generic_context("latch", [Latch])
