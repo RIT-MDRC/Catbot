@@ -38,7 +38,7 @@
 		"motor_1": {
 			"speed": "motor_1_speed",
 			"direction": "motor_latch.motor_5",
-			"stop_duration": 0.1
+			"stop_duration": 1
 		}
 	},
 	"muscle": {

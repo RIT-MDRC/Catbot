@@ -100,7 +100,6 @@ class Latch:
     def set(self, addr: str, state: int) -> None:
         self.queue.append((addr, state))
         if not self.lock:
-            print("processing queue")
             self.process_queue()
 
     def process_queue(self):
@@ -109,9 +108,7 @@ class Latch:
             addr, newState = self.queue.pop(0)
             self._set_one_device(addr, newState)
             # not using asyncio.sleep because real output devices are not async
-            print(f"finished one pin to {addr} to {newState}")
         self.lock = False
-        print("finished queue")
 
     def _set_one_device(self, addr, newState):
         b0, b1, b2 = bitfield(addr)
