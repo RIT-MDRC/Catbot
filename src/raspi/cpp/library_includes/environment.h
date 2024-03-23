@@ -1,0 +1,2 @@
+//#define ROBOT
+#define COMPUTER

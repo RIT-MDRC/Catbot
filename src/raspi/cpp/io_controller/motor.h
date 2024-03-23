@@ -1,4 +1,4 @@
-#include <pigpio.h>
+#include "../library_includes/pigpio_inc.h"
 #include <stdexcept>
 
 #define PWM_FREQUENCY 100   // (in hertz)
