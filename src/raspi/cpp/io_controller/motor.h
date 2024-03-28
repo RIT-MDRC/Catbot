@@ -4,6 +4,11 @@
 #define PWM_FREQUENCY 100   // (in hertz)
 #define PWM_RANGE 255
 
+// Latch pins
+#define PIN_MOTOR_DIR 1     // data to write for direction
+#define PIN_LATCH_EN 15     // latch enable (active low)
+int LATCH_ADDRESS_PINS = { 12, 6, 5 }   // 0th index is least significant bit
+
 class Motor {
 
     public:
