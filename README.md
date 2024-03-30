@@ -49,3 +49,9 @@ Include path error:
 
 If all above fails:
 * Consider using the arduino-ide and uploading the code through the ide
+
+## Contributing
+### Before contributing
+* Make sure to read the [state_management](src/raspi/state_management/README.md) documentation
+* Make sure to read the [io_controller](src/raspi/io_controller/README.md) documentation
+* Make sure to read the [control](src/raspi/control/README.md) documentation
