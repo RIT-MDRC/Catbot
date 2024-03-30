@@ -26,3 +26,8 @@ static void gpioSetPWMfrequency(unsigned int user_gpio, unsigned int frequency) 
 //user_gpio unsigned int [0-31]
 //dutycycle unsigned int [0-255]
 static void gpioPWM(unsigned int user_gpio, unsigned int dutycycle) { }
+
+static void gpioInitialise() {}
+
+//time given in seconds
+static void time_sleep(double seconds) { }
