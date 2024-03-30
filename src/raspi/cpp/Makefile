@@ -1,12 +1,5 @@
-output/main: main.o motor.o
-	g++ -o output/main -g output/main.o output/motor.o -lpigpio -lrt
-
-main.o:
-	g++ -c -g -Wall -o output/main.o main.cpp -lpigpio -lrt
-
-motor.o: io_controller/motor.cpp io_controller/motor.h
-	g++ -c -g -Wall -o output/motor.o io_controller/motor.cpp -lpigpio -lrt
+motor.so:
+	g++ -I/boost_1_72/ -I/usr/include/python3.11/ io_controller/motor.cpp -fPIC -lboost_python311 -Wl,-soname,motor -shared -o io_controller/motor.so -lpigpio -lrt
 
 clean:
-	rm -rf output/*.o
-	rm -rf output/main
+	rm -r */.so
