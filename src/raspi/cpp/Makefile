@@ -1,4 +1,4 @@
-include cpp.env
+include ../.env
 
 ifeq ($(ENV), "dev")
 output/main: main.o motor.o
