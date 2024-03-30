@@ -5,6 +5,9 @@
 #define ADC_RESOLUTION_BITS 12
 #define MAX_ROTATION 285.0    // Range of rotation of the potentiometer, in degrees.
 
+int ADC_HANDLES[] = { 0, 0 };
+int ADC_ADDRESSES[] = { 0x48, 0x48 };  // TODO: need to figure out address of other periph board
+
 class Potentiometer {
 
     public:
@@ -22,8 +25,6 @@ class Potentiometer {
         unsigned int getDegrees();
 
     private:
-        static int adcHandles[] = { 0, 0 };
-        static int adcAddresses[] = { 0x48, 0x48 };  // TODO: need to figure out address of other periph board
         int index;
         int adcIndex;
 
