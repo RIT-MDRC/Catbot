@@ -1,4 +1,4 @@
-include test.env
+include	../.env # if this is saying that there is a seperator check the env file that any documentation is commented out
 
 ifeq ($(ENV), "dev")
 LIBRARIES= 
