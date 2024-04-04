@@ -27,6 +27,8 @@ class Potentiometer {
     private:
         int index;
         int adcIndex;
+        int commandByte;
+        int maxReading;
 
         // 4 most significant bits for ADC command byte, used to select channel (see page 11
         // of https://www.ti.com/lit/ds/symlink/ads7828.pdf). Index 0 represents bits sent for potentiometer at CH0,
