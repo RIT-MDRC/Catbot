@@ -25,7 +25,18 @@ optional arguments:
 * `-f`, `-file` - String - Path to the file containing the code to run. Defaults to `raspi/main` for `src/raspi/main.py`.
   example: `catbot start -f Landslideinator` will result to running `src/raspi/Landslideinator.py`
 
-TL;DR: path is defined as `{-D}/{-p}/{-f}.py` default is `{"global-directory"}/{"src"}/{"raspi/main"}.py`
+TL;DR: path is defined as `{-D}/{-p}/{-f}.py` default is `{"/opt/catbot"}/{"src"}/{"raspi/main"}.py`
+
+### `catbot sample`
+Runs a sample program in Raspberry Pi.
+
+Required arguments:
+* `file` - String - Name of the file containing the sample code to run.
+  example: `catbot sample dummySampleFile` will result to running `./src/raspi/sample/dummySampleFile.py`
+
+Optional arguments:
+* `-D`, `-dev` - Boolean - Runs the program in the current repo instead of the globally installed file.
+  example: `catbot sample dummySampleFile -D` will result to running `./src/raspi/sample/dummySampleFile.py` instead of `/opt/catbot/src/raspi/sample/dummySampleFile.py`
 
 # Usage Guide
 
@@ -38,8 +49,9 @@ This is done by running the following command in the root directory of the repo 
 ```bash
 sudo npm install -g
 ```
-> note: You must have sudo permission and npm installed in your system.
-This also means that when ever you updated src, you need to run this command again to update the code to run for other members.
+> [!NOTE]
+> You must have sudo permission and npm installed in your system.
+> This also means that when ever you updated src, you need to run this command again to update the code to run for other members.
 
 ### Dev argument
 Because of this globally installed script system what ever we write in the repo's src folder will not be run by other users unless we run the npm install command.
@@ -79,3 +91,4 @@ Which replaces our src folder with a named folder for each project. This is wher
 catbot start -D -p Shrink-inator
 ```
 This will run the code in `./Shrink-inator/raspi/main.py` instead of `./src/raspi/main.py`. Note the -D argument is required to run code in the other repo.
+

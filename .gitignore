@@ -4,6 +4,5 @@
 .vscode/arduino.json
 **/.env
 *.pyc
-**/output
 .log
 .vscode

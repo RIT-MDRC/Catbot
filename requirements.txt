@@ -3,3 +3,4 @@ gpiozero
 pygame
 smbus2; sys_platform == 'linux'
 RPi.GPIO; sys_platform == 'linux'
+PyYAML
