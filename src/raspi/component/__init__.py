@@ -5,5 +5,7 @@
 # then run component/motor/__init__.py
 # Meaning importing any of the submodules in component will import any file referenced here.
 # If that is expected then put it here, otherwise, do not put anything here.
+import logging
 
+logging.info("Importing latch by default from component package.")
 from . import latch

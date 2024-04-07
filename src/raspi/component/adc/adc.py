@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from smbus2 import SMBus
+from smbus import smbus_actions
 from state_management import (
     create_context,
     device,
@@ -29,6 +29,20 @@ class ADCAnalogInputDevice:
 analog_input_device_ctx = create_context("analog_input_device", (ADCAnalogInputDevice))
 
 
+@device_parser(analog_input_device_ctx)
+def parse_analog_input_device(config: dict):
+    """
+    Parse a new analog input device.
+
+    Config:
+    {
+        adc: ADC = adc object
+        address: int = address of the device on the adc
+    }
+    """
+    return ADCAnalogInputDevice(**config)
+
+
 @device
 @dataclass
 class ADC:
@@ -37,14 +51,9 @@ class ADC:
     """
 
     address: int
-    i2c: SMBus = identifier("smbus2")
     input_devices: dict
-
-    def __post_init__(self):
-        for name, addr in self.input_devices.items():
-            register_device(
-                analog_input_device_ctx, name, ADCAnalogInputDevice(self, addr)
-            )
+    _identifier: str
+    i2c: smbus_actions.SMBus = identifier(smbus_actions.ctx)
 
     def read_data(self, register: int):
         """
@@ -56,8 +65,9 @@ class ADC:
         Returns:
             (float) the degrees
         """
-        self.i2c.write_byte_data(self.address, register)
-        return self.i2c.read_byte_data(self.address)
+
+        smbus_actions.write_byte(self.i2c, self.address, register)
+        return smbus_actions.read_byte(self.i2c, self.address)
 
 
 ctx = create_context("adc", ADC)
@@ -78,4 +88,11 @@ def parse_adc(config: dict):
         }
     }
     """
-    return ADC(**config)
+    adc = ADC(**config)
+    for name, addr in adc.input_devices.items():
+        register_device(
+            analog_input_device_ctx,
+            f"{adc._identifier}.{name}",
+            ADCAnalogInputDevice(adc, addr),
+        )
+    return adc

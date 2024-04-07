@@ -3,7 +3,7 @@ import json
 import logging
 from collections import OrderedDict
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import reduce, wraps
 
 from .utils.logger import configure_logger
@@ -17,6 +17,7 @@ class Context:
     stored_keys: set
     masked_device_contexts: list
     on_exit: callable
+    masked_from: "Context" = None
 
 
 DEVICE_CONTEXT_COLLECTION = {}
@@ -44,6 +45,10 @@ def create_generic_context(
     parser_func: callable = None,
     on_exit: callable = None,
 ):
+    if isinstance(device_classes, list):
+        device_classes = tuple(device_classes)
+    elif not isinstance(device_classes, tuple):
+        device_classes = (device_classes,)
     ctx = Context(
         allowed_classes=device_classes,
         parse_device=parser_func,
@@ -75,14 +80,18 @@ def create_masked_context(ctx: Context, device_name: str):
         stored_keys=set(),
         masked_device_contexts=list(),
         on_exit=ctx.on_exit,
+        masked_from=ctx,
     )
     ctx.masked_device_contexts.append(device_name)
     DEVICE_CONTEXT_COLLECTION[device_name] = new_ctx
     return new_ctx
 
 
-def get_context(device_name: str):
-    return DEVICE_CONTEXT_COLLECTION.get(device_name, None)
+def get_context(device_name: str) -> Context:
+    """NOTE: This function will not throw if context is missing. Returns None instead."""
+    logging.debug(f"Getting context for {device_name}")
+    ctx = DEVICE_CONTEXT_COLLECTION.get(device_name, None)
+    return ctx
 
 
 def device_parser(ctx: Context):
@@ -249,6 +258,19 @@ def configure_device(
         if ctx is None:
             logging.warning(f"Context for {key} not found. Skipping...")
             continue
+        if ctx.masked_from and (casted_devices := config.get("__cast", None)):
+            for masked_key, masked_device_identifier in casted_devices.items():
+                if not isinstance(masked_device_identifier, str):
+                    raise ValueError(
+                        f"Masked device {masked_device_identifier} is not a valid identifier in {ctx}"
+                    )
+                casting_device = ctx.masked_from.store.get(masked_device_identifier)
+                if casting_device is None:
+                    raise ValueError(
+                        f"Masked device {masked_device_identifier} not found in {ctx.masked_from}"
+                    )
+                register_device(ctx, masked_key, casting_device)
+            del config["__cast"]
         for key, device_attr in config.items():
             device = ctx.parse_device(device_attr, _identifier=key)
             register_device(ctx, key, device)
