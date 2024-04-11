@@ -10,3 +10,4 @@ configure_device("src/raspi/pinconfig.json")
 while True:
     print("Reading potentiometer_1")
     print(potentiometer_actions.get_degree("pot1"))
+    sleep(1)

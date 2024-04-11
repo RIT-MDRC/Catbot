@@ -1,7 +1,7 @@
+import logging
 from dataclasses import dataclass
 
 from component.smbus import smbus_actions
-from smbus2 import i2c_msg
 from state_management import (
     create_context,
     device,
@@ -101,13 +101,15 @@ def parse_adc(config: dict):
     power_down = config["power_down"]  # 00, 01, 10, 11
     for name, addr in adc.input_devices.items():
         # 1 bit for Single-Ended/Differential Inputs and 3 channel bits
-        register = 1 << 3 | channel_to_adc_addr(addr)
+        register: int = 1 << 3 | channel_to_adc_addr(addr)
         register = (register << 2) | power_down  # 2 power down bits
         register = register << 2  # 2 unused bits
+        analogDevice = ADCAnalogInputDevice(adc, register)
         register_device(
-            analog_input_device_ctx,
-            f"{adc._identifier}.{name}",
-            ADCAnalogInputDevice(adc, register),
+            analog_input_device_ctx, f"{adc._identifier}.{name}", analogDevice
+        )
+        logging.info(
+            f"Created analog input device {name} with address {'{0:08b}'.format(register)}: {analogDevice}"
         )
     return adc
 
