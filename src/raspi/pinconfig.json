@@ -40,7 +40,8 @@
 	"adc": {
 		"adc_1": {
 			"i2c": "smbus",
-			"address": 0,
+			"address": "0x00",
+			"power_down": 3,
 			"input_devices": {
 				"pot1": 0,
 				"pot2": 1,

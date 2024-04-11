@@ -1,10 +1,8 @@
 import logging
 
 from smbus2 import SMBus
-from state_management import create_generic_context, device_parser
+from state_management import create_generic_context, device_action, device_parser
 from state_management.utils import FakeSMBus, is_dev
-
-from ...state_management.device import device_action
 
 ctx = create_generic_context("smbus2", (SMBus, FakeSMBus))
 
@@ -31,28 +29,30 @@ def parse_smbus2(config):
 
 
 @device_action(ctx)
-def write_byte(smbus2: SMBus, address, value) -> None:
+def write_byte(smbus2: SMBus, address, value, start_register=0x00) -> None:
     """
     Write a byte to the smbus2 device.
 
     Args:
         smbus2 (SMBus): the smbus2 device
         address (int): the address to write to
-        value (int): the value to write
+        value (list[int]): the value to write
+        start_register (int): the register to start writing to
     """
-    smbus2.write_byte(address, value)
+    smbus2.write_i2c_block_data(address, start_register, value)
 
 
 @device_action(ctx)
-def read_byte(smbus2: SMBus, address) -> int:
-    """
-    Read a byte from the smbus2 device.
+def read_byte(smbus2: SMBus, address, start_register, length=1) -> int:
+    """Read bytes from the smbus2 device.
 
     Args:
-        smbus2 (SMBus): the smbus2 device
-        address (int): the address to read from
+        smbus2 (SMBus): SMBus device to use
+        address (int): I2C address of the device
+        start_register (int): index of the register to start reading from
+        length (int, optional): legnth of the data to read. Defaults to 1.
 
     Returns:
-        (int) the value read
+        int: data read from the device
     """
-    return smbus2.read_byte(address)
+    return smbus2.read_i2c_block_data(address, start_register, length)
