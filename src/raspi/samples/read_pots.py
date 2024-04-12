@@ -6,8 +6,12 @@ from state_management import configure_device
 
 configure_device("src/raspi/pinconfig.json")
 
-
+sleep(2)
 while True:
-    print("Reading potentiometer_1")
-    print(potentiometer_actions.get_degree("pot3"))
-    sleep(1)
+    for n in range(8):
+        print(f"Reading pot{n+1}")
+        try:
+            print(potentiometer_actions.get_degree(f"pot{n+1}"))
+        except Exception as e:
+            print(f"failed{n+1}: {e}")
+        sleep(1)

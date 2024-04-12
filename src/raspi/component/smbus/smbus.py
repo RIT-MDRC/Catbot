@@ -59,7 +59,7 @@ def read_byte(smbus2: SMBus, address, start_register=0, length=2) -> int:
 
 
 @device_action(ctx)
-def rdwr_i2c(smbus2: SMBus, *actions) -> list:
+def i2c_rdwr(smbus2: SMBus, *actions) -> list:
     """
     Write and read data from the smbus2 device.
 

@@ -65,9 +65,10 @@ class ADC:
         :param register: list = register to read from
         :return: int = value read
         """
+        print("{0:08b}".format(register))
         write = i2c_msg.write(self.address, register)
         read = i2c_msg.read(self.address, 1)
-        return smbus_actions.rdwr_i2c(self.i2c, write, read)[1]
+        return smbus_actions.i2c_rdwr(self.i2c, write, read)[1]
 
 
 ctx = create_context("adc", ADC)
