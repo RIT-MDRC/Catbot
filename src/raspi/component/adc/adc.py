@@ -65,18 +65,10 @@ class ADC:
         :param register: list = register to read from
         :return: int = value read
         """
-        # print("{0:08b}".format(register))
-        print(self.address)
+        # print(str(self.address) + " {0:08b}".format(register))
         write = i2c_msg.write(self.address, [register])
         read = i2c_msg.read(self.address, 1)
-        try:
-            smbus_actions.i2c_rdwr(self.i2c, write)
-        except:
-            print("error write")
-        try:
-            return smbus_actions.i2c_rdwr(self.i2c, read)
-        except:
-            print("error read")
+        return smbus_actions.i2c_rdwr(self.i2c, write, read)
 
 
 ctx = create_context("adc", ADC)
@@ -150,4 +142,4 @@ def convert_string_hex_to_int(hex_str: str) -> bytes:
     :return: int = int value
     """
     # return bytearray.fromhex(hex_str)
-    return int(int(hex_str, 16) / 2)
+    return int(hex_str, 16)
