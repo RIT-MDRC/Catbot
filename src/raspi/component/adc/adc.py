@@ -81,11 +81,11 @@ def parse_adc(config: dict):
 
     Config:
     {
-        address: int = i2c address of the adc
+        address: str = i2c address of the adc (i.e. "0x48" or "48" will be converted to integers)
         i2c: SMBus = i2c object
-        power_down: 0,1,2,3 = power down selection will be converted to 2 bit binary
-        input_devices: {
-            "name_of_device": int = channel of the device on the adc
+        power_down: str = power down selection (i.e. "0b00" or "10" will be converted to integers)
+        input_devices: dict = {
+            "name_of_device": int = channel of the device on the adc (0 ~ 7)
             ...
         }
     }
@@ -93,14 +93,16 @@ def parse_adc(config: dict):
     NOTE: Documentation for the logic explained here
     https://drive.google.com/open?id=1gvnOic5LwNqlCqx-z4vHShFm0rJplFgQ&disco=AAABJ0xEwNY
     """
+    config["power_down"] = int(config["power_down"], 2)
     if config["power_down"] not in [0, 1, 2, 3]:
         raise ValueError(
-            "Power down must be 0, 1, 2, or 3. Got " + str(config["power_down"])
+            "Power down must be 00, 01, 10, or 11. Got "
+            + "{0:02b}".format(config["power_down"])
         )
-    config["address"] = convert_string_hex_to_int(config["address"])
+    config["address"] = int(config["address"], 16)
     adc = ADC(**config)
 
-    power_down = config["power_down"]  # 00, 01, 10, 11
+    power_down = config["power_down"]
     for name, addr in adc.input_devices.items():
         # 1 bit for Single-Ended/Differential Inputs and 3 channel bits
         register: int = 1 << 3 | channel_to_adc_addr(addr)
@@ -141,5 +143,4 @@ def convert_string_hex_to_int(hex_str: str) -> bytes:
     :param hex_str: str = hex value
     :return: int = int value
     """
-    # return bytearray.fromhex(hex_str)
-    return int(hex_str, 16)
+    return
