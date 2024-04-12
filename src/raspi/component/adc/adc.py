@@ -2,6 +2,7 @@ import logging
 from dataclasses import dataclass
 
 from component.smbus import smbus_actions
+from smbus2 import i2c_msg
 from state_management import (
     create_context,
     device,
@@ -57,16 +58,16 @@ class ADC:
     _identifier: str
     i2c: smbus_actions.SMBus = identifier(smbus_actions.ctx)
 
-    def read_data(self, register: list, start_register=0x00):
+    def read_data(self, register: list):
         """
         Get the degrees from the adc device.
 
         :param register: list = register to read from
-        :param start_register: int = register to start reading from
         :return: int = value read
         """
-        smbus_actions.write_byte(self.i2c, self.address, register, start_register)
-        return smbus_actions.read_byte(self.i2c, self.address, start_register)
+        write = i2c_msg.write(self.address, register)
+        read = i2c_msg.read(self.address, 1)
+        return smbus_actions.rdwr_i2c(self.i2c, write, read)[1]
 
 
 ctx = create_context("adc", ADC)

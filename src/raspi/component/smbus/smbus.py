@@ -56,3 +56,21 @@ def read_byte(smbus2: SMBus, address, start_register=0, length=2) -> int:
         int: data read from the device
     """
     return smbus2.read_i2c_block_data(address, start_register, length)[0]
+
+
+@device_action(ctx)
+def rdwr_i2c(smbus2: SMBus, *actions) -> list:
+    """
+    Write and read data from the smbus2 device.
+
+    Args:
+        smbus2 (SMBus): the smbus2 device
+        address (int): the address to write to
+        write_data (list[int]): the data to write
+        read_length (int): the length of the data to read
+
+    Returns:
+        list: the data read from the device
+    """
+    smbus2.i2c_rdwr(*actions)
+    return [list(action) for action in actions]
