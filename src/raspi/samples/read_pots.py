@@ -10,8 +10,10 @@ sleep(2)
 while True:
     for n in range(8):
         print(f"Reading pot{n+1}")
-        try:
-            print(potentiometer_actions.get_degree(f"pot{n+1}"))
-        except Exception as e:
-            print(f"failed{n+1}: {e}")
-        sleep(1)
+        # try:
+        res = potentiometer_actions.get_degree(f"adc_1.pot{n+1}")
+        if res != None:
+            print(res)
+        # except Exception as e:
+        # print(f"failed{n+1}: {e}")
+        sleep(0.25)

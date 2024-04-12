@@ -1,4 +1,5 @@
 import logging
+from time import sleep
 
 from smbus2 import SMBus
 from state_management import create_generic_context, device_action, device_parser
@@ -25,11 +26,12 @@ def parse_smbus2(config):
             "dev environment detected. Mocking smbus2 device for bus %s", config
         )
         return FakeSMBus(config)
-    return SMBus(config)
+    bus = SMBus(config)
+    return bus
 
 
 @device_action(ctx)
-def write_byte(smbus2: SMBus, address, value, start_register=0x00) -> None:
+def write_byte(smbus2: SMBus, address, value) -> None:
     """
     Write a byte to the smbus2 device.
 
@@ -39,11 +41,11 @@ def write_byte(smbus2: SMBus, address, value, start_register=0x00) -> None:
         value (list[int]): the value to write
         start_register (int): the register to start writing to
     """
-    smbus2.write_byte(address, value)
+    smbus2.write_byte(address, 0, value)
 
 
 @device_action(ctx)
-def read_byte(smbus2: SMBus, address, start_register=0, length=2) -> int:
+def read_byte(smbus2: SMBus, address, length=1) -> int:
     """Read bytes from the smbus2 device.
 
     Args:
@@ -55,7 +57,32 @@ def read_byte(smbus2: SMBus, address, start_register=0, length=2) -> int:
     Returns:
         int: data read from the device
     """
-    return smbus2.read_i2c_block_data(address, start_register, length)[0]
+    return smbus2.read_byte_data(address, length)
+
+
+@device_action(ctx)
+def i2c_wrrd(smbus2: SMBus, address, write_data, read_length) -> list:
+    """
+    Write and read data from the smbus2 device.
+
+    Args:
+        smbus2 (SMBus): the smbus2 device
+        address (int): the address to write to
+        write_data (list[int]): the data to write
+        read_length (int): the length of the data to read
+
+    Returns:
+        list: the data read from the device
+    """
+    try:
+        smbus2.write_byte_data(address, 0, write_data)
+    except Exception as e:
+        print(f"error: {e}")
+
+    try:
+        return smbus2.read_byte_data(address, read_length)
+    except Exception as e:
+        print(f"error: {e}")
 
 
 @device_action(ctx)

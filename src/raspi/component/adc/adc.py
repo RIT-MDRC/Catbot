@@ -65,10 +65,18 @@ class ADC:
         :param register: list = register to read from
         :return: int = value read
         """
-        print("{0:08b}".format(register))
-        write = i2c_msg.write(self.address, register)
+        # print("{0:08b}".format(register))
+        print(self.address)
+        write = i2c_msg.write(self.address, [register])
         read = i2c_msg.read(self.address, 1)
-        return smbus_actions.i2c_rdwr(self.i2c, write, read)[1]
+        try:
+            smbus_actions.i2c_rdwr(self.i2c, write)
+        except:
+            print("error write")
+        try:
+            return smbus_actions.i2c_rdwr(self.i2c, read)
+        except:
+            print("error read")
 
 
 ctx = create_context("adc", ADC)
@@ -134,13 +142,12 @@ def channel_to_adc_addr(channel: int) -> int:
     return bit << 1 | (channel // 4)
 
 
-def convert_string_hex_to_int(hex_str: str) -> int:
+def convert_string_hex_to_int(hex_str: str) -> bytes:
     """
     Convert a string hex value to an int.
 
     :param hex_str: str = hex value
     :return: int = int value
-
-    NOTE: hex_str can take "0x00" or "00", if "00" is passed base is taken from the second param in the int() function else it is automatically taken from the 0x prefix
     """
-    return int(hex_str, 16)
+    # return bytearray.fromhex(hex_str)
+    return int(int(hex_str, 16) / 2)
