@@ -43,13 +43,27 @@
 			"address": "0x48",
 			"power_down": "0b01",
 			"input_devices": {
-				"pot4": 3
+				"pot1": 0,
+				"pot2": 1,
+				"pot3": 2,
+				"pot4": 3,
+				"pot5": 4,
+				"pot6": 5,
+				"pot7": 6,
+				"pot8": 7
 			}
 		}
 	},
 	"potentiometer": {
 		"__cast": {
-			"pot4": "adc_1.pot4"
+			"pot1": "adc_1.pot1",
+			"pot2": "adc_1.pot2",
+			"pot3": "adc_1.pot3",
+			"pot4": "adc_1.pot4",
+			"pot5": "adc_1.pot5",
+			"pot6": "adc_1.pot6",
+			"pot7": "adc_1.pot7",
+			"pot8": "adc_1.pot8"
 		}
 	},
 	"compressor": {

@@ -4,7 +4,7 @@ from component.potentiometer import potentiometer_actions
 from state_management import configure_device
 
 # pot number to read
-n = 4
+n = 5
 
 configure_device("src/raspi/pinconfig.json")
 sleep(2)
