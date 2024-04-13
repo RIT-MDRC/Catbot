@@ -9,7 +9,7 @@ sleep(2)
 while True:
     for n in range(8):
         print(
-            "{0:3d}".format(potentiometer_actions.get_degree(f"pot{n+1}")[1][0]),
+            "{0:.3f}".format(potentiometer_actions.get_degree(f"pot{n+1}")).zfill(8),
             end=" ",
         )
     print("")
