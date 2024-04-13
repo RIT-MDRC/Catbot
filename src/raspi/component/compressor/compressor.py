@@ -1,7 +1,7 @@
 from gpiozero import DigitalOutputDevice
-from state_management import create_output_device_component
+from state_management import create_masked_context, device_action, output_device_ctx
 
-compressor_action, compressor_attr = create_output_device_component("compressor")
+compressor_ctx = create_masked_context(output_device_ctx, "compressor")
 __all__ = [
     "compressor_attr",
     "turn_compressor_on",
@@ -12,7 +12,7 @@ __all__ = [
 ]
 
 
-@compressor_action
+@device_action(compressor_ctx)
 def turn_compressor_on(valve: DigitalOutputDevice) -> None:
     """
     Turn a valve on.
@@ -23,7 +23,7 @@ def turn_compressor_on(valve: DigitalOutputDevice) -> None:
     valve.on()
 
 
-@compressor_action
+@device_action(compressor_ctx)
 def turn_compressor_off(compressor: DigitalOutputDevice) -> None:
     """
     Turn a valve off.
@@ -34,7 +34,7 @@ def turn_compressor_off(compressor: DigitalOutputDevice) -> None:
     compressor.off()
 
 
-@compressor_action
+@device_action(compressor_ctx)
 def turn_valve(compressor: DigitalOutputDevice, state: bool) -> None:
     """
     Turn a valve on or off.
@@ -46,7 +46,7 @@ def turn_valve(compressor: DigitalOutputDevice, state: bool) -> None:
     turn_compressor_on(compressor) if state else turn_compressor_off(compressor)
 
 
-@compressor_action
+@device_action(compressor_ctx)
 def toggle_valve(compressor: DigitalOutputDevice) -> None:
     """
     Toggle a valve.
@@ -57,7 +57,7 @@ def toggle_valve(compressor: DigitalOutputDevice) -> None:
     turn_valve(compressor, not get_valve_state(compressor))
 
 
-@compressor_action
+@device_action(compressor_ctx)
 def get_valve_state(compressor: DigitalOutputDevice) -> bool:
     """
     Get the state of a valve.

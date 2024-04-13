@@ -2,8 +2,47 @@
 	"input_device": {
 		"left_pressure": 27
 	},
+	"output_device": {
+		"lat_enab": 15,
+		"lat_data": 20,
+		"lat_addr_1": 5,
+		"lat_addr_2": 6,
+		"lat_addr_3": 12
+	},
+	"pwm_output_device": {
+		"motor_1_speed": {
+			"pin":4,
+			"frequency": 1000
+		}
+	},
+	"latch": {
+		"motor_latch": {
+			"data": "lat_data",
+			"enab": "lat_enab",
+			"addr_1": "lat_addr_1",
+			"addr_2": "lat_addr_2",
+			"addr_3": "lat_addr_3",
+			"pins": {
+				"motor_1": 0,
+				"motor_2": 1,
+				"motor_3": 2,
+				"motor_4": 3,
+				"motor_5": 4,
+				"motor_6": 5,
+				"motor_7": 6,
+				"motor_8": 7
+			}
+		}
+	},
 	"compressor": {
 		"main_compressor": 22
+	},
+	"raw_motor": {
+		"motor_1": {
+			"speed": "motor_1_speed",
+			"direction": "motor_latch.motor_5",
+			"stop_duration": 1
+		}
 	},
 	"muscle": {
 		"left_muscle": {
