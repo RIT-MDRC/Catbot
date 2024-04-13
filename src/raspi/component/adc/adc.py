@@ -67,7 +67,7 @@ class ADC:
         """
         # print(str(self.address) + " {0:08b}".format(register))
         write = i2c_msg.write(self.address, [register])
-        read = i2c_msg.read(self.address, 1)
+        read = i2c_msg.read(self.address, 2)
         return smbus_actions.i2c_rdwr(self.i2c, write, read)
 
 
@@ -134,13 +134,3 @@ def channel_to_adc_addr(channel: int) -> int:
         raise ValueError("Channel must be between 0 and 7. Got " + str(channel))
     bit = channel % 4
     return bit << 1 | (channel // 4)
-
-
-def convert_string_hex_to_int(hex_str: str) -> bytes:
-    """
-    Convert a string hex value to an int.
-
-    :param hex_str: str = hex value
-    :return: int = int value
-    """
-    return

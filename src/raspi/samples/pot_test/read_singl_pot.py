@@ -10,6 +10,4 @@ configure_device("src/raspi/pinconfig.json")
 sleep(2)
 
 while True:
-    print(
-        "{0:3d}".format(potentiometer_actions.get_degree(f"pot{n+1}")[1][0]),
-    )
+    print(potentiometer_actions.get_degree(f"pot{n}")[1])
