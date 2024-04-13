@@ -132,6 +132,8 @@ def device_action(ctx: Context):
                     + "/".join([x.__name__ for x in ctx.allowed_classes])
                 )
             value = ctx.store.get(args[0]) if isinstance(args[0], str) else args[0]
+            if value is None and isinstance(args[0], str):
+                raise ValueError(f"{args[0]} not found in {ctx}")
             return func(value, *args[1:], **kwargs)
 
         return wrapper
@@ -159,11 +161,12 @@ def identifier(ctx: Context):
 def device(cls):
     original_init = cls.__init__
     needsIdentifier = "_identifier" in inspect.signature(original_init).parameters
+    print(cls, needsIdentifier)
     identifier_attrs = {
         k: v.ctx for k, v in cls.__dict__.items() if isinstance(v, Identifier)
     }
 
-    def new_init(self, _identifier: str, **kwargs):
+    def new_init(self, _identifier: str = None, **kwargs):
         def convert_value(key, value):
             if key not in identifier_attrs or check_only_class_instance(
                 (ctx := identifier_attrs[key]), value

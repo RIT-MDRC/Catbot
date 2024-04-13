@@ -6,6 +6,7 @@ from smbus2 import i2c_msg
 from state_management import (
     create_context,
     device,
+    device_action,
     device_parser,
     identifier,
     register_device,
@@ -43,6 +44,19 @@ def parse_analog_input_device(config: dict):
     }
     """
     return ADCAnalogInputDevice(**config)
+
+
+@device_action(analog_input_device_ctx)
+def get_data(analog_input_device: ADCAnalogInputDevice) -> list[int]:
+    """analog input device's bytearr to data
+
+    Args:
+        analog_input_device (ADC_action.ADCAnalogInputDevice): analog input device object
+
+    Returns:
+        list[int] = bytearr of the analog input device
+    """
+    return analog_input_device.value[1]
 
 
 @device

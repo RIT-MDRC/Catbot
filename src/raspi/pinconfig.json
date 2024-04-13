@@ -55,16 +55,20 @@
 		}
 	},
 	"potentiometer": {
-		"__cast": {
-			"pot1": "adc_1.pot1",
-			"pot2": "adc_1.pot2",
-			"pot3": "adc_1.pot3",
-			"pot4": "adc_1.pot4",
-			"pot5": "adc_1.pot5",
-			"pot6": "adc_1.pot6",
-			"pot7": "adc_1.pot7",
-			"pot8": "adc_1.pot8"
-		}
+		"pot1": {
+			"input_device": "adc_1.pot1",
+			"max_degree": 285,
+			"min_degree": 0,
+			"max_data": 4095,
+			"min_data": 0
+		},
+		"pot2": "adc_1.pot2",
+		"pot3": "adc_1.pot3",
+		"pot4": "adc_1.pot4",
+		"pot5": "adc_1.pot5",
+		"pot6": "adc_1.pot6",
+		"pot7": "adc_1.pot7",
+		"pot8": "adc_1.pot8"
 	},
 	"compressor": {
 		"main_compressor": 22
