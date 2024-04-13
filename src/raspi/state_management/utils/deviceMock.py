@@ -50,6 +50,9 @@ class FakeDigitalOutputDevice:
     def __repr__(self) -> str:
         return f"FakeDigitalOutputDevice(pin={self.pin}, value={self.value})"
 
+    def __repr__(self) -> str:
+        return f"FakeDigitalOutputDevice(pin={self.pin}, value={self.value})"
+
 
 class FakeDigitalInputDevice:
     pin: int
@@ -80,15 +83,20 @@ class FakeDigitalInputDevice:
     def __repr__(self) -> str:
         return f"FakeDigitalInputDevice(pin={self.pin}, value={self.value}, is_active={self.is_active})"
 
+    def __repr__(self) -> str:
+        return f"FakeDigitalInputDevice(pin={self.pin}, value={self.value}, is_active={self.is_active})"
+
 
 class FakePWMOutputDevice:
     pin: int
     value: float
     frequency: int
+    frequency: int
 
     def __init__(self, pin: int, initial_value=0.0, frequency=1000):
         self.pin = pin
         self.value = initial_value
+        self.frequency = frequency
         self.frequency = frequency
 
     @value_change

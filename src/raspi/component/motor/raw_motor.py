@@ -44,7 +44,6 @@ def get_speed(raw_motor: RawMotor) -> float:
     return speed_pin_action.get(raw_motor.speed)
 
 
-
 @device_action(ctx)
 def check_direction(raw_motor: RawMotor, direction: int) -> bool:
     """Check the direction of a raw motor."""
@@ -75,7 +74,7 @@ def get_direction(raw_motor: RawMotor) -> int:
 @device_action(ctx)
 async def set_direction(raw_motor: RawMotor, direction: int) -> bool:
     """Set the direction of a raw motor."""
-    
+
     if check_direction(raw_motor, direction):
         return True
     if not get_speed(raw_motor) == 0 and not await stop(raw_motor):
