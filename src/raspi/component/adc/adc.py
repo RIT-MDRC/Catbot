@@ -68,7 +68,7 @@ class ADC:
         # print(str(self.address) + " {0:08b}".format(register))
         write = i2c_msg.write(self.address, [register])
         read = i2c_msg.read(self.address, 2)
-        return smbus_actions.i2c_rdwr(self.i2c, write, read)
+        return smbus_actions.i2c_rdwr(self.i2c, write, read)  # [[write data], [0,0]]
 
 
 ctx = create_context("adc", ADC)
