@@ -1,3 +1,9 @@
+# This script reads the raw bytearray and calculated degree of potentiometer n and prints them to the console.
+# change the value of n to read the desired potentiometer.
+# Author: Hiroto Takeuchi @hiromon0125
+# Date: 2024-04-13
+# PR: #26 (https://github.com/RIT-MDRC/Catbot/pull/26)
+
 from time import sleep
 
 from component.potentiometer import potentiometer_actions
