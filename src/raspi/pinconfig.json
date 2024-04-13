@@ -1,8 +1,7 @@
 {
 	"input_device": {
 		"left_pressure": 27,
-		"interrupt_a1": 25,
-		"interrupt_a2": 8
+		"interrupt_a1": 25
 	},
 	"output_device": {
 		"lat_enab": 15,

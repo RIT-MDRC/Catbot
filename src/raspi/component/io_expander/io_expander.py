@@ -50,7 +50,7 @@ class IOExpander:
 
 ctx = create_context("io_expander", IOExpander)
 
-@device_parser
+@device_parser(ctx)
 def parse_io_expander(config: dict):
     """
     TODO: write these docs
