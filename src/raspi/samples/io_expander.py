@@ -1,11 +1,14 @@
-import RPI.GPIO as GPIO
+from time import sleep
 
-def detect(pin):
+from component.io_expander import io_expander_actions
+from state_management import configure_device
+
+def limit_hit():
     print("limit switch hit")
 
-GPIO.setmode(GPIO.BCM)
-GPIO.setup(25, GPIO.IN)
+configure_device("src/raspi/pinconfig.json")
 
-GPIO.add_event_detect(25, GPIO.RISING, callback=detect, bouncetime=100)
+io_expander_actions.on_limit_switch_activate("interrupt_a1", limit_hit)
 
-input()
+while True:
+    sleep(0.01)

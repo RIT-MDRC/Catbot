@@ -1,6 +1,8 @@
 {
 	"input_device": {
-		"left_pressure": 27
+		"left_pressure": 27,
+		"interrupt_a1": 25,
+		"interrupt_a2": 8
 	},
 	"output_device": {
 		"lat_enab": 15,
@@ -40,7 +42,7 @@
 	"adc": {
 		"adc_1": {
 			"i2c": "smbus",
-			"address": "0x00",
+			"address": "0x48",
 			"power_down": 3,
 			"input_devices": {
 				"pot1": 0,
@@ -52,6 +54,12 @@
 				"pot7": 6,
 				"pot8": 7
 			}
+		}
+	},
+	"io_expander": {
+		"io_expander_1": {
+			"i2c": "smbus",
+			"address": "0x20"
 		}
 	},
 	"potentiometer": {
