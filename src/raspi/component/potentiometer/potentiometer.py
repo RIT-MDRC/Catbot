@@ -21,7 +21,7 @@ class Potentiometer:
     min_degree: int = 0
     max_data: int = 4096
     min_data: int = 0
-    cached_data: int = 0
+    cached_data: int = None
 
 
 ctx = create_context("potentiometer", Potentiometer)
