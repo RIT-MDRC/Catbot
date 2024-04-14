@@ -5,3 +5,4 @@ smbus2
 RPi.GPIO; sys_platform == 'linux'
 PyYAML
 python-dotenv
+textual
