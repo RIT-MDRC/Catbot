@@ -137,7 +137,6 @@ def device_action(ctx: Context):
             return func(value, *args[1:], **kwargs)
 
         return wrapper
-        return wrapper
 
     return decorator
 
@@ -203,7 +202,6 @@ def device(cls):
 
 def open_json(file_name: str = "pinconfig.json"):
     with open(file_name, "r") as file:
-        config = json.load(file, object_pairs_hook=OrderedDict)
         config = json.load(file, object_pairs_hook=OrderedDict)
     for key, value in config.items():
         yield key, value
@@ -287,12 +285,7 @@ def configure_device(
     """
     configure_logger(log_level)
     logging.info("Configuring devices...")
-    configure_logger(log_level)
-    logging.info("Configuring devices...")
     for key, config in file_kv_generator(file_name):
-        ctx = get_context(key)
-        if ctx is None:
-            logging.warning(f"Context for {key} not found. Skipping...")
         ctx = get_context(key)
         if ctx is None:
             logging.warning(f"Context for {key} not found. Skipping...")
@@ -313,10 +306,7 @@ def configure_device(
         for key, device_attr in config.items():
             device = ctx.parse_device(device_attr, _identifier=key)
             register_device(ctx, key, device)
-            device = ctx.parse_device(device_attr, _identifier=key)
-            register_device(ctx, key, device)
 
-    log_states()
     log_states()
     logging.info("Device configuration complete")
 

@@ -8,6 +8,8 @@ from component.muscle.pneumatics import pressure_actions
 from state_management import clear_intervals, configure_device, setup_cpu
 from view.pygame import *
 
+from .view.textualUI.main import setup_textual
+
 LEFT_SPEED = 0.1  # unit: %
 RIGHT_SPEED = -0.1  # unit: %
 
@@ -131,8 +133,8 @@ def step():
 
 if __name__ == "__main__":
     print("Initializing...")
-    setup()  # TODO: make motor not a global variable
-    setup_pygame()  # global variables
+    setup_textual()
+    setup()
     hydrate_screen()  # hydrate the screen
     print("Initialization complete!")
     main()
