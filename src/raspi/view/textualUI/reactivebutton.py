@@ -1,8 +1,6 @@
-import logging
-
-from rich.text import Text, TextType
+from rich.text import TextType
 from textual.message import Message
-from textual.widgets import Button, Static
+from textual.widgets import Button
 from typing_extensions import Literal
 
 ButtonVariant = Literal["default", "primary", "success", "warning", "error"]
