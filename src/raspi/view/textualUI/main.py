@@ -1,3 +1,4 @@
+import textual
 import logging
 from logging import LogRecord
 from time import sleep
@@ -8,7 +9,14 @@ from textual.widgets import Footer, Header, LoadingIndicator, RichLog, Static
 
 from state_management.device import configure_device
 from state_management.utils.logger import configure_logger, set_log_event_function
-from view.textualUI.asset import DOWN_ARROW, LEFT_ARROW, MDRC, RIGHT_ARROW, UP_ARROW
+from view.textualUI.asset import (
+    DOWN_ARROW,
+    LEFT_ARROW,
+    MDRC,
+    RIGHT_ARROW,
+    UP_ARROW,
+    CAT,
+)
 from view.textualUI.reactivebutton import ReactiveButton
 
 
@@ -43,7 +51,7 @@ class Main_UI(App):
                     variant="primary",
                 )
                 yield ReactiveButton(
-                    "O", on_blur=button_blur, id="middle", variant="primary"
+                    CAT, on_blur=button_blur, id="middle", variant="primary"
                 )
                 yield ReactiveButton(
                     RIGHT_ARROW,
