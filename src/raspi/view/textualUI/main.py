@@ -1,21 +1,21 @@
-import textual
 import logging
 from logging import LogRecord
 from time import sleep
-from textual import on
+
+import textual
+from state_management.device import configure_device
+from state_management.utils.logger import configure_logger, set_log_event_function
+from textual import events, on
 from textual.app import App, ComposeResult
 from textual.containers import Center, Grid, Horizontal, Vertical
 from textual.widgets import Footer, Header, LoadingIndicator, RichLog, Static
-
-from state_management.device import configure_device
-from state_management.utils.logger import configure_logger, set_log_event_function
 from view.textualUI.asset import (
+    CAT,
     DOWN_ARROW,
     LEFT_ARROW,
     MDRC,
     RIGHT_ARROW,
     UP_ARROW,
-    CAT,
 )
 from view.textualUI.reactivebutton import ReactiveButton
 
@@ -41,30 +41,24 @@ class Main_UI(App):
                     UP_ARROW,
                     on_blur=button_blur,
                     id="up",
-                    variant="primary",
                 )
                 yield Static(id="rt")
                 yield ReactiveButton(
                     LEFT_ARROW,
                     on_blur=button_blur,
                     id="left",
-                    variant="primary",
                 )
-                yield ReactiveButton(
-                    CAT, on_blur=button_blur, id="middle", variant="primary"
-                )
+                yield ReactiveButton(CAT, on_blur=button_blur, id="middle")
                 yield ReactiveButton(
                     RIGHT_ARROW,
                     on_blur=button_blur,
                     id="right",
-                    variant="primary",
                 )
                 yield Static(id="lb")
                 yield ReactiveButton(
                     DOWN_ARROW,
                     on_blur=button_blur,
                     id="down",
-                    variant="primary",
                 )
                 yield Static(id="rb")
             yield RichLog(id="log", highlight=True)
@@ -131,6 +125,9 @@ class Main_UI(App):
     @on(ReactiveButton.Released, "#down")
     def action_down_end(self):
         logging.debug("Button down released")
+
+    def on_key(self, event: events.Key) -> None:
+        logging.debug(f"Key pressed: {event.key}")
 
 
 def setup_textual():

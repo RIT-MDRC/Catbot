@@ -4,7 +4,6 @@ Placeholder {
 }
 
 Button {
-  background: #F76902;
   height: 100%;
   width: 100%;
 }

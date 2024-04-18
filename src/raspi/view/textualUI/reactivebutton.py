@@ -10,7 +10,6 @@ class ReactiveButton(Button):
     def __init__(
         self,
         label: TextType | None = None,
-        variant: ButtonVariant = "default",
         on_blur: callable = None,
         *,
         name: str | None = None,
@@ -20,7 +19,7 @@ class ReactiveButton(Button):
     ):
         super().__init__(
             label=label,
-            variant=variant,
+            variant="warning",
             name=name,
             id=id,
             classes=classes,
