@@ -53,4 +53,5 @@ class ReactiveButton(Button):
         if self.on_btn_blur:
             self.on_btn_blur()
         else:
+            # Not preferred as it will put focus on another random component.
             self.blur()
