@@ -25,6 +25,8 @@ class Main_UI(App):
     CSS_PATH = "index.tcss"
     BINDINGS = [("h", "toggle_dark", "Toggle dark mode"), ("q", "quit", "Quit")]
 
+    last_key = None
+
     def compose(self) -> ComposeResult:
         def button_blur():
             self.query_one("#log").focus()
@@ -127,7 +129,50 @@ class Main_UI(App):
         logging.debug("Button down released")
 
     def on_key(self, event: events.Key) -> None:
-        logging.debug(f"Key pressed: {event.key}")
+        if event.key != self.last_key:
+            match self.last_key:
+                case "up" | "w":
+                    self.action_up_end()
+                case "left" | "a":
+                    self.action_left_end()
+                case "space":
+                    self.action_middle_end()
+                case "right" | "d":
+                    self.action_right_end()
+                case "down" | "s":
+                    self.action_down_end()
+                case _:
+                    pass
+            self.last_key = event.key
+            match event.key:
+                case "up" | "w":
+                    self.action_up()
+                case "left" | "a":
+                    self.action_left()
+                case "space":
+                    self.action_middle()
+                case "right" | "d":
+                    self.action_right()
+                case "down" | "s":
+                    self.action_down()
+                case _:
+                    pass
+            return
+        match self.last_key:
+            case "up" | "w":
+                self.action_up_end()
+            case "left" | "a":
+                self.action_left_end()
+            case "space":
+                self.action_middle_end()
+            case "right" | "d":
+                self.action_right_end()
+            case "down" | "s":
+                self.action_down_end()
+            case _:
+                pass
+        self.last_key = None
+        return
 
 
 def setup_textual():
