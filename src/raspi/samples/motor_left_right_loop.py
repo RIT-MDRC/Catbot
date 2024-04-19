@@ -12,8 +12,8 @@ configure_device("src/raspi/pinconfig.json")
 
 while True:
     print("Moving left")
-    asyncio.run(raw_motor_action.set_speed_direction("motor_1", value=LEFT_SPEED))
+    asyncio.run(raw_motor_action.set_speed_percentage("motor_1", LEFT_SPEED))
     sleep(1.5)
     print("Moving right")
-    asyncio.run(raw_motor_action.set_speed_direction("motor_1", value=RIGHT_SPEED))
+    asyncio.run(raw_motor_action.set_speed_percentage("motor_1", RIGHT_SPEED))
     sleep(1.5)
