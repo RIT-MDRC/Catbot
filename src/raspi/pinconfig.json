@@ -57,9 +57,9 @@
 	"raw_motor": {
 		"motor_1": {
 			"speed": "motor_1_speed",
-			"stop_duty_cycle": 7.5,
-			"min_duty_cycle": 5,
-			"stop_duration": 1.5
+			"stop_duty_cycle": 0.075,
+			"min_duty_cycle": 0.05,
+			"stop_duration": 2
 		}
 	},
 	"muscle": {

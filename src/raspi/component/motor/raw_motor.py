@@ -75,6 +75,7 @@ def get_speed_percentage(device: RawMotor) -> float:
 @device_action(ctx)
 async def stop(device: RawMotor) -> bool:
     """Stop a raw motor."""
+    logging.info("Stopping motor")
     speed_pin_action.set(device.speed, device.stop_duty_cycle)
     await sleep(device.stop_duration)
     return speed_pin_action.check_speed(device.speed, device.stop_duty_cycle)
@@ -83,13 +84,12 @@ async def stop(device: RawMotor) -> bool:
 @device_action(ctx)
 async def set_speed(device: RawMotor, speed: float) -> bool:
     """Set the speed of a raw motor."""
+    logging.info("setting speed %s", speed)
     if speed < device.min_duty_cycle or speed > device.stop_duty_cycle + (
         device.cached_raw_half_range
     ):
         logging.error("Speed out of range got %s", speed)
         return False
-    if not check_direction(device, speed > device.stop_duty_cycle):
-        await stop(device)
     speed_pin_action.set(device.speed, speed)
     return speed_pin_action.check_speed(device.speed, speed)
 
@@ -97,6 +97,7 @@ async def set_speed(device: RawMotor, speed: float) -> bool:
 @device_action(ctx)
 async def set_speed_percentage(device: RawMotor, speed: float) -> bool:
     """Set the speed of a raw motor. speed range: -100% ~ 100%."""
+    logging.info("setting speed percent %s", speed)
     if speed < -100 or speed > 100:
         logging.error("Speed out of range got %s", speed)
         return False
@@ -104,8 +105,6 @@ async def set_speed_percentage(device: RawMotor, speed: float) -> bool:
     direction = speed > 0
     if not direction:
         duty_cycle = -duty_cycle
-    if not check_direction(device, direction):
-        await stop(device)
     speed_pin_action.set(device.speed, duty_cycle + device.stop_duty_cycle)
 
 
