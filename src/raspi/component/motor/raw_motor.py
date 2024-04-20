@@ -2,7 +2,7 @@ import logging
 from asyncio import sleep
 from dataclasses import dataclass, field
 
-from gpiozero import PWMOutputDevice
+from gpiozero import DigitalOutputDevice
 from state_management import (
     create_generic_context,
     device,
@@ -11,7 +11,7 @@ from state_management import (
     identifier,
 )
 
-from .pin import speed_pin_action
+from .pin import step_pin_action
 
 
 @device
@@ -19,14 +19,9 @@ from .pin import speed_pin_action
 class RawMotor:
     """A data class for a raw motor."""
 
-    stop_duration: float
-    stop_duty_cycle: float
-    min_duty_cycle: float
-    speed: PWMOutputDevice = identifier(speed_pin_action.ctx)
-    cached_range: float = field(
-        default=None
-    )  # This is automatically calculated by the system
-    cached_raw_half_range: float = field(default=None)
+    high_duration: int = 0.005
+    low_duration: int = 0.005
+    step_pin: DigitalOutputDevice = identifier(step_pin_action.ctx)
 
 
 ctx = create_generic_context("raw_motor", [RawMotor])
@@ -35,82 +30,21 @@ ctx = create_generic_context("raw_motor", [RawMotor])
 @device_parser(ctx)
 def parse_raw_motor(data: dict) -> RawMotor:
     """Parse a raw motor from a dictionary."""
-    motor = RawMotor(**data)
-    if motor.cached_range is None:
-        motor.cached_range = 50 / (
-            motor.stop_duty_cycle - motor.min_duty_cycle
-        )  # * 2 /100 to get the speed in percentage
-    if motor.cached_raw_half_range is None:
-        motor.cached_raw_half_range = motor.stop_duty_cycle - motor.min_duty_cycle
-    return motor
+    return RawMotor(**data)
 
 
 @device_action(ctx)
-def check_direction(device: RawMotor, direction: int) -> bool:
-    """Check the direction of a raw motor."""
-    return speed_pin_action.get(device.speed) > device.min_duty_cycle == direction
+async def step_1(motor: RawMotor) -> None:
+    """Step the motor once."""
+    step_pin_action.set_high(motor.step_pin)
+    await sleep(motor.high_duration)
+    step_pin_action.set_low(motor.step_pin)
 
 
 @device_action(ctx)
-def check_speed(device: RawMotor, speed: float) -> bool:
-    return speed_pin_action.check_speed(device.speed, speed)
-
-
-@device_action(ctx)
-def get_speed(device: RawMotor) -> float:
-    """Get the speed of a raw motor."""
-    return speed_pin_action.get(device.speed)
-
-
-@device_action(ctx)
-def get_speed_percentage(device: RawMotor) -> float:
-    """Get the speed of a raw motor."""
-    return (
-        speed_pin_action.get(device.speed)
-        - device.min_duty_cycle
-        - device.stop_duty_cycle
-    ) * device.cached_range
-
-
-@device_action(ctx)
-async def stop(device: RawMotor) -> bool:
-    """Stop a raw motor."""
-    logging.info("Stopping motor")
-    speed_pin_action.set(device.speed, device.stop_duty_cycle)
-    await sleep(device.stop_duration)
-    return speed_pin_action.check_speed(device.speed, device.stop_duty_cycle)
-
-
-@device_action(ctx)
-async def set_speed(device: RawMotor, speed: float) -> bool:
-    """Set the speed of a raw motor."""
-    logging.info("setting speed %s", speed)
-    if speed < device.min_duty_cycle or speed > device.stop_duty_cycle + (
-        device.cached_raw_half_range
-    ):
-        logging.error("Speed out of range got %s", speed)
-        return False
-    speed_pin_action.set(device.speed, speed)
-    return speed_pin_action.check_speed(device.speed, speed)
-
-
-@device_action(ctx)
-async def set_speed_percentage(device: RawMotor, speed: float) -> bool:
-    """Set the speed of a raw motor. speed range: -100% ~ 100%."""
-    logging.info("setting speed percent %s", speed)
-    if speed < -100 or speed > 100:
-        logging.error("Speed out of range got %s", speed)
-        return False
-    duty_cycle = abs(speed) / 100 * device.cached_raw_half_range
-    direction = speed > 0
-    if not direction:
-        duty_cycle = -duty_cycle
-    speed_pin_action.set(device.speed, duty_cycle + device.stop_duty_cycle)
-
-
-@device_action(ctx)
-def get_direction(device: RawMotor) -> float:
-    """Get the direction of a raw motor.
-    Don't use this function to check the direction of a raw motor. Use `check_direction` instead.
-    """
-    return speed_pin_action.get(device.speed)
+async def step_n(motor: RawMotor, n: int) -> None:
+    """Step the motor n times."""
+    for i in range(n):
+        step_1(motor)
+        if i != n - 1:
+            await sleep(motor.low_duration)
