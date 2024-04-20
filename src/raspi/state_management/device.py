@@ -161,7 +161,6 @@ def identifier(ctx: Context):
 def device(cls):
     original_init = cls.__init__
     needsIdentifier = "_identifier" in inspect.signature(original_init).parameters
-    print(cls, needsIdentifier)
     identifier_attrs = {
         k: v.ctx for k, v in cls.__dict__.items() if isinstance(v, Identifier)
     }
