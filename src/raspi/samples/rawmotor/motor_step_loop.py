@@ -29,7 +29,7 @@ while True:
     # raw_motor_action.switch_dir("motor_1", True)
     for n in latches:
         print(f"setting {n}")
-        step_pin_action.set_high(f"latch_1.{n}")
+        step_pin_action.set_direction_high(f"latch_1.{n}")
         sleep(0.5)
     asyncio.run(raw_motor_action.step_n("motor_1", LEFT_STEP))
     sleep(1)
@@ -37,7 +37,7 @@ while True:
     # raw_motor_action.switch_dir("motor_1", False)
     for n in latches:
         print(f"setting {n}")
-        step_pin_action.set_low(f"latch_1.{n}")
+        step_pin_action.set_direction_low(f"latch_1.{n}")
         sleep(0.5)
     asyncio.run(raw_motor_action.step_n("motor_1", RIGHT_STEP))
     sleep(1)

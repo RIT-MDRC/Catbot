@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+import logging
 from time import sleep
 
 from gpiozero import DigitalOutputDevice
@@ -26,7 +27,7 @@ def bitfield(n, length=3):
     return [0] * (length - len(res)) + res
 
 
-class VirtualDigitalOutputDevice:
+class LatchDigitalOutputDevice:
     _value: int
 
     def __init__(self, latch, addr):
@@ -49,6 +50,7 @@ class VirtualDigitalOutputDevice:
         self._value = new_val
 
     def set_value(self, value):
+        logging.info("setting LatchDigitalOutputDevice value")
         self.latch.set(self.addr, value)
         # this might need to change in the future as it might need to be check if the latch has actually switched state
         self._value = value
@@ -64,7 +66,7 @@ class VirtualDigitalOutputDevice:
         self.set_value(value)
 
     def __repr__(self) -> str:
-        return f"VirtualDigitalOutputDevice(pin={self.pin}, value={self._value})"
+        return f"LatchDigitalOutputDevice(pin={self.pin}, value={self._value})"
 
 
 @device
@@ -86,6 +88,7 @@ class Latch:
             self.process_queue()
 
     def process_queue(self):
+        logging.info("Processing Queue on the latch")
         self.lock = True
         while len(self.queue) > 0:
             addr, newState = self.queue.pop(0)
@@ -124,14 +127,14 @@ def parse_latch(data: dict) -> Latch:
         raise ValueError(
             "No output device parser found. Makesure to define output device before the latch"
         )
-    if not VirtualDigitalOutputDevice in output_device_ctx.allowed_classes:
+    if not LatchDigitalOutputDevice in output_device_ctx.allowed_classes:
         output_device_ctx.allowed_classes = (
-            VirtualDigitalOutputDevice,
+            LatchDigitalOutputDevice,
             *output_device_ctx.allowed_classes,
         )
     for identifier, addr in latch.pins.items():
         dev_identifier = f"{latch._identifier}.{identifier}"
-        virtualDevice = VirtualDigitalOutputDevice(latch, addr)
+        virtualDevice = LatchDigitalOutputDevice(latch, addr)
         register_device(output_device_ctx, dev_identifier, virtualDevice)
 
     return latch
