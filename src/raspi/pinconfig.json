@@ -7,12 +7,29 @@
 		"lat_data": 20,
 		"lat_addr_1": 5,
 		"lat_addr_2": 6,
-		"lat_addr_3": 12
+		"lat_addr_3": 12,
+		"motor_step": 26
 	},
 	"pwm_output_device": {
-		"motor_1_speed": {
-			"pin": 26,
-			"frequency": 50
+		
+	},
+	"latch": {
+		"latch_1": {
+			"enab": "lat_enab",
+			"data": "lat_data",
+			"addr_1": "lat_addr_1",
+			"addr_2": "lat_addr_2",
+			"addr_3": "lat_addr_3",
+			"pins": {
+				"latch_1": 0,
+				"latch_2": 1,
+				"latch_3": 2,
+				"latch_4": 3,
+				"latch_5": 4,
+				"latch_6": 5,
+				"latch_7": 6,
+				"latch_8": 7
+			}
 		}
 	},
 	"smbus2": {
@@ -56,10 +73,8 @@
 	},
 	"raw_motor": {
 		"motor_1": {
-			"speed": "motor_1_speed",
-			"stop_duty_cycle": 0.075,
-			"min_duty_cycle": 0.05,
-			"stop_duration": 2
+			"step_pin": "motor_step",
+			"direction_pin": "latch_1.latch_1"
 		}
 	},
 	"muscle": {

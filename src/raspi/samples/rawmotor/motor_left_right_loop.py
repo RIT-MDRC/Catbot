@@ -4,6 +4,7 @@ from time import sleep
 from component.motor import raw_motor_action
 from state_management import configure_device
 
+
 RIGHT_SPEED = -50  # unit: %
 LEFT_SPEED = 70  # unit: %
 

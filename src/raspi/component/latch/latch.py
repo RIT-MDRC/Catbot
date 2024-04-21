@@ -1,6 +1,4 @@
-import asyncio
 from dataclasses import dataclass, field
-from multiprocessing import Process
 from time import sleep
 
 from gpiozero import DigitalOutputDevice
@@ -16,6 +14,7 @@ from state_management.utils.deviceMock import value_change
 
 from .pin import latch_pin_actions
 
+USE = False
 ENABLE_DURATION = 0.1
 
 
