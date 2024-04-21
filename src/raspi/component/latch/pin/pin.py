@@ -1,3 +1,5 @@
+import logging
+
 from gpiozero import DigitalOutputDevice
 from state_management import create_masked_context, device_action, output_device_ctx
 
@@ -55,6 +57,7 @@ def set_data(dev: DigitalOutputDevice, state: int) -> None:
         dev (DigitalOutputDevice): the data pin
         state (int): 1 to turn the pin on, 0 to turn it off
     """
+    logging.debug("Setting data pin to %s", state)
     dev.on() if state > 0 else dev.off()
 
 
@@ -69,6 +72,7 @@ def get_data(dev: DigitalOutputDevice) -> int:
     Returns:
         int: 1 if the pin is on, 0 if the pin is off
     """
+    logging.debug("Getting data pin value")
     return dev.value
 
 
@@ -83,6 +87,7 @@ def toggle_data(dev: DigitalOutputDevice) -> int:
     Returns:
         int: 1 if the pin is on, 0 if the pin is off
     """
+    logging.debug("Toggling data pin")
     return dev.toggle()
 
 

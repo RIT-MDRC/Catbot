@@ -1,5 +1,5 @@
-from dataclasses import dataclass, field
 import logging
+from dataclasses import dataclass, field
 from time import sleep
 
 from gpiozero import DigitalOutputDevice
@@ -38,16 +38,16 @@ class LatchDigitalOutputDevice:
 
     @value_change
     def on(self):
-        self._value = 1
+        self.value = 1
 
     @value_change
     def off(self):
-        self._value = 0
+        self.value = 0
 
     @value_change
     def toggle(self):
         new_val = 1 - self._value
-        self._value = new_val
+        self.value = new_val
 
     def set_value(self, value):
         logging.info("setting LatchDigitalOutputDevice value")
