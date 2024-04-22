@@ -51,6 +51,8 @@ class LatchDigitalOutputDevice:
 
     def set_value(self, value):
         logging.info("setting LatchDigitalOutputDevice value")
+        if self._value == value:
+            return
         self.latch.set(self.addr, value)
         # this might need to change in the future as it might need to be check if the latch has actually switched state
         self._value = value
