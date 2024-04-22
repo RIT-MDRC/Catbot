@@ -105,6 +105,18 @@ def toggle_direction(directionPin: DigitalOutputDevice) -> None:
 
 
 @device_action(direction_ctx)
+def set_direction(directionPin: DigitalOutputDevice, direction: int) -> None:
+    """
+    Set the direction of the direction pin
+
+    Args:
+        directionPin (DigitalOutputDevice): the direction pin to set
+        direction (bool): the direction to set
+    """
+    directionPin.value = direction
+
+
+@device_action(direction_ctx)
 def check_direction_high(directionPin: DigitalOutputDevice) -> bool:
     """
     Check if the direction pin is high

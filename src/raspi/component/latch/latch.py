@@ -29,8 +29,9 @@ def bitfield(n, length=3):
 
 class LatchDigitalOutputDevice:
     _value: int
+    latch: "Latch"
 
-    def __init__(self, latch, addr):
+    def __init__(self, latch: "Latch", addr):
         self.latch = latch
         self.addr = addr
         self._value = 0

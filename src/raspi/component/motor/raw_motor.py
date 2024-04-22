@@ -25,7 +25,7 @@ class RawMotor:
     direction_pin: DigitalOutputDevice = identifier(step_pin_action.direction_ctx)
 
 
-ctx = create_generic_context("raw_motor", [RawMotor])
+ctx = create_generic_context("raw_motor", (RawMotor,))
 
 
 @device_parser(ctx)
@@ -47,17 +47,17 @@ async def step_1(motor: RawMotor) -> None:
 async def step_n(motor: RawMotor, n: int) -> None:
     """Step the motor n times."""
     logging.debug("Stepping motor %d times", n)
-    for i in range(n):
+    direction = n > 0
+    set_dir(motor, int(direction))
+    logging.debug("successfully switched direction")
+    for i in range(abs(n)):
         await step_1(motor)
         if i != n - 1:
             await sleep(motor.low_duration)
 
 
 @device_action(ctx)
-def switch_dir(motor: RawMotor, direction: bool) -> None:
+def set_dir(motor: RawMotor, direction: int) -> None:
     """Switch the motor direction."""
     logging.debug("Switching motor direction")
-    if direction:
-        step_pin_action.set_high(motor.direction_pin)
-    else:
-        step_pin_action.set_low(motor.direction_pin)
+    step_pin_action.set_direction(motor.direction_pin, direction)
