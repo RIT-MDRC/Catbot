@@ -7,8 +7,8 @@ from component.latch import latch_actions
 
 latch_actions.USE = True
 
-LEFT_STEP = 30
-RIGHT_STEP = -30
+LEFT_STEP = 200
+RIGHT_STEP = -200
 
 configure_device("src/raspi/pinconfig.json")
 

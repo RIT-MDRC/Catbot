@@ -6,7 +6,7 @@ import { hideBin } from 'yargs/helpers';
 const DEFAULT_FOLDER = '/opt/catbot/src';
 const DEV_SRC_FOLDER = './src';
 const DEFAULT_FILE_PATH = 'raspi/main';
-const PYTHON_COMMAND = "python"
+const PYTHON_COMMAND = "python3"
 
 
 yargs(hideBin(process.argv))
