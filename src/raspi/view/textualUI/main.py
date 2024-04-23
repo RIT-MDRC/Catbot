@@ -1,8 +1,10 @@
+import asyncio
 import logging
 from logging import LogRecord
-from time import sleep
 
-import textual
+from asyncio import sleep
+from component.latch import latch_actions
+from component.motor import raw_motor_action
 from state_management.device import configure_device
 from state_management.utils.logger import configure_logger, set_log_event_function
 from textual import events, on
@@ -19,6 +21,11 @@ from view.textualUI.asset import (
 )
 from view.textualUI.reactivebutton import ReactiveButton
 
+latch_actions.USE = True
+
+LATERAL_MOTOR = "motor_1"
+MEDIAL_MOTOR = "motor_2"
+
 
 class Main_UI(App):
 
@@ -26,6 +33,11 @@ class Main_UI(App):
     BINDINGS = [("h", "toggle_dark", "Toggle dark mode"), ("q", "quit", "Quit")]
 
     last_key = None
+
+    left = False
+    right = False
+    up = False
+    down = False
 
     def compose(self) -> ComposeResult:
         def button_blur():
@@ -89,8 +101,15 @@ class Main_UI(App):
         self.query_one("#controller").styles.display = "block"
 
     @on(ReactiveButton.Active, "#up")
-    def action_up(self):
+    async def action_up(self):
         logging.debug("Button up")
+        self.up = True
+        count = 0
+        while self.up and count < 10:
+            await raw_motor_action.step_n(LATERAL_MOTOR, 30)
+            await sleep(0.5)
+            count += 1
+        await raw_motor_action.step_n(LATERAL_MOTOR, -1)  # stop
 
     @on(ReactiveButton.Active, "#left")
     def action_left(self):
@@ -111,6 +130,7 @@ class Main_UI(App):
     @on(ReactiveButton.Released, "#up")
     def action_up_end(self):
         logging.debug("Button up released")
+        self.up = False
 
     @on(ReactiveButton.Released, "#left")
     def action_left_end(self):

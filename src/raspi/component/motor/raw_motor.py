@@ -19,8 +19,8 @@ from .pin import step_pin_action
 class RawMotor:
     """A data class for a raw motor."""
 
-    high_duration: int = 0.005
-    low_duration: int = 0.005
+    high_duration: float = 0  # seconds but can basically be zero.
+    low_duration: float = 0  # seconds but can basically be zero.
     step_pin: DigitalOutputDevice = identifier(step_pin_action.step_ctx)
     direction_pin: DigitalOutputDevice = identifier(step_pin_action.direction_ctx)
 
@@ -37,7 +37,6 @@ def parse_raw_motor(data: dict) -> RawMotor:
 @device_action(ctx)
 async def step_1(motor: RawMotor) -> None:
     """Step the motor once."""
-    logging.debug("Stepping motor once")
     step_pin_action.set_high(motor.step_pin)
     await sleep(motor.high_duration)
     step_pin_action.set_low(motor.step_pin)
