@@ -61,6 +61,7 @@ def contract(muscle: MuscleObj, check=pressure_actions.is_pressure_ok) -> bool:
     Returns:
         True if the muscle was contracted, False otherwise
     """
+    logging.info("Contracting muscle %s", muscle)
     if not check(muscle.pressure):
         logging.warning(
             f"{muscle.pressure}: Pressure check failed, cannot contract muscle"
@@ -82,6 +83,7 @@ def relax(muscle: MuscleObj, check=valve_actions.get_valve_state) -> bool:
     Returns:
         True if the muscle was relaxed, False otherwise
     """
+    logging.info("relaxing muscle %s", muscle)
     if not check(muscle.valve):
         logging.warning(
             f"{muscle.valve}: Valve check failed, Muscle is already relaxed"
