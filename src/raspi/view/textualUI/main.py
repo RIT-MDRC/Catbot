@@ -10,11 +10,10 @@ from state_management.utils.interval import (
     clear_all,
     clear_intervals,
     clear_timeouts,
-    debounce,
     set_interval,
     set_timeout,
 )
-from state_management.utils.logger import configure_logger, set_log_event_function
+from state_management.utils.logger import set_log_event_function
 from textual import events, on
 from textual.app import App, ComposeResult
 from textual.containers import Center, Grid, Horizontal, Vertical
