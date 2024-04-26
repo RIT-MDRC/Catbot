@@ -10,9 +10,7 @@
 		"lat_addr_3": 12,
 		"motor_step": 26
 	},
-	"pwm_output_device": {
-		
-	},
+	"pwm_output_device": {},
 	"latch": {
 		"latch_1": {
 			"enab": "lat_enab",
@@ -75,12 +73,16 @@
 		"motor_1": {
 			"step_pin": "motor_step",
 			"direction_pin": "latch_1.latch_1"
+		},
+		"motor_2": {
+			"step_pin": "motor_step",
+			"direction_pin": "latch_1.latch_2"
 		}
 	},
 	"muscle": {
 		"left_muscle": {
 			"pressure": "left_pressure",
-			"valve": 24
+			"valve": 22
 		}
 	}
 }

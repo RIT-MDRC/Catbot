@@ -1,11 +1,19 @@
-import asyncio
 import logging
+import threading
+from asyncio import sleep
 from logging import LogRecord
 
-from asyncio import sleep
 from component.latch import latch_actions
 from component.motor import raw_motor_action
 from state_management.device import configure_device
+from state_management.utils.interval import (
+    clear_all,
+    clear_intervals,
+    clear_timeouts,
+    debounce,
+    set_interval,
+    set_timeout,
+)
 from state_management.utils.logger import configure_logger, set_log_event_function
 from textual import events, on
 from textual.app import App, ComposeResult
@@ -25,6 +33,38 @@ latch_actions.USE = True
 
 LATERAL_MOTOR = "motor_1"
 MEDIAL_MOTOR = "motor_2"
+LEFT_DISTANCE = 5
+RIGHT_DISTANCE = -5
+
+
+class DirectionController:
+    @staticmethod
+    def left():
+        logging.info("Left")
+        raw_motor_action.step_n(LATERAL_MOTOR, LEFT_DISTANCE)
+
+    @staticmethod
+    def right():
+        logging.info("Right")
+        raw_motor_action.step_n(LATERAL_MOTOR, RIGHT_DISTANCE)
+
+    @staticmethod
+    def up():
+        logging.info("Up")
+        raw_motor_action.step_n(MEDIAL_MOTOR, LEFT_DISTANCE)
+
+    @staticmethod
+    def down():
+        logging.info("Down")
+        raw_motor_action.step_n(MEDIAL_MOTOR, RIGHT_DISTANCE)
+
+    @staticmethod
+    def space():
+        logging.info("Space")
+
+    @staticmethod
+    def end_space():
+        logging.info("End Space")
 
 
 class Main_UI(App):
@@ -34,10 +74,12 @@ class Main_UI(App):
 
     last_key = None
 
-    left = False
-    right = False
-    up = False
-    down = False
+    leftInterval: threading.Timer = None
+    rightInterval: threading.Timer = None
+    upInterval: threading.Timer = None
+    downInterval: threading.Timer = None
+
+    debouncedMiddle: callable = None
 
     def compose(self) -> ComposeResult:
         def button_blur():
@@ -82,10 +124,10 @@ class Main_UI(App):
         self.dark = not self.dark
 
     def action_quit(self):
+        clear_all()
         self.exit()
 
     def on_ready(self):
-        configure_logger()
         self.logger = self.query_one(RichLog)
 
         def log_event(event: LogRecord):
@@ -94,7 +136,6 @@ class Main_UI(App):
 
         set_log_event_function(log_event)
 
-        configure_device("src/raspi/pinconfig.json")
         logging.info("Initialized components from pinconfig")
         sleep(1)
         self.query_one("#mdrc").styles.display = "none"
@@ -103,101 +144,94 @@ class Main_UI(App):
     @on(ReactiveButton.Active, "#up")
     async def action_up(self):
         logging.debug("Button up")
-        self.up = True
-        count = 0
-        while self.up and count < 10:
-            await raw_motor_action.step_n(LATERAL_MOTOR, 30)
-            await sleep(0.5)
-            count += 1
-        await raw_motor_action.step_n(LATERAL_MOTOR, -1)  # stop
+        DirectionController.up()
+        self.upInterval = set_interval(DirectionController.up, 0.02)
 
     @on(ReactiveButton.Active, "#left")
     def action_left(self):
         logging.debug("Button left")
+        DirectionController.left()
+        self.leftInterval = set_interval(DirectionController.left, 0.02)
 
     @on(ReactiveButton.Active, "#middle")
     def action_middle(self):
         logging.debug("Button middle")
+        DirectionController.space()
 
     @on(ReactiveButton.Active, "#right")
     def action_right(self):
         logging.debug("Button right")
+        DirectionController.right()
+        self.rightInterval = set_interval(DirectionController.right, 0.02)
 
     @on(ReactiveButton.Active, "#down")
     def action_down(self):
         logging.debug("Button down")
+        DirectionController.down()
+        self.downInterval = set_interval(DirectionController.down, 0.02)
 
     @on(ReactiveButton.Released, "#up")
     def action_up_end(self):
         logging.debug("Button up released")
-        self.up = False
+        clear_intervals()
 
     @on(ReactiveButton.Released, "#left")
     def action_left_end(self):
         logging.debug("Button left released")
+        clear_intervals()
 
     @on(ReactiveButton.Released, "#middle")
     def action_middle_end(self):
         logging.debug("Button middle released")
+        DirectionController.end_space()
 
     @on(ReactiveButton.Released, "#right")
     def action_right_end(self):
         logging.debug("Button right released")
+        clear_intervals()
 
     @on(ReactiveButton.Released, "#down")
     def action_down_end(self):
         logging.debug("Button down released")
+        clear_intervals()
 
     def on_key(self, event: events.Key) -> None:
-        if event.key != self.last_key:
-            match self.last_key:
-                case "up" | "w":
-                    self.action_up_end()
-                case "left" | "a":
-                    self.action_left_end()
-                case "space":
-                    self.action_middle_end()
-                case "right" | "d":
-                    self.action_right_end()
-                case "down" | "s":
-                    self.action_down_end()
-                case _:
-                    pass
-            self.last_key = event.key
-            match event.key:
-                case "up" | "w":
-                    self.action_up()
-                case "left" | "a":
-                    self.action_left()
-                case "space":
-                    self.action_middle()
-                case "right" | "d":
-                    self.action_right()
-                case "down" | "s":
-                    self.action_down()
-                case _:
-                    pass
-            return
-        match self.last_key:
+        match event.key:
             case "up" | "w":
-                self.action_up_end()
+                DirectionController.up()
             case "left" | "a":
-                self.action_left_end()
+                DirectionController.left()
             case "space":
-                self.action_middle_end()
+
+                def end_space_callback():
+                    self.debouncedMiddle = None
+                    DirectionController.end_space()
+
+                if self.debouncedMiddle:
+                    clear_timeouts()
+                    self.debouncedMiddle = set_timeout(end_space_callback, 0.5)
+                    pass
+
+                DirectionController.space()
+                self.debouncedMiddle = set_timeout(end_space_callback, 0.5)
             case "right" | "d":
-                self.action_right_end()
+                DirectionController.right()
             case "down" | "s":
-                self.action_down_end()
+                DirectionController.down()
             case _:
                 pass
-        self.last_key = None
-        return
+        self.last_key = event.key
 
 
-def setup_textual():
-    Main_UI().run()
+def main():
+    try:
+        Main_UI().run()
+    except Exception as e:
+        clear_all()
+        raise
 
 
 if __name__ == "__main__":
-    setup_textual()
+    configure_logger()
+    configure_device("src/raspi/pinconfig.json")
+    main()
