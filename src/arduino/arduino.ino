@@ -2,10 +2,9 @@
 #include "src/Handshake/Handshake.h"
 
 // pins
-#define COMPRESSOR_PIN 12
-#define VALVE_1_PIN 8
-#define PRESSURE_SENSOR_PIN A0 // Analog
-#define HANDSHAKE_PIN 1
+#define COMPRESSOR_PIN 18
+#define PRESSURE_SENSOR_PIN A3 // Analog
+#define HANDSHAKE_PIN 16
 
 // Operating range of the compressor/pressure system
 #define MIN_VOLTAGE 0.33 // at <MIN_PSI> psi

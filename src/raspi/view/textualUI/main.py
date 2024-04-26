@@ -5,6 +5,7 @@ from logging import LogRecord
 
 from component.latch import latch_actions
 from component.motor import raw_motor_action
+from component.muscle import muscle_actions
 from state_management.device import configure_device
 from state_management.utils.interval import (
     clear_all,
@@ -29,6 +30,8 @@ from view.textualUI.asset import (
 from view.textualUI.reactivebutton import ReactiveButton
 
 latch_actions.USE = True
+
+MUSCLE = "left_muscle"
 
 LATERAL_MOTOR = "motor_1"
 MEDIAL_MOTOR = "motor_2"
@@ -81,10 +84,12 @@ class DirectionController:
     @staticmethod
     def space():
         logging.info("Space")
+        muscle_actions.contract(MUSCLE)
 
     @staticmethod
     def end_space():
         logging.info("End Space")
+        muscle_actions.relax(MUSCLE)
 
 
 class Main_UI(App):
