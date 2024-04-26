@@ -36,7 +36,7 @@ void loop()
 {
   systemPressure.pressurize(false);
   handshake.setStatus(!(systemPressure.pressureOk()));
-  digitalWrite(LED_PIN, !(systemPressure.pressureOk()));
+  digitalWrite(LED_PIN, systemPressure.pressureOk());
   Serial.println(systemPressure.pressureOk());
   delay(100);
 }
