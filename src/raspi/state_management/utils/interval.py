@@ -16,6 +16,17 @@ def set_interval(func, sec):
     return t
 
 
+def set_async_interval(func, sec):
+    async def func_wrapper():
+        set_interval(func, sec)
+        await func()
+
+    t = threading.Timer(sec, func_wrapper)
+    t.start()
+    intervals.append(t)
+    return t
+
+
 def clear_intervals():
     for interval in intervals:
         interval.cancel()

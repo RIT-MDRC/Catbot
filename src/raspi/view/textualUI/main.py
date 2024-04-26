@@ -197,12 +197,12 @@ class Main_UI(App):
         logging.debug("Button down released")
         clear_intervals()
 
-    def on_key(self, event: events.Key) -> None:
+    async def on_key(self, event: events.Key) -> None:
         match event.key:
             case "up" | "w":
-                DirectionController.up()
+                await DirectionController.up()
             case "left" | "a":
-                DirectionController.left()
+                await DirectionController.left()
             case "space":
 
                 def end_space_callback():
@@ -217,9 +217,9 @@ class Main_UI(App):
                 DirectionController.space()
                 self.debouncedMiddle = set_timeout(end_space_callback, 0.5)
             case "right" | "d":
-                DirectionController.right()
+                await DirectionController.right()
             case "down" | "s":
-                DirectionController.down()
+                await DirectionController.down()
             case _:
                 pass
         self.last_key = event.key
