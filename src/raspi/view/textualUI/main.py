@@ -39,24 +39,26 @@ RIGHT_DISTANCE = -5
 
 class DirectionController:
     @staticmethod
-    def left():
+    async def left():
         logging.info("Left")
-        raw_motor_action.step_n(LATERAL_MOTOR, LEFT_DISTANCE)
+        await raw_motor_action.step_n(LATERAL_MOTOR, LEFT_DISTANCE)
+        logging.info("left finished")
 
     @staticmethod
-    def right():
+    async def right():
         logging.info("Right")
-        raw_motor_action.step_n(LATERAL_MOTOR, RIGHT_DISTANCE)
+        await raw_motor_action.step_n(LATERAL_MOTOR, RIGHT_DISTANCE)
+        logging.info("right finished")
 
     @staticmethod
-    def up():
+    async def up():
         logging.info("Up")
-        raw_motor_action.step_n(MEDIAL_MOTOR, LEFT_DISTANCE)
+        await raw_motor_action.step_n(MEDIAL_MOTOR, LEFT_DISTANCE)
 
     @staticmethod
-    def down():
+    async def down():
         logging.info("Down")
-        raw_motor_action.step_n(MEDIAL_MOTOR, RIGHT_DISTANCE)
+        await raw_motor_action.step_n(MEDIAL_MOTOR, RIGHT_DISTANCE)
 
     @staticmethod
     def space():
@@ -232,6 +234,5 @@ def main():
 
 
 if __name__ == "__main__":
-    configure_logger()
     configure_device("src/raspi/pinconfig.json")
     main()

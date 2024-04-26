@@ -45,10 +45,10 @@ async def step_1(motor: RawMotor) -> None:
 @device_action(ctx)
 async def step_n(motor: RawMotor, n: int) -> None:
     """Step the motor n times."""
-    logging.debug("Stepping motor %d times", n)
+    logging.info("Stepping motor %d times", n)
     direction = n > 0
     set_dir(motor, int(direction))
-    logging.debug("successfully switched direction")
+    logging.info("successfully switched direction")
     for i in range(abs(n)):
         await step_1(motor)
         if i != n - 1:
