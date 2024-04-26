@@ -1,0 +1,12 @@
+from time import sleep
+
+from component.muscle import pressure_actions
+from state_management.device import configure_device
+
+configure_device("src/raspi/pinconfig.json")
+
+sleep(1)
+
+while True:
+  pressure_actions.is_pressure_ok("pressure_1")
+  print(f"Pgood: {pressure_actions.is_pressure_ok("left_pressure")}")

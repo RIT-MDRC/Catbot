@@ -5,6 +5,7 @@
 #define COMPRESSOR_PIN 18
 #define PRESSURE_SENSOR_PIN A3 // Analog
 #define HANDSHAKE_PIN 16
+#define LED_PIN 13
 
 // Operating range of the compressor/pressure system
 #define MIN_VOLTAGE 0.33 // at <MIN_PSI> psi
@@ -35,6 +36,7 @@ void loop()
 {
   systemPressure.pressurize(false);
   handshake.setStatus(!(systemPressure.pressureOk()));
+  digitalWrite(LED_PIN, !(systemPressure.pressureOk()));
   Serial.println(systemPressure.pressureOk());
   delay(100);
 }
