@@ -8,6 +8,5 @@ configure_device("src/raspi/pinconfig.json")
 sleep(1)
 
 while True:
-    pressure_actions.is_pressure_ok("pressure_1")
     res = pressure_actions.is_pressure_ok("left_pressure")
     print(f"Pgood: {res}")
