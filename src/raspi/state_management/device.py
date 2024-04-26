@@ -175,9 +175,9 @@ def device(cls):
 
             if isinstance(value, str):
                 # identifier
-                if not (value in ctx.store or value in ctx.stored_keys):
+                if not value in ctx.store:
                     raise ValueError(
-                        f"{ctx}: {value} does not exist. Unique identifiers: \n{ctx.stored_keys}"
+                        f"{ctx}: {value} does not exist. Unique identifiers: \n{ctx.store}"
                     )
                 if not value in ctx.stored_keys:
                     ctx.stored_keys.add(value)

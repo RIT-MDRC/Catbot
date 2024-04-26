@@ -15,7 +15,7 @@ from .pin import step_pin_action
 
 
 @device
-@dataclass(slots=True)
+@dataclass
 class RawMotor:
     """A data class for a raw motor."""
 

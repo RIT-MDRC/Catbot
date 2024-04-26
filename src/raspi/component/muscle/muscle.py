@@ -14,7 +14,7 @@ from .pneumatics import pressure_actions, valve_actions
 
 
 @device
-@dataclass(slots=True)
+@dataclass
 class MuscleObj:
     """
     Args:
@@ -32,7 +32,7 @@ class MuscleObj:
         setattr(self, key, value)
 
 
-ctx = create_generic_context("muscle", [MuscleObj])
+ctx = create_generic_context("muscle", (MuscleObj))
 
 
 @device_parser(ctx)
