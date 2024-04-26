@@ -1,5 +1,5 @@
 import logging
-from asyncio import sleep
+from time import sleep
 from dataclasses import dataclass, field
 
 from gpiozero import DigitalOutputDevice
@@ -35,24 +35,24 @@ def parse_raw_motor(data: dict) -> RawMotor:
 
 
 @device_action(ctx)
-async def step_1(motor: RawMotor) -> None:
+def step_1(motor: RawMotor) -> None:
     """Step the motor once."""
     step_pin_action.set_high(motor.step_pin)
-    await sleep(motor.high_duration)
+    sleep(motor.high_duration)
     step_pin_action.set_low(motor.step_pin)
 
 
 @device_action(ctx)
-async def step_n(motor: RawMotor, n: int) -> None:
+def step_n(motor: RawMotor, n: int) -> None:
     """Step the motor n times."""
     logging.info("Stepping motor %d times", n)
     direction = n > 0
     set_dir(motor, int(direction))
     logging.info("successfully switched direction")
     for i in range(abs(n)):
-        await step_1(motor)
+        step_1(motor)
         if i != n - 1:
-            await sleep(motor.low_duration)
+            sleep(motor.low_duration)
 
 
 @device_action(ctx)

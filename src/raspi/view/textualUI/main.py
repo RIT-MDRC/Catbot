@@ -33,32 +33,51 @@ latch_actions.USE = True
 
 LATERAL_MOTOR = "motor_1"
 MEDIAL_MOTOR = "motor_2"
-LEFT_DISTANCE = 5
-RIGHT_DISTANCE = -5
+LEFT_DISTANCE = 2
+RIGHT_DISTANCE = -2
+MULTIPLIER = 8
 
 
 class DirectionController:
     @staticmethod
-    async def left():
+    def left():
         logging.info("Left")
-        await raw_motor_action.step_n(LATERAL_MOTOR, LEFT_DISTANCE)
-        logging.info("left finished")
+        raw_motor_action.step_n(LATERAL_MOTOR, LEFT_DISTANCE)
 
     @staticmethod
-    async def right():
+    def bigLeft():
+        logging.info("Left")
+        raw_motor_action.step_n(LATERAL_MOTOR, LEFT_DISTANCE * MULTIPLIER)
+
+    @staticmethod
+    def right():
         logging.info("Right")
-        await raw_motor_action.step_n(LATERAL_MOTOR, RIGHT_DISTANCE)
-        logging.info("right finished")
+        raw_motor_action.step_n(LATERAL_MOTOR, RIGHT_DISTANCE)
 
     @staticmethod
-    async def up():
+    def bigRight():
+        logging.info("Right")
+        raw_motor_action.step_n(LATERAL_MOTOR, RIGHT_DISTANCE * MULTIPLIER)
+
+    @staticmethod
+    def up():
         logging.info("Up")
-        await raw_motor_action.step_n(MEDIAL_MOTOR, LEFT_DISTANCE)
+        raw_motor_action.step_n(MEDIAL_MOTOR, LEFT_DISTANCE)
 
     @staticmethod
-    async def down():
+    def bigUp():
+        logging.info("Up")
+        raw_motor_action.step_n(MEDIAL_MOTOR, LEFT_DISTANCE * MULTIPLIER)
+
+    @staticmethod
+    def down():
         logging.info("Down")
-        await raw_motor_action.step_n(MEDIAL_MOTOR, RIGHT_DISTANCE)
+        raw_motor_action.step_n(MEDIAL_MOTOR, RIGHT_DISTANCE)
+
+    @staticmethod
+    def bigDown():
+        logging.info("Down")
+        raw_motor_action.step_n(MEDIAL_MOTOR, RIGHT_DISTANCE * MULTIPLIER)
 
     @staticmethod
     def space():
@@ -197,12 +216,26 @@ class Main_UI(App):
         logging.debug("Button down released")
         clear_intervals()
 
-    async def on_key(self, event: events.Key) -> None:
+    def on_key(self, event: events.Key) -> None:
+        if self.last_key != event.key:
+            match event.key:
+                case "up" | "w":
+                    DirectionController.bigUp()
+                case "left" | "a":
+                    DirectionController.bigLeft()
+                case "right" | "d":
+                    DirectionController.bigRight()
+                case "down" | "s":
+                    DirectionController.bigDown()
+                case _:
+                    pass
+            self.last_key = event.key
+            return
         match event.key:
             case "up" | "w":
-                await DirectionController.up()
+                DirectionController.up()
             case "left" | "a":
-                await DirectionController.left()
+                DirectionController.left()
             case "space":
 
                 def end_space_callback():
@@ -217,12 +250,11 @@ class Main_UI(App):
                 DirectionController.space()
                 self.debouncedMiddle = set_timeout(end_space_callback, 0.5)
             case "right" | "d":
-                await DirectionController.right()
+                DirectionController.right()
             case "down" | "s":
-                await DirectionController.down()
+                DirectionController.down()
             case _:
                 pass
-        self.last_key = event.key
 
 
 def main():
