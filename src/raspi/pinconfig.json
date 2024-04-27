@@ -12,8 +12,9 @@
 		"lat_addr_1": 5,
 		"lat_addr_2": 6,
 		"lat_addr_3": 12,
-		"valve": 23,
-		"motor_step": 26
+		"valve": 24,
+		"motor_step_1": 26,
+		"motor_step_2": 16
 	},
 	"pwm_output_device": {},
 	"latch": {
@@ -89,11 +90,11 @@
 	},
 	"raw_motor": {
 		"motor_1": {
-			"step_pin": "motor_step",
+			"step_pin": "motor_step_1",
 			"direction_pin": "latch_1.latch_1"
 		},
 		"motor_2": {
-			"step_pin": "motor_step",
+			"step_pin": "motor_step_2",
 			"direction_pin": "latch_1.latch_2"
 		}
 	},
