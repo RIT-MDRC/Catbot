@@ -2,7 +2,7 @@ import logging
 from time import sleep
 
 from component.muscle import muscle_actions
-from state_management.device import configure_device
+from state_management import configure_device
 
 configure_device("src/raspi/pinconfig.json")
 

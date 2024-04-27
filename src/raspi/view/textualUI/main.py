@@ -6,7 +6,8 @@ from logging import LogRecord
 from component.latch import latch_actions
 from component.motor import raw_motor_action
 from component.muscle import muscle_actions
-from state_management.device import configure_device
+from component.io_expander import io_expander_actions
+from state_management import configure_device
 from state_management.utils.interval import (
     clear_all,
     clear_intervals,
@@ -30,6 +31,7 @@ from view.textualUI.asset import (
 from view.textualUI.reactivebutton import ReactiveButton
 
 latch_actions.USE = True
+io_expander_actions.USE = True
 
 MUSCLE = "left_muscle"
 

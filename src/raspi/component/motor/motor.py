@@ -1,73 +1,42 @@
+from dataclasses import dataclass
 import logging
 
-from gpiozero import OutputDevice, PWMOutputDevice
 from state_management import (
-    FakeDigitalOutputDevice,
-    FakePWMOutputDevice,
-    create_output_device,
-    create_pwm_device,
+    device,
+    input_device_ctx,
+    identifier,
+    create_context,
+    device_parser,
+    device_action,
 )
+from . import raw_motor_action
+from component.limit_switch import limit_switch_actions
 
 
-class MotorController:
-    motor: FakePWMOutputDevice | PWMOutputDevice
-    pwm_pin: int
-    current_speed = 0
-    current_direction = 0  # 0 for forward, 1 for backward
-    address_output_devices: list[FakeDigitalOutputDevice | OutputDevice] = []
-
-    def __init__(
-        self,
-        pwm_pin: int,
-        direction_address: int,
-        direction_pin: int,
-        address_pins: list[int],
-    ):
-        self.pwm_pin = pwm_pin
-        self.direction_address = (
-            direction_address  # value 0-7 representing address for directional control
-        )
-        self.motor = create_pwm_device(pwm_pin)
-        ## These are the same for all motors
-        self.direction_pin = create_output_device(direction_pin)
-        self.address_output_devices = [
-            create_output_device(pin) for pin in address_pins
-        ]
-
-    def set_direction(self, direction) -> None:
-        """
-        Uses Addressable Latch Direction Control to set the ESC at the address for this motor
-        this is a helper method and should not be used outside this file unless absolutely
-        needed.
-        """
-        bits = bitfield(self.direction_address, len(self.address_output_devices))[::-1]
-        self.direction_pin.value = direction
-        for i, od in enumerate(self.address_output_devices):
-            od.value = bits[i]
-
-    def set_speed(self, speed) -> None:
-        "helper method for controling speed, can be used but should be avoided"
-        self.motor.value = speed
-
-    def set_speed_dir(self, new_speed, new_direction) -> bool:
-        "Method for setting this ESC to a given speed and direction"
-        logging.info(
-            f"motor called {new_direction} {self.current_direction} {self.current_speed}"
-        )
-        if self.current_speed != 0 and self.current_direction != new_direction:
-            logging.warning("Motor direction and speed do not match")
-            return False
-        self.set_speed(new_speed)
-        self.set_direction(new_direction)
-        self.current_direction = new_direction
-        self.current_speed = new_speed
-        return True
+@device
+@dataclass
+class Motor:
+    raw_motor = identifier(raw_motor_action.ctx)
+    negative_limit_switch = identifier(input_device_ctx)
+    positive_limit_switch = identifier(input_device_ctx)
 
 
-def bitfield(n, length=3) -> str:
-    """
-    Parses a decimal number into a binary string
-    Omits "0b" from the beginning of the string
-    Adds leading zeros to make the array always 'length' bits long (default 3)
-    """
-    return format(n, f"0{length}b")
+ctx = create_context("motor", (Motor,))
+
+
+@device_parser(ctx)
+def parse_motor(config):
+    motor = Motor(**config)
+
+    limit_switch_actions.on_limit_switch_activated(
+        motor.positive_limit_switch,
+        lambda: raw_motor_action.step_n(motor.raw_motor, -1),
+    )
+    limit_switch_actions.on_limit_switch_activated(
+        motor.negative_limit_switch, lambda: raw_motor_action.step_n(motor.raw_motor, 1)
+    )
+
+
+@device_action(ctx)
+def step_n(motor: Motor, n: int):
+    raw_motor_action.step_n(motor.raw_motor, n)

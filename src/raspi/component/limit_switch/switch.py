@@ -1,5 +1,5 @@
 from gpiozero import DigitalInputDevice
-from state_management.device import create_masked_context, device_action
+from state_management import create_masked_context, device_action
 from state_management.generic_devices.generic_devices import input_device_ctx
 
 limit_ctx = create_masked_context(input_device_ctx, "limit_switch")
