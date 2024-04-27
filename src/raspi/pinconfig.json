@@ -1,7 +1,7 @@
 {
 	"input_device": {
 		"left_pressure": 27,
-		"interrupt_a1": 25
+		"expander_interrupt_pin": 25
 	},
 	"output_device": {
 		"lat_enab": 15,
@@ -57,7 +57,18 @@
 	},
 	"io_expander": {
 		"io_expander_1": {
-			"address": "0x20"
+			"address": "0x20",
+			"interrupt_pin": "expander_interrupt_pin",
+			"input_channels": {
+				"channel_1": 0,
+				"channel_2": 1,
+				"channel_3": 2,
+				"channel_4": 3,
+				"channel_5": 4,
+				"channel_6": 5,
+				"channel_7": 6,
+				"channel_8": 7
+			}
 		}
 	},
 	"potentiometer": {

@@ -6,6 +6,12 @@ ctx = create_masked_context(input_device_ctx, "expander_interrupt")
 
 
 @device_action(ctx)
-def on_expander_interrupt(device: DigitalInputDevice, action: callable) -> bool:
+def on_expander_activated(device: DigitalInputDevice, action: callable) -> bool:
     device.when_activated = action
+    return True
+
+
+@device_action(ctx)
+def on_expander_deactivated(device: DigitalInputDevice, action: callable) -> bool:
+    device.when_deactivated = action
     return True

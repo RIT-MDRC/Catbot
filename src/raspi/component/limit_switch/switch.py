@@ -16,5 +16,10 @@ def is_limit_switch_active(device: DigitalInputDevice) -> bool:
 
 
 @device_action(limit_ctx)
-def on_limit_switch_state_change(device: DigitalInputDevice, action: callable) -> bool:
+def on_limit_switch_activated(device: DigitalInputDevice, action: callable) -> None:
     device.when_activated = action
+
+
+@device_action(limit_ctx)
+def on_limit_switch_deactivated(device: DigitalInputDevice, action: callable) -> None:
+    device.when_deactivated = action
