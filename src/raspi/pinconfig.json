@@ -103,7 +103,9 @@
 		}
 	},
 	"limit_switch":{
-		"left_limit_switch": "io_expander_1.channel_4",
-		"right_limit_switch": "io_expander_1.channel_5"
+		"__cast":{
+			"left_limit_switch": "io_expander_1.channel_4",
+			"right_limit_switch": "io_expander_1.channel_5"
+		}
 	}
 }
