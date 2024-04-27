@@ -4,8 +4,7 @@ from asyncio import sleep
 from logging import LogRecord
 
 from component.latch import latch_actions
-from component.limit_switch.io_expander import io_expander_actions
-from component.motor import motor_action
+from component.motor import raw_motor_action
 from component.muscle import muscle_actions
 from state_management import configure_device
 from state_management.utils.interval import (
@@ -31,7 +30,6 @@ from view.textualUI.asset import (
 from view.textualUI.reactivebutton import ReactiveButton
 
 latch_actions.USE = True
-io_expander_actions.USE = True
 
 MUSCLE = "left_muscle"
 
@@ -46,42 +44,42 @@ class DirectionController:
     @staticmethod
     def left():
         logging.info("Left")
-        motor_action.step_n(LATERAL_MOTOR, LEFT_DISTANCE)
+        raw_motor_action.step_n(LATERAL_MOTOR, LEFT_DISTANCE)
 
     @staticmethod
     def bigLeft():
         logging.info("Left")
-        motor_action.step_n(LATERAL_MOTOR, LEFT_DISTANCE * MULTIPLIER)
+        raw_motor_action.step_n(LATERAL_MOTOR, LEFT_DISTANCE * MULTIPLIER)
 
     @staticmethod
     def right():
         logging.info("Right")
-        motor_action.step_n(LATERAL_MOTOR, RIGHT_DISTANCE)
+        raw_motor_action.step_n(LATERAL_MOTOR, RIGHT_DISTANCE)
 
     @staticmethod
     def bigRight():
         logging.info("Right")
-        motor_action.step_n(LATERAL_MOTOR, RIGHT_DISTANCE * MULTIPLIER)
+        raw_motor_action.step_n(LATERAL_MOTOR, RIGHT_DISTANCE * MULTIPLIER)
 
     @staticmethod
     def up():
         logging.info("Up")
-        motor_action.step_n(MEDIAL_MOTOR, LEFT_DISTANCE)
+        raw_motor_action.step_n(MEDIAL_MOTOR, LEFT_DISTANCE)
 
     @staticmethod
     def bigUp():
         logging.info("Up")
-        motor_action.step_n(MEDIAL_MOTOR, LEFT_DISTANCE * MULTIPLIER)
+        raw_motor_action.step_n(MEDIAL_MOTOR, LEFT_DISTANCE * MULTIPLIER)
 
     @staticmethod
     def down():
         logging.info("Down")
-        motor_action.step_n(MEDIAL_MOTOR, RIGHT_DISTANCE)
+        raw_motor_action.step_n(MEDIAL_MOTOR, RIGHT_DISTANCE)
 
     @staticmethod
     def bigDown():
         logging.info("Down")
-        motor_action.step_n(MEDIAL_MOTOR, RIGHT_DISTANCE * MULTIPLIER)
+        raw_motor_action.step_n(MEDIAL_MOTOR, RIGHT_DISTANCE * MULTIPLIER)
 
     @staticmethod
     def space():

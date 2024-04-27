@@ -108,12 +108,5 @@
 			"left_limit_switch": "io_expander_1.channel_4",
 			"right_limit_switch": "io_expander_1.channel_5"
 		}
-	},
-	"motor": {
-		"motor_1": {
-			"raw_motor": "raw_motor.motor_1",
-			"negative_limit_switch": "left_limit_switch",
-			"positive_limit_switch": "right_limit_switch"
-		}
 	}
 }
