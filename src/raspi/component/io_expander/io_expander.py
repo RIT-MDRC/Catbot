@@ -46,13 +46,6 @@ class IOExpanderInputDevice:
         return self.pin.value
 
 
-if not IOExpanderInputDevice in input_device_ctx.allowed_classes:
-    input_device_ctx.allowed_classes = (
-        IOExpanderInputDevice,
-        *input_device_ctx.allowed_classes,
-    )
-
-
 @device
 @dataclass
 class IOExpander:
@@ -90,6 +83,7 @@ ctx = create_context("io_expander", IOExpander)
 def parse_io_expander(config: dict) -> IOExpander:
     if not "address" in config:
         raise ValueError("Missing address in config (io_expander.address)")
+
     hex_addr = int(config["address"], 16)
     mcp = MCP23017(busio.I2C(board.SCL, board.SDA), address=hex_addr)
 
@@ -105,6 +99,12 @@ def parse_io_expander(config: dict) -> IOExpander:
 
     expander = IOExpander(**config)
     expander.input_devices = [None] * expander.total_channels
+
+    if not IOExpanderInputDevice in input_device_ctx.allowed_classes:
+        input_device_ctx.allowed_classes = (
+            IOExpanderInputDevice,
+            *input_device_ctx.allowed_classes,
+        )
 
     for name, num in expander.input_channels.items():
         pin = mcp.get_pin(num)

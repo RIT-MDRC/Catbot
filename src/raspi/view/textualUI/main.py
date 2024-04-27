@@ -4,7 +4,7 @@ from asyncio import sleep
 from logging import LogRecord
 
 from component.latch import latch_actions
-from component.motor import raw_motor_action
+from component.motor import motor_action
 from component.muscle import muscle_actions
 from component.io_expander import io_expander_actions
 from state_management import configure_device
@@ -46,42 +46,42 @@ class DirectionController:
     @staticmethod
     def left():
         logging.info("Left")
-        raw_motor_action.step_n(LATERAL_MOTOR, LEFT_DISTANCE)
+        motor_action.step_n(LATERAL_MOTOR, LEFT_DISTANCE)
 
     @staticmethod
     def bigLeft():
         logging.info("Left")
-        raw_motor_action.step_n(LATERAL_MOTOR, LEFT_DISTANCE * MULTIPLIER)
+        motor_action.step_n(LATERAL_MOTOR, LEFT_DISTANCE * MULTIPLIER)
 
     @staticmethod
     def right():
         logging.info("Right")
-        raw_motor_action.step_n(LATERAL_MOTOR, RIGHT_DISTANCE)
+        motor_action.step_n(LATERAL_MOTOR, RIGHT_DISTANCE)
 
     @staticmethod
     def bigRight():
         logging.info("Right")
-        raw_motor_action.step_n(LATERAL_MOTOR, RIGHT_DISTANCE * MULTIPLIER)
+        motor_action.step_n(LATERAL_MOTOR, RIGHT_DISTANCE * MULTIPLIER)
 
     @staticmethod
     def up():
         logging.info("Up")
-        raw_motor_action.step_n(MEDIAL_MOTOR, LEFT_DISTANCE)
+        motor_action.step_n(MEDIAL_MOTOR, LEFT_DISTANCE)
 
     @staticmethod
     def bigUp():
         logging.info("Up")
-        raw_motor_action.step_n(MEDIAL_MOTOR, LEFT_DISTANCE * MULTIPLIER)
+        motor_action.step_n(MEDIAL_MOTOR, LEFT_DISTANCE * MULTIPLIER)
 
     @staticmethod
     def down():
         logging.info("Down")
-        raw_motor_action.step_n(MEDIAL_MOTOR, RIGHT_DISTANCE)
+        motor_action.step_n(MEDIAL_MOTOR, RIGHT_DISTANCE)
 
     @staticmethod
     def bigDown():
         logging.info("Down")
-        raw_motor_action.step_n(MEDIAL_MOTOR, RIGHT_DISTANCE * MULTIPLIER)
+        motor_action.step_n(MEDIAL_MOTOR, RIGHT_DISTANCE * MULTIPLIER)
 
     @staticmethod
     def space():

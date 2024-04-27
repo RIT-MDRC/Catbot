@@ -3,7 +3,7 @@ import json
 import logging
 from collections import OrderedDict
 from contextlib import contextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from functools import reduce, wraps
 
 from .utils.logger import configure_logger
@@ -47,7 +47,7 @@ def create_generic_context(
 ):
     if isinstance(device_classes, list):
         device_classes = tuple(device_classes)
-    elif not isinstance(device_classes, tuple):
+    if not isinstance(device_classes, tuple):
         device_classes = (device_classes,)
     ctx = Context(
         allowed_classes=device_classes,
