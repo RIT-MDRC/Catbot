@@ -4,9 +4,9 @@ from asyncio import sleep
 from logging import LogRecord
 
 from component.latch import latch_actions
+from component.limit_switch.io_expander import io_expander_actions
 from component.motor import motor_action
 from component.muscle import muscle_actions
-from component.io_expander import io_expander_actions
 from state_management import configure_device
 from state_management.utils.interval import (
     clear_all,
