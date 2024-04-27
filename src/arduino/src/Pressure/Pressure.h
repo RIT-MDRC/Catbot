@@ -12,8 +12,10 @@ private:
     int _P_MIN;
     uint8_t _PRESSURE_SENSOR_PIN;
     uint8_t _COMPRESSOR_PIN;
+    int _PRESSURE_RANGE;
 
     float _pressure;
+    float _pressurizing;
 
 public:
     Pressure(){};
@@ -23,7 +25,8 @@ public:
         int RESOLUTION_BITS,
         float IDEAL_PRESSURE,
         float SUFFICIENT_PRESSURE,
-        float P_MIN, float P_MAX);
+        float P_MIN, float P_MAX,
+        int PRESSURE_RANGE);
     void init();
     float getPressure();
     bool pressureOk();
