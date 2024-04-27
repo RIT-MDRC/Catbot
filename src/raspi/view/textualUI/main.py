@@ -85,11 +85,15 @@ class DirectionController:
     def space():
         logging.info("Space")
         muscle_actions.contract(MUSCLE, lambda _: True)
+        raw_motor_action.step_n(MEDIAL_MOTOR, 1)
+        raw_motor_action.step_n(MEDIAL_MOTOR, -1)
 
     @staticmethod
     def end_space():
         logging.info("End Space")
         muscle_actions.relax(MUSCLE, lambda _: True)
+        raw_motor_action.step_n(MEDIAL_MOTOR, 1)
+        raw_motor_action.step_n(MEDIAL_MOTOR, -1)
 
 
 class Main_UI(App):
