@@ -1,7 +1,10 @@
 {
 	"input_device": {
 		"left_pressure": 27,
-		"expander_interrupt_pin": 25
+		"expander_interrupt_pin": {
+			"pin":25,
+			"pull_up": true
+		}
 	},
 	"output_device": {
 		"lat_enab": 15,

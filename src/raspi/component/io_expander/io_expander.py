@@ -115,6 +115,7 @@ def parse_io_expander(config: dict) -> IOExpander:
         register_device(input_device_ctx, f"{expander._identifier}.{name}", device)
 
     def on_interrupt():
+        logging.info("Interrupt triggered")
         for pin_flag in expander.mcp.int_flag:
             logging.info(f"pin_flag: {pin_flag}")
             if (
@@ -128,6 +129,5 @@ def parse_io_expander(config: dict) -> IOExpander:
         expander.mcp.clear_ints()
 
     interrupt_pin_action.on_expander_activated(expander.interrupt_pin, on_interrupt)
-    interrupt_pin_action.on_expander_deactivated(expander.interrupt_pin, on_interrupt)
 
     return expander

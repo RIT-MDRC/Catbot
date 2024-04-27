@@ -28,4 +28,6 @@ for n in range(1, 9):
         f"io_expander_1.channel_{n}", print_deactivated
     )
 
-pause()
+while True:
+    sleep(1)
+    logging.info("Main loop running")
