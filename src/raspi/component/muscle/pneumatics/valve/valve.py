@@ -25,6 +25,7 @@ def turn_valve_off(valve: DigitalOutputDevice) -> None:
     Args:
         valve (DigitalOutputDevice): the valve to turn off
     """
+    logging.info("turning valve on %s", valve)
     valve.off()
 
 

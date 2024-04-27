@@ -8,7 +8,7 @@
 		"lat_addr_1": 5,
 		"lat_addr_2": 6,
 		"lat_addr_3": 12,
-		"valve": 22,
+		"valve": 23,
 		"motor_step": 26
 	},
 	"pwm_output_device": {},
