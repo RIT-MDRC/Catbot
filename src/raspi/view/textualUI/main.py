@@ -85,8 +85,6 @@ class DirectionController:
     def space():
         logging.info("Space")
         muscle_actions.contract(MUSCLE, lambda _: True)
-        raw_motor_action.step_n(MEDIAL_MOTOR, 1)
-        raw_motor_action.step_n(MEDIAL_MOTOR, -1)
 
     @staticmethod
     def end_space():
@@ -235,6 +233,8 @@ class Main_UI(App):
                     DirectionController.bigRight()
                 case "down" | "s":
                     DirectionController.bigDown()
+                case "space":
+                    DirectionController.space()
                 case _:
                     pass
             self.last_key = event.key
