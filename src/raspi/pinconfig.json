@@ -87,9 +87,6 @@
 		"pot7": "adc_1.pot7",
 		"pot8": "adc_1.pot8"
 	},
-	"compressor": {
-		"main_compressor": 22
-	},
 	"raw_motor": {
 		"motor_1": {
 			"step_pin": "motor_step",
