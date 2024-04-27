@@ -1,6 +1,10 @@
 {
 	"input_device": {
-		"left_pressure": 14
+		"left_pressure": 27,
+		"expander_interrupt_pin": {
+			"pin": 25,
+			"pull_up": true
+		}
 	},
 	"output_device": {
 		"lat_enab": 15,
@@ -51,6 +55,22 @@
 			}
 		}
 	},
+	"io_expander": {
+		"io_expander_1": {
+			"address": "0x20",
+			"interrupt_pin": "expander_interrupt_pin",
+			"input_channels": {
+				"channel_1": 0,
+				"channel_2": 1,
+				"channel_3": 2,
+				"channel_4": 3,
+				"channel_5": 4,
+				"channel_6": 5,
+				"channel_7": 6,
+				"channel_8": 7
+			}
+		}
+	},
 	"potentiometer": {
 		"pot1": {
 			"input_device": "adc_1.pot1",
@@ -84,6 +104,12 @@
 		"left_muscle": {
 			"pressure": "left_pressure",
 			"valve": "valve"
+		}
+	},
+	"limit_switch": {
+		"__cast": {
+			"left_limit_switch": "io_expander_1.channel_4",
+			"right_limit_switch": "io_expander_1.channel_5"
 		}
 	}
 }
