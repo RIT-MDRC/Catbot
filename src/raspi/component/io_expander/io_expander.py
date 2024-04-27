@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 
 import board
 import busio
-import interrupt_pin as interrupt_pin_action
+from . import interrupt_pin_action
 from adafruit_mcp230xx.mcp23017 import MCP23017, DigitalInOut
 from digitalio import Direction, Pull
 from gpiozero import DigitalInputDevice
@@ -20,6 +20,7 @@ from state_management import (
 USE = False
 
 
+@dataclass
 class IOExpanderInputDevice:
     pin: DigitalInOut
     pin_num: int
@@ -43,6 +44,13 @@ class IOExpanderInputDevice:
     def is_active(self):
         """Check if the pin is active"""
         return self.pin.value
+
+
+if not IOExpanderInputDevice in input_device_ctx.allowed_classes:
+    input_device_ctx.allowed_classes = (
+        IOExpanderInputDevice,
+        *input_device_ctx.allowed_classes,
+    )
 
 
 @device
@@ -98,13 +106,13 @@ def parse_io_expander(config: dict) -> IOExpander:
     expander = IOExpander(**config)
     expander.input_devices = [None] * expander.total_channels
 
-    for name, num in enumerate(expander.input_devices):
+    for name, num in expander.input_channels.items():
         pin = mcp.get_pin(num)
         pin.direction = Direction.INPUT
         pin.pull = Pull.UP
         device = IOExpanderInputDevice(pin, num, name)
         expander.input_devices[num] = device
-        register_device(input_device_ctx, f"{expander._identifier}_{name}", device)
+        register_device(input_device_ctx, f"{expander._identifier}.{name}", device)
 
     def on_interrupt():
         for pin_flag in expander.mcp.int_flag:
