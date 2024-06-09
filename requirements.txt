@@ -1,7 +1,7 @@
 black
 gpiozero
 pygame
-smbus2; sys_platform == 'linux'
+smbus2
 RPi.GPIO; sys_platform == 'linux'
 PyYAML
 python-dotenv

@@ -1,25 +1,26 @@
 from asyncio import sleep
 from dataclasses import dataclass
 
+from gpiozero import DigitalOutputDevice, PWMOutputDevice
 from state_management import (
     create_generic_context,
+    device,
     device_action,
-    device_attr,
     device_parser,
+    identifier,
 )
 
 from .pin import direction_pin_action, speed_pin_action
 
 
-@device_attr(speed_pin_action.ctx, "speed")
-@device_attr(direction_pin_action.ctx, "direction")
+@device
 @dataclass(slots=True)
 class RawMotor:
     """A data class for a raw motor."""
 
-    speed: str
-    direction: str
     stop_duration: float
+    speed: PWMOutputDevice = identifier(speed_pin_action.ctx)
+    direction: DigitalOutputDevice = identifier(direction_pin_action.ctx)
 
 
 ctx = create_generic_context("raw_motor", [RawMotor])
@@ -41,7 +42,6 @@ def set_speed(raw_motor: RawMotor, speed: float) -> bool:
 def get_speed(raw_motor: RawMotor) -> float:
     """Get the speed of a raw motor."""
     return speed_pin_action.get(raw_motor.speed)
-
 
 
 @device_action(ctx)
@@ -74,7 +74,7 @@ def get_direction(raw_motor: RawMotor) -> int:
 @device_action(ctx)
 async def set_direction(raw_motor: RawMotor, direction: int) -> bool:
     """Set the direction of a raw motor."""
-    
+
     if check_direction(raw_motor, direction):
         return True
     if not get_speed(raw_motor) == 0 and not await stop(raw_motor):

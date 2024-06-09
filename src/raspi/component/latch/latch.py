@@ -6,8 +6,9 @@ from time import sleep
 from gpiozero import DigitalOutputDevice
 from state_management import (
     create_generic_context,
-    device_attr,
+    device,
     device_parser,
+    identifier,
     output_device_ctx,
     register_device,
 )
@@ -67,35 +68,18 @@ class VirtualDigitalOutputDevice:
         return f"VirtualDigitalOutputDevice(pin={self.pin}, value={self._value})"
 
 
-@device_attr(latch_pin_actions.data_pin_ctx, "data")
-@device_attr(latch_pin_actions.enab_pin_ctx, "enab")
-@device_attr(latch_pin_actions.addr_pin_ctx, ("addr_1", "addr_2", "addr_3"))
+@device
 @dataclass
 class Latch:
-    data: DigitalOutputDevice
-    enab: DigitalOutputDevice
-    addr_1: DigitalOutputDevice
-    addr_2: DigitalOutputDevice
-    addr_3: DigitalOutputDevice
     pins: dict[str, int]
     queue: list[tuple[str, int]] = field(default_factory=list)
     lock: bool = False
+    data: DigitalOutputDevice = identifier(latch_pin_actions.data_pin_ctx)
+    enab: DigitalOutputDevice = identifier(latch_pin_actions.enab_pin_ctx)
+    addr_1: DigitalOutputDevice = identifier(latch_pin_actions.addr_pin_ctx)
+    addr_2: DigitalOutputDevice = identifier(latch_pin_actions.addr_pin_ctx)
+    addr_3: DigitalOutputDevice = identifier(latch_pin_actions.addr_pin_ctx)
     _identifier: str = field(default="latch")
-
-    def __post_init__(self):
-        if output_device_ctx is None:
-            raise ValueError(
-                "No output device parser found. Makesure to define output device before the latch"
-            )
-        if not VirtualDigitalOutputDevice in output_device_ctx.allowed_classes:
-            output_device_ctx.allowed_classes = (
-                VirtualDigitalOutputDevice,
-                *output_device_ctx.allowed_classes,
-            )
-        for identifier, addr in self.pins.items():
-            dev_identifier = f"{self._identifier}.{identifier}"
-            virtualDevice = VirtualDigitalOutputDevice(self, addr)
-            register_device(output_device_ctx, dev_identifier, virtualDevice)
 
     def set(self, addr: str, state: int) -> None:
         self.queue.append((addr, state))
@@ -135,4 +119,20 @@ def parse_latch(data: dict) -> Latch:
     Returns:
         (Latch) the parsed latch
     """
-    return Latch(**data)
+    latch = Latch(**data)
+
+    if output_device_ctx is None:
+        raise ValueError(
+            "No output device parser found. Makesure to define output device before the latch"
+        )
+    if not VirtualDigitalOutputDevice in output_device_ctx.allowed_classes:
+        output_device_ctx.allowed_classes = (
+            VirtualDigitalOutputDevice,
+            *output_device_ctx.allowed_classes,
+        )
+    for identifier, addr in latch.pins.items():
+        dev_identifier = f"{latch._identifier}.{identifier}"
+        virtualDevice = VirtualDigitalOutputDevice(latch, addr)
+        register_device(output_device_ctx, dev_identifier, virtualDevice)
+
+    return latch

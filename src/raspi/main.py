@@ -21,6 +21,7 @@ def setup():
 def hydrate_screen():
     """Post setup for the screen (after pygame.init() and global variable are set)"""
     logging.info("Hydrating Screen with initial values")
+    logging.info("Hydrating Screen with initial values")
     render_pressure_status(False)
     render_up_status(False)
     render_left_status(False)

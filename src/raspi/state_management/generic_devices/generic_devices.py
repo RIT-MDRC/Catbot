@@ -9,6 +9,8 @@ from state_management.utils import (
     is_dev,
 )
 
+from ..utils.deviceMock import FakeSMBus
+
 __all__ = [
     "input_device_ctx",
     "output_device_ctx",

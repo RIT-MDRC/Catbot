@@ -7,15 +7,8 @@ ADDR1 = "lat_addr_1"
 ADDR2 = "lat_addr_2"
 ADDR3 = "lat_addr_3"
 
-
-def print_latch_state():
-    print(
-        f"E: {latch_pin_actions.get_enab(ENAB)} D: {latch_pin_actions.get_data(DATA)} ADDR: {latch_pin_actions.get_addr(ADDR1)}{latch_pin_actions.get_addr(ADDR2)}{latch_pin_actions.get_addr(ADDR3)}"
-    )
-
-
 configure_device("src/raspi/pinconfig.json")
-print_latch_state()
+
 while True:
     i = input("Enter a pin(d,e,1,2,3): ")
     match i:
@@ -36,4 +29,3 @@ while True:
             latch_pin_actions.toggle_addr(ADDR3)
         case _:
             print("Invalid input")
-    print_latch_state()

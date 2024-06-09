@@ -3,9 +3,8 @@ import json
 import logging
 from collections import OrderedDict
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import reduce, wraps
-from typing import Union
 
 from .utils.logger import configure_logger
 
@@ -18,6 +17,7 @@ class Context:
     stored_keys: set
     masked_device_contexts: list
     on_exit: callable
+    masked_from: "Context" = None
 
 
 DEVICE_CONTEXT_COLLECTION = {}
@@ -45,6 +45,10 @@ def create_generic_context(
     parser_func: callable = None,
     on_exit: callable = None,
 ):
+    if isinstance(device_classes, list):
+        device_classes = tuple(device_classes)
+    elif not isinstance(device_classes, tuple):
+        device_classes = (device_classes,)
     ctx = Context(
         allowed_classes=device_classes,
         parse_device=parser_func,
@@ -76,14 +80,18 @@ def create_masked_context(ctx: Context, device_name: str):
         stored_keys=set(),
         masked_device_contexts=list(),
         on_exit=ctx.on_exit,
+        masked_from=ctx,
     )
     ctx.masked_device_contexts.append(device_name)
     DEVICE_CONTEXT_COLLECTION[device_name] = new_ctx
     return new_ctx
 
 
-def get_context(device_name: str):
-    return DEVICE_CONTEXT_COLLECTION.get(device_name, None)
+def get_context(device_name: str) -> Context:
+    """NOTE: This function will not throw if context is missing. Returns None instead."""
+    logging.debug(f"Getting context for {device_name}")
+    ctx = DEVICE_CONTEXT_COLLECTION.get(device_name, None)
+    return ctx
 
 
 def device_parser(ctx: Context):
@@ -124,66 +132,110 @@ def device_action(ctx: Context):
                     + "/".join([x.__name__ for x in ctx.allowed_classes])
                 )
             value = ctx.store.get(args[0]) if isinstance(args[0], str) else args[0]
+            if value is None and isinstance(args[0], str):
+                raise ValueError(f"{args[0]} not found in {ctx}")
             return func(value, *args[1:], **kwargs)
 
+        return wrapper
         return wrapper
 
     return decorator
 
 
-def device_attr(ctx: Context, attr_name: Union[str, tuple[str]]):
-    if isinstance(attr_name, str):
-        attr_name = (attr_name,)
+@dataclass(slots=True, frozen=True)
+class Identifier:
+    ctx: Context
 
-    def class_wrapper(cls):
-        original_init = cls.__init__
-        # check if the original init needs _indentifer to allow nesting of class decorators
-        needsIdentifier = "_identifier" in inspect.signature(original_init).parameters
 
-        def new_init(self, _identifier: str, **kwargs):
-            def convert_value(key, value):
-                if check_only_class_instance(ctx, value) or key not in attr_name:
-                    # irrelevant attribute values
-                    return value
+def identifier(ctx: Context):
+    """function used to mark an attribute of a class as an identifier for the device decorator to find and correctly parse the device.
 
-                if isinstance(value, str):
-                    # identifier
-                    if not (value in ctx.store or value in ctx.stored_keys):
-                        raise ValueError(
-                            f"{ctx}: {value} does not exist. Unique identifiers: \n{ctx.stored_keys}"
-                        )
-                    if not value in ctx.stored_keys:
-                        ctx.stored_keys.add(value)
+    Args:
+        ctx (Context): context of where the attribute device is stored
 
-                    return value
+    Returns:
+        Identifier: Identifier class that stores the context for the device decorator to find and correctly parse the device.
+    """
+    return Identifier(ctx)
 
-                # when an attribute's parameter is passed in as an attribute value
-                newDevice = ctx.parse_device(value, _identifier=_identifier)
-                newKey = f"{_identifier}.{key}"
-                register_device(ctx, newKey, newDevice)
-                return newKey
 
-            new_kwargs = {
-                key: convert_value(key, value) for (key, value) in kwargs.items()
-            }
-            if needsIdentifier:
-                new_kwargs["_identifier"] = _identifier
+def device(cls):
+    original_init = cls.__init__
+    needsIdentifier = "_identifier" in inspect.signature(original_init).parameters
+    print(cls, needsIdentifier)
+    identifier_attrs = {
+        k: v.ctx for k, v in cls.__dict__.items() if isinstance(v, Identifier)
+    }
 
-            original_init(self, **new_kwargs)
+    def new_init(self, _identifier: str = None, **kwargs):
+        def convert_value(key, value):
+            if key not in identifier_attrs or check_only_class_instance(
+                (ctx := identifier_attrs[key]), value
+            ):
+                # irrelevant attribute values
+                return value
 
-        cls.__init__ = new_init
-        return cls
+            if isinstance(value, str):
+                # identifier
+                if not (value in ctx.store or value in ctx.stored_keys):
+                    raise ValueError(
+                        f"{ctx}: {value} does not exist. Unique identifiers: \n{ctx.stored_keys}"
+                    )
+                if not value in ctx.stored_keys:
+                    ctx.stored_keys.add(value)
 
-    return class_wrapper
+                return value
+
+            # when an attribute's parameter is passed in as an attribute value
+            newDevice = ctx.parse_device(value, _identifier=_identifier)
+            newKey = f"{_identifier}.{key}"
+            register_device(ctx, newKey, newDevice)
+            return newKey
+
+        new_kwargs = {k: convert_value(k, v) for k, v in kwargs.items()}
+        if needsIdentifier:
+            new_kwargs["_identifier"] = _identifier
+        original_init(self, **new_kwargs)
+
+    cls.__init__ = new_init
+    return cls
 
 
 def open_json(file_name: str = "pinconfig.json"):
     with open(file_name, "r") as file:
         config = json.load(file, object_pairs_hook=OrderedDict)
+        config = json.load(file, object_pairs_hook=OrderedDict)
     for key, value in config.items():
         yield key, value
 
 
+def log_states():
+    logging.info("Device configuration complete")
+    logging.info(
+        "Total of %s device parsers configured", len(DEVICE_CONTEXT_COLLECTION)
+    )
+    logging.debug("Device parsers: \n%s", "\n".join(DEVICE_CONTEXT_COLLECTION.keys()))
+    logging.info(
+        "Total of %s devices configured",
+        sum([len(x.store) for x in DEVICE_CONTEXT_COLLECTION.values()]),
+    )
+    logging.debug(
+        "Devices: \n%s",
+        "\n".join(
+            [
+                f"\n{z}:\n\t\t{w}"
+                for z, w in {
+                    f'"{x}"': "\n\t\t".join(
+                        [f'"{i}":{j}' for i, j in y.store.items() if i in y.stored_keys]
+                    )
+                    for x, y in DEVICE_CONTEXT_COLLECTION.items()
+                }.items()
+            ]
+        ),
+    )
+
+
+@contextmanager
 def log_states():
     logging.info("Device configuration complete")
     logging.info(
@@ -226,6 +278,8 @@ def configure_device(
         file_kv_generator is a function that takes in a file name and returns a generator that yields a tuple of the key and the value. This is used to open the pinconfig file and parse the devices.
         The expected behavior is that the file_kv_generator will parse the config and return a generator for the first layer of key and value pairs.
         The key should be the identifier of the device parser and the value should be the object with device identifier and attributes.
+        The expected behavior is that the file_kv_generator will parse the config and return a generator for the first layer of key and value pairs.
+        The key should be the identifier of the device parser and the value should be the object with device identifier and attributes.
 
     WARNING:
         This method will skip any parser that was not registered in the device parser list.
@@ -233,17 +287,58 @@ def configure_device(
     """
     configure_logger(log_level)
     logging.info("Configuring devices...")
+    configure_logger(log_level)
+    logging.info("Configuring devices...")
     for key, config in file_kv_generator(file_name):
         ctx = get_context(key)
         if ctx is None:
             logging.warning(f"Context for {key} not found. Skipping...")
+        ctx = get_context(key)
+        if ctx is None:
+            logging.warning(f"Context for {key} not found. Skipping...")
             continue
+        if ctx.masked_from and (casted_devices := config.get("__cast", None)):
+            for masked_key, masked_device_identifier in casted_devices.items():
+                if not isinstance(masked_device_identifier, str):
+                    raise ValueError(
+                        f"Masked device {masked_device_identifier} is not a valid identifier in {ctx}"
+                    )
+                casting_device = ctx.masked_from.store.get(masked_device_identifier)
+                if casting_device is None:
+                    raise ValueError(
+                        f"Masked device {masked_device_identifier} not found in {ctx.masked_from}"
+                    )
+                register_device(ctx, masked_key, casting_device)
+            del config["__cast"]
         for key, device_attr in config.items():
+            device = ctx.parse_device(device_attr, _identifier=key)
+            register_device(ctx, key, device)
             device = ctx.parse_device(device_attr, _identifier=key)
             register_device(ctx, key, device)
 
     log_states()
+    log_states()
     logging.info("Device configuration complete")
+
+
+@contextmanager
+def configure_device_w_context(
+    file_name: str = "pinconfig.json",
+    file_kv_generator: callable = open_json,
+    log_level: str = "Debug",
+):
+    configure_device(
+        file_name=file_name, file_kv_generator=file_kv_generator, log_level=log_level
+    )
+
+    yield
+
+    logging.info("Exiting system...")
+    for ctx in DEVICE_CONTEXT_COLLECTION.values():
+        if ctx.on_exit is not None:
+            ctx.on_exit()
+    logging.info("Successfully Exiting system...")
+    logging.shutdown()
 
 
 @contextmanager

@@ -11,9 +11,12 @@
 	},
 	"pwm_output_device": {
 		"motor_1_speed": {
-			"pin":4,
+			"pin": 4,
 			"frequency": 1000
 		}
+	},
+	"smbus2": {
+		"smbus": 1
 	},
 	"latch": {
 		"motor_latch": {
@@ -33,6 +36,39 @@
 				"motor_8": 7
 			}
 		}
+	},
+	"adc": {
+		"adc_1": {
+			"i2c": "smbus",
+			"address": "0x48",
+			"power_down": "0b01",
+			"input_devices": {
+				"pot1": 0,
+				"pot2": 1,
+				"pot3": 2,
+				"pot4": 3,
+				"pot5": 4,
+				"pot6": 5,
+				"pot7": 6,
+				"pot8": 7
+			}
+		}
+	},
+	"potentiometer": {
+		"pot1": {
+			"input_device": "adc_1.pot1",
+			"max_degree": 285,
+			"min_degree": 0,
+			"max_data": 4095,
+			"min_data": 0
+		},
+		"pot2": "adc_1.pot2",
+		"pot3": "adc_1.pot3",
+		"pot4": "adc_1.pot4",
+		"pot5": "adc_1.pot5",
+		"pot6": "adc_1.pot6",
+		"pot7": "adc_1.pot7",
+		"pot8": "adc_1.pot8"
 	},
 	"compressor": {
 		"main_compressor": 22

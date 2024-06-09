@@ -50,6 +50,9 @@ class FakeDigitalOutputDevice:
     def __repr__(self) -> str:
         return f"FakeDigitalOutputDevice(pin={self.pin}, value={self.value})"
 
+    def __repr__(self) -> str:
+        return f"FakeDigitalOutputDevice(pin={self.pin}, value={self.value})"
+
 
 class FakeDigitalInputDevice:
     pin: int
@@ -80,15 +83,20 @@ class FakeDigitalInputDevice:
     def __repr__(self) -> str:
         return f"FakeDigitalInputDevice(pin={self.pin}, value={self.value}, is_active={self.is_active})"
 
+    def __repr__(self) -> str:
+        return f"FakeDigitalInputDevice(pin={self.pin}, value={self.value}, is_active={self.is_active})"
+
 
 class FakePWMOutputDevice:
     pin: int
     value: float
     frequency: int
+    frequency: int
 
     def __init__(self, pin: int, initial_value=0.0, frequency=1000):
         self.pin = pin
         self.value = initial_value
+        self.frequency = frequency
         self.frequency = frequency
 
     @value_change
@@ -129,3 +137,218 @@ class FakePWMOutputDevice:
 
     def __repr__(self) -> str:
         return f"FakePWMOutputDevice(pin={self.pin}, value={self.value})"
+
+
+class FakeSMBus:
+    def __init__(self, bus: int):
+        self.bus = bus
+
+    def write_quick(self, i2c_addr, force=None):
+        """
+        Perform quick transaction. Throws IOError if unsuccessful.
+        :param i2c_addr: i2c address
+        :type i2c_addr: int
+        :param force:
+        :type force: Boolean
+        """
+        pass
+
+    def read_byte(self, i2c_addr, force=None):
+        """
+        Read a single byte from a device.
+
+        :rtype: int
+        :param i2c_addr: i2c address
+        :type i2c_addr: int
+        :param force:
+        :type force: Boolean
+        :return: Read byte value
+        """
+        pass
+
+    def write_byte(self, i2c_addr, value, force=None):
+        """
+        Write a single byte to a device.
+
+        :param i2c_addr: i2c address
+        :type i2c_addr: int
+        :param value: value to write
+        :type value: int
+        :param force:
+        :type force: Boolean
+        """
+        pass
+
+    def read_byte_data(self, i2c_addr, register, force=None):
+        """
+        Read a single byte from a designated register.
+
+        :param i2c_addr: i2c address
+        :type i2c_addr: int
+        :param register: Register to read
+        :type register: int
+        :param force:
+        :type force: Boolean
+        :return: Read byte value
+        :rtype: int
+        """
+        pass
+
+    def write_byte_data(self, i2c_addr, register, value, force=None):
+        """
+        Write a byte to a given register.
+
+        :param i2c_addr: i2c address
+        :type i2c_addr: int
+        :param register: Register to write to
+        :type register: int
+        :param value: Byte value to transmit
+        :type value: int
+        :param force:
+        :type force: Boolean
+        :rtype: None
+        """
+        pass
+
+    def read_word_data(self, i2c_addr, register, force=None):
+        """
+        Read a single word (2 bytes) from a given register.
+
+        :param i2c_addr: i2c address
+        :type i2c_addr: int
+        :param register: Register to read
+        :type register: int
+        :param force:
+        :type force: Boolean
+        :return: 2-byte word
+        :rtype: int
+        """
+        pass
+
+    def write_word_data(self, i2c_addr, register, value, force=None):
+        """
+        Write a single word (2 bytes) to a given register.
+
+        :param i2c_addr: i2c address
+        :type i2c_addr: int
+        :param register: Register to write to
+        :type register: int
+        :param value: Word value to transmit
+        :type value: int
+        :param force:
+        :type force: Boolean
+        :rtype: None
+        """
+        pass
+
+    def process_call(self, i2c_addr, register, value, force=None):
+        """
+        Executes a SMBus Process Call, sending a 16-bit value and receiving a 16-bit response
+
+        :param i2c_addr: i2c address
+        :type i2c_addr: int
+        :param register: Register to read/write to
+        :type register: int
+        :param value: Word value to transmit
+        :type value: int
+        :param force:
+        :type force: Boolean
+        :rtype: int
+        """
+        pass
+
+    def read_block_data(self, i2c_addr, register, force=None):
+        """
+        Read a block of up to 32-bytes from a given register.
+
+        :param i2c_addr: i2c address
+        :type i2c_addr: int
+        :param register: Start register
+        :type register: int
+        :param force:
+        :type force: Boolean
+        :return: List of bytes
+        :rtype: list
+        """
+        pass
+
+    def write_block_data(self, i2c_addr, register, data, force=None):
+        """
+        Write a block of byte data to a given register.
+
+        :param i2c_addr: i2c address
+        :type i2c_addr: int
+        :param register: Start register
+        :type register: int
+        :param data: List of bytes
+        :type data: list
+        :param force:
+        :type force: Boolean
+        :rtype: None
+        """
+        pass
+
+    def block_process_call(self, i2c_addr, register, data, force=None):
+        """
+        Executes a SMBus Block Process Call, sending a variable-size data
+        block and receiving another variable-size response
+
+        :param i2c_addr: i2c address
+        :type i2c_addr: int
+        :param register: Register to read/write to
+        :type register: int
+        :param data: List of bytes
+        :type data: list
+        :param force:
+        :type force: Boolean
+        :return: List of bytes
+        :rtype: list
+        """
+        pass
+
+    def read_i2c_block_data(self, i2c_addr, register, length, force=None):
+        """
+        Read a block of byte data from a given register.
+
+        :param i2c_addr: i2c address
+        :type i2c_addr: int
+        :param register: Start register
+        :type register: int
+        :param length: Desired block length
+        :type length: int
+        :param force:
+        :type force: Boolean
+        :return: List of bytes
+        :rtype: list
+        """
+        print(f"Reading {length} bytes from {i2c_addr} at register {register}")
+
+    def write_i2c_block_data(self, i2c_addr, register, data, force=None):
+        """
+        Write a block of byte data to a given register.
+
+        :param i2c_addr: i2c address
+        :type i2c_addr: int
+        :param register: Start register
+        :type register: int
+        :param data: List of bytes
+        :type data: list
+        :param force:
+        :type force: Boolean
+        :rtype: None
+        """
+        print(f"Writing {data} to {i2c_addr} at register {register}")
+
+    def i2c_rdwr(self, *i2c_msgs):
+        """
+        Combine a series of i2c read and write operations in a single
+        transaction (with repeated start bits but no stop bits in between).
+
+        This method takes i2c_msg instances as input, which must be created
+        first with :py:meth:`i2c_msg.read` or :py:meth:`i2c_msg.write`.
+
+        :param i2c_msgs: One or more i2c_msg class instances.
+        :type i2c_msgs: i2c_msg
+        :rtype: None
+        """
+        pass
