@@ -1,10 +1,10 @@
 import logging
-from time import sleep
 from dataclasses import dataclass, field
+from time import sleep
 
 from gpiozero import DigitalOutputDevice
 from state_management import (
-    create_generic_context,
+    create_context,
     device,
     device_action,
     device_parser,
@@ -25,7 +25,7 @@ class RawMotor:
     direction_pin: DigitalOutputDevice = identifier(step_pin_action.direction_ctx)
 
 
-ctx = create_generic_context("raw_motor", (RawMotor,))
+ctx = create_context("raw_motor", (RawMotor,))
 
 
 @device_parser(ctx)
