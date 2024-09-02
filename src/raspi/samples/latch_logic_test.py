@@ -1,5 +1,5 @@
 from component.latch.pin import latch_pin_actions
-from state_management.device import configure_device
+from state_management import configure_device
 
 ENAB = "lat_enab"
 DATA = "lat_data"

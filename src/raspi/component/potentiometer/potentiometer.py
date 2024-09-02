@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 from component.adc import ADC_action
-from state_management.device import (
+from state_management import (
     create_context,
     device,
     device_action,

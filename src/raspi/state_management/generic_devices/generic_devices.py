@@ -1,7 +1,7 @@
 import logging
 
 from gpiozero import DigitalInputDevice, DigitalOutputDevice, PWMOutputDevice
-from state_management.device import create_generic_context, device_parser
+from state_management import create_generic_context, device_parser
 from state_management.utils import (
     FakeDigitalInputDevice,
     FakeDigitalOutputDevice,
@@ -39,15 +39,23 @@ def parse_input_device(config):
     Returns:
         (DigitalInputDevice) the new input device
     """
-    if not isinstance(config, int):
-        raise ValueError("Must be a pin number. Got " + str(config))
+    if isinstance(config, int):
+        if is_dev():
+            logging.info(
+                "dev environment detected. Mocking digital input device for pin %s",
+                config,
+            )
+            return FakeDigitalInputDevice(config)
+        else:
+            return DigitalInputDevice(config)
+    config.pop("_identifier")
     if is_dev():
         logging.info(
             "dev environment detected. Mocking digital input device for pin %s", config
         )
-        return FakeDigitalInputDevice(config)
+        return FakeDigitalInputDevice(**config)
     else:
-        return DigitalInputDevice(config)
+        return DigitalInputDevice(**config)
 
 
 output_device_ctx = create_generic_context(

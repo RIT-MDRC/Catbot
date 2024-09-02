@@ -1,6 +1,5 @@
-import asyncio
+import logging
 from dataclasses import dataclass, field
-from multiprocessing import Process
 from time import sleep
 
 from gpiozero import DigitalOutputDevice
@@ -16,6 +15,7 @@ from state_management.utils.deviceMock import value_change
 
 from .pin import latch_pin_actions
 
+USE = False
 ENABLE_DURATION = 0.1
 
 
@@ -29,8 +29,9 @@ def bitfield(n, length=3):
 
 class VirtualDigitalOutputDevice:
     _value: int
+    latch: "Latch"
 
-    def __init__(self, latch, addr):
+    def __init__(self, latch: "Latch", addr):
         self.latch = latch
         self.addr = addr
         self._value = 0
@@ -38,18 +39,21 @@ class VirtualDigitalOutputDevice:
 
     @value_change
     def on(self):
-        self._value = 1
+        self.value = 1
 
     @value_change
     def off(self):
-        self._value = 0
+        self.value = 0
 
     @value_change
     def toggle(self):
         new_val = 1 - self._value
-        self._value = new_val
+        self.value = new_val
 
     def set_value(self, value):
+        logging.info("setting VirtualDigitalOutputDevice value")
+        if self._value == value:
+            return
         self.latch.set(self.addr, value)
         # this might need to change in the future as it might need to be check if the latch has actually switched state
         self._value = value
@@ -87,6 +91,7 @@ class Latch:
             self.process_queue()
 
     def process_queue(self):
+        logging.info("Processing Queue on the latch")
         self.lock = True
         while len(self.queue) > 0:
             addr, newState = self.queue.pop(0)

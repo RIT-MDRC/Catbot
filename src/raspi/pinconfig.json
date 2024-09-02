@@ -1,13 +1,20 @@
 {
 	"input_device": {
-		"left_pressure": 27
+		"left_pressure": 27,
+		"expander_interrupt_pin": {
+			"pin": 25,
+			"pull_up": true
+		}
 	},
 	"output_device": {
 		"lat_enab": 15,
 		"lat_data": 20,
 		"lat_addr_1": 5,
 		"lat_addr_2": 6,
-		"lat_addr_3": 12
+		"lat_addr_3": 12,
+		"valve": 24,
+		"motor_step_1": 26,
+		"motor_step_2": 16
 	},
 	"pwm_output_device": {
 		"motor_1_speed": {
@@ -19,21 +26,21 @@
 		"smbus": 1
 	},
 	"latch": {
-		"motor_latch": {
-			"data": "lat_data",
+		"latch_1": {
 			"enab": "lat_enab",
+			"data": "lat_data",
 			"addr_1": "lat_addr_1",
 			"addr_2": "lat_addr_2",
 			"addr_3": "lat_addr_3",
 			"pins": {
-				"motor_1": 0,
-				"motor_2": 1,
-				"motor_3": 2,
-				"motor_4": 3,
-				"motor_5": 4,
-				"motor_6": 5,
-				"motor_7": 6,
-				"motor_8": 7
+				"latch_1": 0,
+				"latch_2": 1,
+				"latch_3": 2,
+				"latch_4": 3,
+				"latch_5": 4,
+				"latch_6": 5,
+				"latch_7": 6,
+				"latch_8": 7
 			}
 		}
 	},
@@ -51,6 +58,22 @@
 				"pot6": 5,
 				"pot7": 6,
 				"pot8": 7
+			}
+		}
+	},
+	"io_expander": {
+		"io_expander_1": {
+			"address": "0x20",
+			"interrupt_pin": "expander_interrupt_pin",
+			"input_channels": {
+				"channel_1": 0,
+				"channel_2": 1,
+				"channel_3": 2,
+				"channel_4": 3,
+				"channel_5": 4,
+				"channel_6": 5,
+				"channel_7": 6,
+				"channel_8": 7
 			}
 		}
 	},
@@ -75,15 +98,24 @@
 	},
 	"raw_motor": {
 		"motor_1": {
-			"speed": "motor_1_speed",
-			"direction": "motor_latch.motor_5",
-			"stop_duration": 1
+			"step_pin": "motor_step_1",
+			"direction_pin": "latch_1.latch_1"
+		},
+		"motor_2": {
+			"step_pin": "motor_step_2",
+			"direction_pin": "latch_1.latch_2"
 		}
 	},
 	"muscle": {
 		"left_muscle": {
 			"pressure": "left_pressure",
-			"valve": 24
+			"valve": "valve"
+		}
+	},
+	"limit_switch": {
+		"__cast": {
+			"left_limit_switch": "io_expander_1.channel_4",
+			"right_limit_switch": "io_expander_1.channel_5"
 		}
 	}
 }

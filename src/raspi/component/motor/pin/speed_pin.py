@@ -1,3 +1,4 @@
+import logging
 from gpiozero import PWMOutputDevice
 from state_management import create_masked_context, device_action, pwm_output_device_ctx
 
@@ -24,6 +25,7 @@ def set(speedPin: PWMOutputDevice, speed: int) -> float:
         speedPin (PWMOutputDevice): the device to set the speed of
         speed (int): the speed value to set. The code will take an absolute value of the speed
     """
+    logging.info("Setting speed device to %s", speed)
     speedPin.value = abs(speed)
     return get(speedPin)
 
@@ -38,6 +40,7 @@ def stop(speedPin: PWMOutputDevice) -> float:
     """
     speedPin.off()
     return get(speedPin)
+
 
 @device_action(ctx)
 def check_speed(speedPin: PWMOutputDevice, speed: float) -> bool:

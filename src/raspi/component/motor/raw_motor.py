@@ -1,29 +1,31 @@
-from asyncio import sleep
-from dataclasses import dataclass
+import logging
+from dataclasses import dataclass, field
+from time import sleep
 
-from gpiozero import DigitalOutputDevice, PWMOutputDevice
+from gpiozero import DigitalOutputDevice
 from state_management import (
-    create_generic_context,
+    create_context,
     device,
     device_action,
     device_parser,
     identifier,
 )
 
-from .pin import direction_pin_action, speed_pin_action
+from .pin import step_pin_action
 
 
 @device
-@dataclass(slots=True)
+@dataclass
 class RawMotor:
     """A data class for a raw motor."""
 
-    stop_duration: float
-    speed: PWMOutputDevice = identifier(speed_pin_action.ctx)
-    direction: DigitalOutputDevice = identifier(direction_pin_action.ctx)
+    high_duration: float = 0  # seconds but can basically be zero.
+    low_duration: float = 0  # seconds but can basically be zero.
+    step_pin: DigitalOutputDevice = identifier(step_pin_action.step_ctx)
+    direction_pin: DigitalOutputDevice = identifier(step_pin_action.direction_ctx)
 
 
-ctx = create_generic_context("raw_motor", [RawMotor])
+ctx = create_context("raw_motor", (RawMotor,))
 
 
 @device_parser(ctx)
@@ -33,63 +35,28 @@ def parse_raw_motor(data: dict) -> RawMotor:
 
 
 @device_action(ctx)
-def set_speed(raw_motor: RawMotor, speed: float) -> bool:
-    """Set the speed of a raw motor. The absolute value of the speed will be used."""
-    return speed_pin_action.set(raw_motor.speed, speed) == abs(speed)
+def step_1(motor: RawMotor) -> None:
+    """Step the motor once."""
+    step_pin_action.set_high(motor.step_pin)
+    sleep(motor.high_duration)
+    step_pin_action.set_low(motor.step_pin)
 
 
 @device_action(ctx)
-def get_speed(raw_motor: RawMotor) -> float:
-    """Get the speed of a raw motor."""
-    return speed_pin_action.get(raw_motor.speed)
+def step_n(motor: RawMotor, n: int) -> None:
+    """Step the motor n times."""
+    logging.info("Stepping motor %d times", n)
+    direction = n > 0
+    set_dir(motor, int(direction))
+    logging.info("successfully switched direction")
+    for i in range(abs(n)):
+        step_1(motor)
+        if i != n - 1:
+            sleep(motor.low_duration)
 
 
 @device_action(ctx)
-def check_direction(raw_motor: RawMotor, direction: int) -> bool:
-    """Check the direction of a raw motor."""
-    return direction_pin_action.check_direction(raw_motor.direction, direction)
-
-
-@device_action(ctx)
-def check_speed(raw_motor: RawMotor, speed: float) -> bool:
-    return speed_pin_action.check_speed(raw_motor.speed, abs(speed))
-
-
-@device_action(ctx)
-async def stop(raw_motor: RawMotor) -> bool:
-    """Stop a raw motor."""
-    speed_pin_action.stop(raw_motor.speed) == 0.0
-    await sleep(raw_motor.stop_duration)
-    return speed_pin_action.check_speed(raw_motor.speed, 0.0)
-
-
-@device_action(ctx)
-def get_direction(raw_motor: RawMotor) -> int:
-    """Get the direction of a raw motor.
-    Don't use this function to check the direction of a raw motor. Use `check_direction` instead.
-    """
-    return direction_pin_action.get_direction(raw_motor.direction)
-
-
-@device_action(ctx)
-async def set_direction(raw_motor: RawMotor, direction: int) -> bool:
-    """Set the direction of a raw motor."""
-
-    if check_direction(raw_motor, direction):
-        return True
-    if not get_speed(raw_motor) == 0 and not await stop(raw_motor):
-        raise ValueError("Failed to stop the motor")
-    return direction_pin_action.set_direction(raw_motor.direction, direction)
-
-
-@device_action(ctx)
-async def set_speed_direction(raw_motor: RawMotor, value: float) -> bool:
-    """Set the speed and direction of a raw motor.
-    value: the speed of the motor in percentage (-100 to 100)
-    """
-    if value == 0:
-        return await stop(raw_motor)
-    direction = value < 0
-    if not await set_direction(raw_motor, int(direction)):
-        return False
-    return set_speed(raw_motor, value)
+def set_dir(motor: RawMotor, direction: int) -> None:
+    """Switch the motor direction."""
+    logging.debug("Switching motor direction")
+    step_pin_action.set_direction(motor.direction_pin, direction)
