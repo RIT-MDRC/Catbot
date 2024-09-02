@@ -16,7 +16,15 @@
 		"motor_step_1": 26,
 		"motor_step_2": 16
 	},
-	"pwm_output_device": {},
+	"pwm_output_device": {
+		"motor_1_speed": {
+			"pin": 4,
+			"frequency": 1000
+		}
+	},
+	"smbus2": {
+		"smbus": 1
+	},
 	"latch": {
 		"latch_1": {
 			"enab": "lat_enab",
@@ -35,9 +43,6 @@
 				"latch_8": 7
 			}
 		}
-	},
-	"smbus2": {
-		"smbus": 1
 	},
 	"adc": {
 		"adc_1": {
@@ -87,6 +92,9 @@
 		"pot6": "adc_1.pot6",
 		"pot7": "adc_1.pot7",
 		"pot8": "adc_1.pot8"
+	},
+	"compressor": {
+		"main_compressor": 22
 	},
 	"raw_motor": {
 		"motor_1": {

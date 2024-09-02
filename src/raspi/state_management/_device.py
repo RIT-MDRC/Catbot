@@ -3,7 +3,7 @@ import json
 import logging
 from collections import OrderedDict
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import reduce, wraps
 
 from .utils.logger import configure_logger
@@ -41,13 +41,13 @@ def register_device(ctx: Context, name: str, device):
 
 def create_generic_context(
     generic_device_name: str,
-    device_classes: list,
+    device_classes,
     parser_func: callable = None,
     on_exit: callable = None,
 ):
     if isinstance(device_classes, list):
         device_classes = tuple(device_classes)
-    if not isinstance(device_classes, tuple):
+    elif not isinstance(device_classes, tuple):
         device_classes = (device_classes,)
     ctx = Context(
         allowed_classes=device_classes,
@@ -175,9 +175,9 @@ def device(cls):
 
             if isinstance(value, str):
                 # identifier
-                if not value in ctx.store:
+                if not (value in ctx.store or value in ctx.stored_keys):
                     raise ValueError(
-                        f"{ctx}: {value} does not exist. Unique identifiers: \n{ctx.store}"
+                        f"{ctx}: {value} does not exist. Unique identifiers: \n{ctx.stored_keys}"
                     )
                 if not value in ctx.stored_keys:
                     ctx.stored_keys.add(value)
@@ -204,32 +204,6 @@ def open_json(file_name: str = "pinconfig.json"):
         config = json.load(file, object_pairs_hook=OrderedDict)
     for key, value in config.items():
         yield key, value
-
-
-def log_states():
-    logging.info("Device configuration complete")
-    logging.info(
-        "Total of %s device parsers configured", len(DEVICE_CONTEXT_COLLECTION)
-    )
-    logging.debug("Device parsers: \n%s", "\n".join(DEVICE_CONTEXT_COLLECTION.keys()))
-    logging.info(
-        "Total of %s devices configured",
-        sum([len(x.store) for x in DEVICE_CONTEXT_COLLECTION.values()]),
-    )
-    logging.debug(
-        "Devices: \n%s",
-        "\n".join(
-            [
-                f"\n{z}:\n\t\t{w}"
-                for z, w in {
-                    f'"{x}"': "\n\t\t".join(
-                        [f'"{i}":{j}' for i, j in y.store.items() if i in y.stored_keys]
-                    )
-                    for x, y in DEVICE_CONTEXT_COLLECTION.items()
-                }.items()
-            ]
-        ),
-    )
 
 
 @contextmanager
@@ -308,26 +282,6 @@ def configure_device(
 
     log_states()
     logging.info("Device configuration complete")
-
-
-@contextmanager
-def configure_device_w_context(
-    file_name: str = "pinconfig.json",
-    file_kv_generator: callable = open_json,
-    log_level: str = "Debug",
-):
-    configure_device(
-        file_name=file_name, file_kv_generator=file_kv_generator, log_level=log_level
-    )
-
-    yield
-
-    logging.info("Exiting system...")
-    for ctx in DEVICE_CONTEXT_COLLECTION.values():
-        if ctx.on_exit is not None:
-            ctx.on_exit()
-    logging.info("Successfully Exiting system...")
-    logging.shutdown()
 
 
 @contextmanager

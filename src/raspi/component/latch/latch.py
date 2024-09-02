@@ -27,7 +27,7 @@ def bitfield(n, length=3):
     return [0] * (length - len(res)) + res
 
 
-class LatchDigitalOutputDevice:
+class VirtualDigitalOutputDevice:
     _value: int
     latch: "Latch"
 
@@ -51,7 +51,7 @@ class LatchDigitalOutputDevice:
         self.value = new_val
 
     def set_value(self, value):
-        logging.info("setting LatchDigitalOutputDevice value")
+        logging.info("setting VirtualDigitalOutputDevice value")
         if self._value == value:
             return
         self.latch.set(self.addr, value)
@@ -69,7 +69,7 @@ class LatchDigitalOutputDevice:
         self.set_value(value)
 
     def __repr__(self) -> str:
-        return f"LatchDigitalOutputDevice(pin={self.pin}, value={self._value})"
+        return f"VirtualDigitalOutputDevice(pin={self.pin}, value={self._value})"
 
 
 @device
@@ -130,14 +130,14 @@ def parse_latch(data: dict) -> Latch:
         raise ValueError(
             "No output device parser found. Makesure to define output device before the latch"
         )
-    if not LatchDigitalOutputDevice in output_device_ctx.allowed_classes:
+    if not VirtualDigitalOutputDevice in output_device_ctx.allowed_classes:
         output_device_ctx.allowed_classes = (
-            LatchDigitalOutputDevice,
+            VirtualDigitalOutputDevice,
             *output_device_ctx.allowed_classes,
         )
     for identifier, addr in latch.pins.items():
         dev_identifier = f"{latch._identifier}.{identifier}"
-        virtualDevice = LatchDigitalOutputDevice(latch, addr)
+        virtualDevice = VirtualDigitalOutputDevice(latch, addr)
         register_device(output_device_ctx, dev_identifier, virtualDevice)
 
     return latch
