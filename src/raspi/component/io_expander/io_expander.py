@@ -3,7 +3,6 @@ from dataclasses import dataclass, field
 
 import board
 import busio
-from . import interrupt_pin_action
 from adafruit_mcp230xx.mcp23017 import MCP23017, DigitalInOut
 from digitalio import Direction, Pull
 from gpiozero import DigitalInputDevice
@@ -15,6 +14,8 @@ from state_management import (
     input_device_ctx,
     register_device,
 )
+
+from . import interrupt_pin_action
 
 # Plugin for IOExpander. Set this to True in the sample script file if you use a component that uses the IOExpander
 USE = False
@@ -47,10 +48,7 @@ class IOExpanderInputDevice:
 
 
 if not IOExpanderInputDevice in input_device_ctx.allowed_classes:
-    input_device_ctx.allowed_classes = (
-        IOExpanderInputDevice,
-        *input_device_ctx.allowed_classes,
-    )
+    input_device_ctx.allowed_classes += (IOExpanderInputDevice,)
 
 
 @device
