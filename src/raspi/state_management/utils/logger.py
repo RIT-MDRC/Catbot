@@ -33,7 +33,7 @@ def configure_logger(level: str = "Debug"):
     lvl = map_level(level)
     print(f"Configuring logger {lvl}...")
     if is_dev():
-        print("Dev logger")
+        print("Using dev logger")
         start_time = d.now().strftime("%Y-%m-%d_%H-%M-%S")
         logging.basicConfig(
             filename=f".log/{start_time}.DEV.{level}.log",
@@ -42,7 +42,7 @@ def configure_logger(level: str = "Debug"):
             force=True,
         )
     else:
-        print("Regular logger")
+        print("Using regular logger")
         start_time = d.now().strftime("%Y-%m-%d.%H:%M:%S")
         filename = __main__.__file__.split("/")[-1].split(".")[0]
         logging.basicConfig(

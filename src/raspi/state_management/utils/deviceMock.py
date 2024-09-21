@@ -58,10 +58,11 @@ class FakeDigitalInputDevice:
     when_activated = None
     when_deactivated = None
 
-    def __init__(self, pin: int, initial_value: int = 0, initial_is_state=False):
+    def __init__(self, pin: int, initial_value: int = 0, initial_is_state=False, pull_up = False):
         self.pin = pin
         self.value = initial_value
         self.is_active = initial_is_state
+        # idk what pull_up is supposed to be but that parameter needs to be there or else the program crashes - will investigate later
 
     @value_change
     def toggle(self):
