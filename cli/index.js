@@ -87,13 +87,10 @@ yargs(hideBin(process.argv))
 			const sourcePath =
 				args.D || args.dev ? DEV_SRC_FOLDER : DEFAULT_FOLDER;
 			const childProcess = spawn(
-				PYTHON_COMMAND,
+				`python3`,
 				[`${sourcePath}/raspi/samples/${file}.py`],
 				{
-					env: {
-						...process.env,
-						PYTHONPATH: sourcePath + '/raspi',
-					},
+					env: { ...process.env, PYTHONPATH: sourcePath + '/raspi' },
 					stdio: 'inherit',
 				}
 			);

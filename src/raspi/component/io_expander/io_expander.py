@@ -3,7 +3,6 @@ from dataclasses import dataclass, field
 
 import board
 import busio
-from . import interrupt_pin_action
 from state_management.utils import is_dev, FakeMCP23017, FakeDirection, FakePull
 from gpiozero import DigitalInputDevice
 from state_management import (
@@ -14,6 +13,8 @@ from state_management import (
     input_device_ctx,
     register_device,
 )
+
+from . import interrupt_pin_action
 
 if not is_dev():
     from digitalio import Direction, Pull
@@ -49,6 +50,10 @@ class IOExpanderInputDevice:
         return self.pin.value
 
 
+if not IOExpanderInputDevice in input_device_ctx.allowed_classes:
+    input_device_ctx.allowed_classes += (IOExpanderInputDevice,)
+
+
 @device
 @dataclass
 class IOExpander:
@@ -67,7 +72,7 @@ class IOExpander:
 
     """
 
-    mcp: FakeMCP23017 # maybe use a union
+    mcp: FakeMCP23017
     _identifier: str
 
     address: int  # hex address type is string in pinconfig.json
@@ -86,11 +91,8 @@ ctx = create_context("io_expander", IOExpander)
 def parse_io_expander(config: dict) -> IOExpander:
     if not "address" in config:
         raise ValueError("Missing address in config (io_expander.address)")
-
     hex_addr = int(config["address"], 16)
-    mcp = FakeMCP23017()
-    if not is_dev():
-        mcp = MCP23017(busio.I2C(board.SCL, board.SDA), address=hex_addr)
+    mcp = MCP23017(busio.I2C(board.SCL, board.SDA), address=hex_addr)
 
     # https://docs.circuitpython.org/projects/mcp230xx/en/latest/examples.html#mcp230xx-event-detect-interrupt
     # Set up to check all the port B pins (pins 8-15) w/interrupts!
@@ -104,12 +106,6 @@ def parse_io_expander(config: dict) -> IOExpander:
 
     expander = IOExpander(**config)
     expander.input_devices = [None] * expander.total_channels
-
-    if not IOExpanderInputDevice in input_device_ctx.allowed_classes:
-        input_device_ctx.allowed_classes = (
-            IOExpanderInputDevice,
-            *input_device_ctx.allowed_classes,
-        )
 
     for name, num in expander.input_channels.items():
         pin = mcp.get_pin(num)

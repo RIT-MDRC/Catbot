@@ -1,7 +1,7 @@
 import logging
 
 from gpiozero import DigitalInputDevice, DigitalOutputDevice, PWMOutputDevice
-from state_management import create_generic_context, device_parser
+from state_management.device import create_generic_context, device_parser
 from state_management.utils import (
     FakeDigitalInputDevice,
     FakeDigitalOutputDevice,

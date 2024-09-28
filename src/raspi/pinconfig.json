@@ -2,7 +2,7 @@
 	"input_device": {
 		"left_pressure": 27,
 		"expander_interrupt_pin": {
-			"pin": 25,
+			"pin":25,
 			"pull_up": true
 		}
 	},
@@ -11,10 +11,7 @@
 		"lat_data": 20,
 		"lat_addr_1": 5,
 		"lat_addr_2": 6,
-		"lat_addr_3": 12,
-		"valve": 24,
-		"motor_step_1": 26,
-		"motor_step_2": 16
+		"lat_addr_3": 12
 	},
 	"pwm_output_device": {
 		"motor_1_speed": {
@@ -26,21 +23,21 @@
 		"smbus": 1
 	},
 	"latch": {
-		"latch_1": {
-			"enab": "lat_enab",
+		"motor_latch": {
 			"data": "lat_data",
+			"enab": "lat_enab",
 			"addr_1": "lat_addr_1",
 			"addr_2": "lat_addr_2",
 			"addr_3": "lat_addr_3",
 			"pins": {
-				"latch_1": 0,
-				"latch_2": 1,
-				"latch_3": 2,
-				"latch_4": 3,
-				"latch_5": 4,
-				"latch_6": 5,
-				"latch_7": 6,
-				"latch_8": 7
+				"motor_1": 0,
+				"motor_2": 1,
+				"motor_3": 2,
+				"motor_4": 3,
+				"motor_5": 4,
+				"motor_6": 5,
+				"motor_7": 6,
+				"motor_8": 7
 			}
 		}
 	},
@@ -48,7 +45,7 @@
 		"adc_1": {
 			"i2c": "smbus",
 			"address": "0x48",
-			"power_down": "0b01",
+			"power_down": 3,
 			"input_devices": {
 				"pot1": 0,
 				"pot2": 1,
@@ -78,42 +75,35 @@
 		}
 	},
 	"potentiometer": {
-		"pot1": {
-			"input_device": "adc_1.pot1",
-			"max_degree": 285,
-			"min_degree": 0,
-			"max_data": 4095,
-			"min_data": 0
-		},
-		"pot2": "adc_1.pot2",
-		"pot3": "adc_1.pot3",
-		"pot4": "adc_1.pot4",
-		"pot5": "adc_1.pot5",
-		"pot6": "adc_1.pot6",
-		"pot7": "adc_1.pot7",
-		"pot8": "adc_1.pot8"
+		"__cast": {
+			"pot1": "adc_1.pot1",
+			"pot2": "adc_1.pot2",
+			"pot3": "adc_1.pot3",
+			"pot4": "adc_1.pot4",
+			"pot5": "adc_1.pot5",
+			"pot6": "adc_1.pot6",
+			"pot7": "adc_1.pot7",
+			"pot8": "adc_1.pot8"
+		}
 	},
 	"compressor": {
 		"main_compressor": 22
 	},
 	"raw_motor": {
 		"motor_1": {
-			"step_pin": "motor_step_1",
-			"direction_pin": "latch_1.latch_1"
-		},
-		"motor_2": {
-			"step_pin": "motor_step_2",
-			"direction_pin": "latch_1.latch_2"
+			"speed": "motor_1_speed",
+			"direction": "motor_latch.motor_5",
+			"stop_duration": 1
 		}
 	},
 	"muscle": {
 		"left_muscle": {
 			"pressure": "left_pressure",
-			"valve": "valve"
+			"valve": 24
 		}
 	},
-	"limit_switch": {
-		"__cast": {
+	"limit_switch":{
+		"__cast":{
 			"left_limit_switch": "io_expander_1.channel_4",
 			"right_limit_switch": "io_expander_1.channel_5"
 		}

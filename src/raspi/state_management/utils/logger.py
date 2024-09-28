@@ -22,16 +22,6 @@ def map_level(level: str) -> int:
     return LOG_LEVEL.get(level, logging.DEBUG)
 
 
-def set_log_event_function(callback: callable):
-    """Set a callback function to be called when a log is done. The callback function must accept logRecord as the first argument and return True to be recorded or False to be ignored.
-    Although it is not an intended way to use this as a event handler it is a simple and effective way to use it.
-
-    Args:
-        callback (callable): function to be called when a log is done
-    """
-    logging.root.addFilter(callback)
-
-
 def configure_logger(level: str = "Debug"):
     """
     Configure the logger.
@@ -39,7 +29,7 @@ def configure_logger(level: str = "Debug"):
     :param level: the level to log at
     """
     lvl = map_level(level)
-    print(f"Configuring logger {level}...")
+    print(f"Configuring logger {lvl}...")
     start_time = d.now().strftime("%Y-%m-%d.%H:%M:%S")
     filename = __main__.__file__.split("/")[-1].split(".")[0]
     logging.basicConfig(

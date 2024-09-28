@@ -1,8 +1,8 @@
 black
 gpiozero
+pygame
 smbus2
 RPi.GPIO; sys_platform == 'linux'
 PyYAML
 python-dotenv
-textual
-adafruit_mcp230xx
+adafruit_mcp230xx; sys_platform == 'linux'

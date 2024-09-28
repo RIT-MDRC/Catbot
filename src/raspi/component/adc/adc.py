@@ -2,11 +2,9 @@ import logging
 from dataclasses import dataclass
 
 from component.smbus import smbus_actions
-from smbus2 import i2c_msg
 from state_management import (
     create_context,
     device,
-    device_action,
     device_parser,
     identifier,
     register_device,
@@ -46,19 +44,6 @@ def parse_analog_input_device(config: dict):
     return ADCAnalogInputDevice(**config)
 
 
-@device_action(analog_input_device_ctx)
-def get_data(analog_input_device: ADCAnalogInputDevice) -> list[int]:
-    """analog input device's bytearr to data
-
-    Args:
-        analog_input_device (ADC_action.ADCAnalogInputDevice): analog input device object
-
-    Returns:
-        list[int] = bytearr of the analog input device
-    """
-    return analog_input_device.value[1]
-
-
 @device
 @dataclass
 class ADC:
@@ -72,17 +57,16 @@ class ADC:
     _identifier: str
     i2c: smbus_actions.SMBus = identifier(smbus_actions.ctx)
 
-    def read_data(self, register: list):
+    def read_data(self, register: list, start_register=0x00):
         """
         Get the degrees from the adc device.
 
         :param register: list = register to read from
+        :param start_register: int = register to start reading from
         :return: int = value read
         """
-        # print(str(self.address) + " {0:08b}".format(register))
-        write = i2c_msg.write(self.address, [register])
-        read = i2c_msg.read(self.address, 2)
-        return smbus_actions.i2c_rdwr(self.i2c, write, read)  # [[write data], [0,0]]
+        smbus_actions.write_byte(self.i2c, self.address, register, start_register)
+        return smbus_actions.read_byte(self.i2c, self.address, start_register)
 
 
 ctx = create_context("adc", ADC)
@@ -95,11 +79,11 @@ def parse_adc(config: dict):
 
     Config:
     {
-        address: str = i2c address of the adc (i.e. "0x48" or "48" will be converted to integers)
+        address: int = i2c address of the adc
         i2c: SMBus = i2c object
-        power_down: str = power down selection (i.e. "0b00" or "10" will be converted to integers)
-        input_devices: dict = {
-            "name_of_device": int = channel of the device on the adc (0 ~ 7)
+        power_down: 0,1,2,3 = power down selection will be converted to 2 bit binary
+        input_devices: {
+            "name_of_device": int = channel of the device on the adc
             ...
         }
     }
@@ -107,16 +91,14 @@ def parse_adc(config: dict):
     NOTE: Documentation for the logic explained here
     https://drive.google.com/open?id=1gvnOic5LwNqlCqx-z4vHShFm0rJplFgQ&disco=AAABJ0xEwNY
     """
-    config["power_down"] = int(config["power_down"], 2)
     if config["power_down"] not in [0, 1, 2, 3]:
         raise ValueError(
-            "Power down must be 00, 01, 10, or 11. Got "
-            + "{0:02b}".format(config["power_down"])
+            "Power down must be 0, 1, 2, or 3. Got " + str(config["power_down"])
         )
-    config["address"] = int(config["address"], 16)
+    config["address"] = convert_string_hex_to_int(config["address"])
     adc = ADC(**config)
 
-    power_down = config["power_down"]
+    power_down = config["power_down"]  # 00, 01, 10, 11
     for name, addr in adc.input_devices.items():
         # 1 bit for Single-Ended/Differential Inputs and 3 channel bits
         register: int = 1 << 3 | channel_to_adc_addr(addr)
@@ -148,3 +130,15 @@ def channel_to_adc_addr(channel: int) -> int:
         raise ValueError("Channel must be between 0 and 7. Got " + str(channel))
     bit = channel % 4
     return bit << 1 | (channel // 4)
+
+
+def convert_string_hex_to_int(hex_str: str) -> int:
+    """
+    Convert a string hex value to an int.
+
+    :param hex_str: str = hex value
+    :return: int = int value
+
+    NOTE: hex_str can take "0x00" or "00", if "00" is passed base is taken from the second param in the int() function else it is automatically taken from the 0x prefix
+    """
+    return int(hex_str, 16)
