@@ -1,5 +1,6 @@
 import logging
 from functools import wraps
+from enum import Enum
 
 
 def value_change(func: callable) -> callable:
@@ -358,3 +359,50 @@ class FakeSMBus:
         :rtype: None
         """
         pass
+
+
+class FakeMCP23017:
+    interrupt_enable : int
+    interrupt_configuration : int
+    io_control : int
+    int_flag : list
+
+    def __init__(self):
+        pass
+
+    def clear_inta():
+        """
+        Clears port A interrupts.
+        """
+        pass
+
+    def clear_intb():
+        """
+        Clears port B interrupts.
+        """
+        pass
+
+    def clear_ints():
+        """
+        Clears interrupts by reading INTCAP.
+        """
+        pass
+
+    def get_pin(pin):
+        """
+        Convenience function to create an instance of the DigitalInOut class pointing at the specified pin of this
+        MCP23017 device.
+        """
+        pass
+
+
+class FakeDirection(Enum):
+    INPUT = True
+    OUTPUT = False
+
+
+class FakePull(Enum):
+    UP = True
+    DOWN = False
+
+
