@@ -16,7 +16,7 @@ Pressure::Pressure(
     int RESOLUTION_BITS,
     float IDEAL_PRESSURE,
     float SUFFICIENT_PRESSURE,
-    float P_MIN, float P_MAX, int PRESSURE_RANGE)
+    float P_MIN, float P_MAX)
 {
   this->_PRESSURE_SENSOR_PIN = PRESSURE_SENSOR_PIN;
   this->_COMPRESSOR_PIN = COMPRESSOR_PIN;
@@ -25,7 +25,7 @@ Pressure::Pressure(
   this->_SUFFICIENT_PRESSURE = SUFFICIENT_PRESSURE;
   this->_P_MAX = P_MAX;
   this->_P_MIN = P_MIN;
-  this->_PRESSURE_RANGE = PRESSURE_RANGE;
+  init();
 }
 
 void Pressure::init()
@@ -41,10 +41,7 @@ void Pressure::init()
 bool Pressure::pressureOk()
 {
   getPressure();
-  if (_pressure < _IDEAL_PRESSURE - _PRESSURE_RANGE || _pressure > _IDEAL_PRESSURE){
-    _pressurizing = _pressure < _IDEAL_PRESSURE;
-  }
-  return (_pressure >= _IDEAL_PRESSURE);
+  return (_pressure >= _SUFFICIENT_PRESSURE);
 }
 
 /**
@@ -58,6 +55,6 @@ bool Pressure::pressureOk()
  */
 void Pressure::pressurize(bool override)
 {
-  pressureOk();
-  digitalWrite(_COMPRESSOR_PIN, (_pressurizing || override));
+  getPressure();
+  digitalWrite(_COMPRESSOR_PIN, (_pressure < _IDEAL_PRESSURE || override));
 }

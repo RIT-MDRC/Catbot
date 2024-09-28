@@ -59,13 +59,7 @@ class FakeDigitalInputDevice:
     when_activated = None
     when_deactivated = None
 
-    def __init__(
-        self,
-        pin: int,
-        initial_value: int = 0,
-        initial_is_state=False,
-        pull_up: bool = False,
-    ):
+    def __init__(self, pin: int, initial_value: int = 0, initial_is_state=False):
         self.pin = pin
         self.value = initial_value
         self.is_active = initial_is_state

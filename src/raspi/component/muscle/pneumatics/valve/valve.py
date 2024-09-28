@@ -1,4 +1,3 @@
-import logging
 from gpiozero import DigitalOutputDevice
 from state_management import create_masked_context, device_action, output_device_ctx
 
@@ -13,7 +12,6 @@ def turn_valve_on(valve: DigitalOutputDevice) -> None:
     Args:
         valve (DigitalOutputDevice): the valve to turn on
     """
-    logging.info("turning valve on %s", valve)
     valve.on()
 
 
@@ -25,7 +23,6 @@ def turn_valve_off(valve: DigitalOutputDevice) -> None:
     Args:
         valve (DigitalOutputDevice): the valve to turn off
     """
-    logging.info("turning valve on %s", valve)
     valve.off()
 
 
