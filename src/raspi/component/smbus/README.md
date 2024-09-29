@@ -1,6 +1,6 @@
 # SMBUS
 
-## parser input
+## Parser
 
 - bus: int
 
