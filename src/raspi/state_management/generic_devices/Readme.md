@@ -1,5 +1,5 @@
 # GENERIC DEVICE
-last updated: 2024-2-17
+last updated: 2024-9-29
 by @hiromon0125
 
 ## Description
@@ -10,6 +10,9 @@ The term "generic" is used to describe the devices that are not specific to any 
 
 ## Why use generic devices?
 The generic devices can be used to easily create a new device that is carbon copy of one another. For example, components that only rely on one GPIO pin for control can just be renamed to create a new component. This allows the developer to create a new component without having to write the same code again and again. There is also another benefit of using generic devices. When the developer creates a new component from the generic device and renames it, the store of the generic device is used to store the renamed device's state. This can be beneficial because we can declare the renamed device in the generic device's section of the pinconfig file and when the renamed device is used as a property of another component, the statemanager will automatically create a store for the renamed device. This keeps the pinconfig file short and clean and less annoying for electrical to swap pin configuration. This does not mean that renamed devices stored in the generic device's store cannot be used as a property of another component. The renamed device can only be grabbed in the actions declared for the renamed device and error is thrown. This acts as a isolated store for the renamed devices during runtime but shared during configuration parsing/setup.
+
+## Diagram Schema
+![Simple GPIO Models](https://github.com/user-attachments/assets/1038cbbe-bd02-437a-8147-2c0293b22f87)
 
 ## Generic Input Device
 The input device is just a single GPIO pin of the Raspberry Pi.
