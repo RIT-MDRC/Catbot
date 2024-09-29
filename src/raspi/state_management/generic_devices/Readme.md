@@ -14,6 +14,9 @@ The generic devices can be used to easily create a new device that is carbon cop
 ## Diagram Schema
 ![Simple GPIO Models](https://github.com/user-attachments/assets/1038cbbe-bd02-437a-8147-2c0293b22f87)
 
+These models will get handy as the diagrams will be using these models to explain the software components.
+Each object except for the controller is a class object in this schema. While we technically do not have analog input, output and pwm input gpio on the raspberry pi, we can still construct these devices through software(e.g. averaging positive value on digital input will be a pwm input signal) or hardware(e.g. ADC hardware creates analog input pins).
+
 ## Generic Input Device
 The input device is just a single GPIO pin of the Raspberry Pi.
 The input device can be used to read the state of the GPIO pin.
