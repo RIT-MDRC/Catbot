@@ -62,8 +62,8 @@ class MotorController:
         self.current_direction = new_direction
         self.current_speed = new_speed
         return True
-    
-    
+
+
 def bitfield(n, length=3) -> str:
     """
     Parses a decimal number into a binary string
