@@ -14,6 +14,7 @@ __all__ = [
 def set(speedPin: DigitalOutputDevice, speed: int) -> None:
     """
     Turn a valve on.
+    
     Args:
         valve (DigitalOutputDevice): the valve to turn on
     """

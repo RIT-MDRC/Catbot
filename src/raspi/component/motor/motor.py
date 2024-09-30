@@ -8,6 +8,7 @@ from state_management import (
     create_pwm_device,
 )
 
+
 class MotorController:
     motor: FakePWMOutputDevice | PWMOutputDevice
     pwm_pin: int
@@ -33,7 +34,6 @@ class MotorController:
             create_output_device(pin) for pin in address_pins
         ]
 
-
     def set_direction(self, direction) -> None:
         """
         Uses Addressable Latch Direction Control to set the ESC at the address for this motor
@@ -49,7 +49,6 @@ class MotorController:
         "helper method for controling speed, can be used but should be avoided"
         self.motor.value = speed
 
-
     def set_speed_dir(self, new_speed, new_direction) -> bool:
         "Method for setting this ESC to a given speed and direction"
         logging.info(
@@ -63,6 +62,7 @@ class MotorController:
         self.current_direction = new_direction
         self.current_speed = new_speed
         return True
+    
     
 def bitfield(n, length=3) -> str:
     """
