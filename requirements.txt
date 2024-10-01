@@ -6,3 +6,4 @@ PyYAML
 python-dotenv
 textual
 adafruit_mcp230xx
+odrive
