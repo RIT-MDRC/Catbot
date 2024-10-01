@@ -3,8 +3,7 @@ from dataclasses import dataclass, field
 
 import board
 import busio
-from adafruit_mcp230xx.mcp23017 import MCP23017, DigitalInOut
-from digitalio import Direction, Pull
+from state_management.utils import is_dev, FakeMCP23017, FakeDirection, FakePull
 from gpiozero import DigitalInputDevice
 from state_management import (
     create_context,
@@ -16,6 +15,10 @@ from state_management import (
 )
 
 from . import interrupt_pin_action
+
+if not is_dev():
+    from digitalio import Direction, Pull
+    from adafruit_mcp230xx.mcp23017 import MCP23017, DigitalInOut
 
 # Plugin for IOExpander. Set this to True in the sample script file if you use a component that uses the IOExpander
 USE = False
@@ -69,7 +72,7 @@ class IOExpander:
 
     """
 
-    mcp: MCP23017
+    mcp: FakeMCP23017
     _identifier: str
 
     address: int  # hex address type is string in pinconfig.json
@@ -106,8 +109,8 @@ def parse_io_expander(config: dict) -> IOExpander:
 
     for name, num in expander.input_channels.items():
         pin = mcp.get_pin(num)
-        pin.direction = Direction.INPUT
-        pin.pull = Pull.UP
+        pin.direction = FakeDirection.INPUT if is_dev() else Direction.INPUT
+        pin.pull = FakePull.UP if is_dev() else Pull.UP
         device = IOExpanderInputDevice(pin, num, name)
         expander.input_devices[num] = device
         register_device(input_device_ctx, f"{expander._identifier}.{name}", device)
