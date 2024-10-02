@@ -2,8 +2,7 @@
 **/arduino/build
 .vscode/c_cpp_properties.json
 .vscode/arduino.json
-# we need the .env file in order for is_dev to work correctly
-# **/.env
+**/.env
 *.pyc
 .log/*.log
 __pycache__/
