@@ -3,8 +3,6 @@ from datetime import datetime as d
 
 import __main__
 
-from .util import is_dev
-
 LOG_LEVEL = {
     "Debug": logging.DEBUG,
     "Info": logging.INFO,
@@ -32,22 +30,11 @@ def configure_logger(level: str = "Debug"):
     """
     lvl = map_level(level)
     print(f"Configuring logger {lvl}...")
-    if is_dev():
-        print("Using dev logger")
-        start_time = d.now().strftime("%Y-%m-%d_%H-%M-%S")
-        logging.basicConfig(
-            filename=f".log/{start_time}.DEV.{level}.log",
-            format="%(filename)s: %(message)s",
-            level=lvl,  # TODO: hook it to env or config file
-            force=True,
-        )
-    else:
-        print("Using regular logger")
-        start_time = d.now().strftime("%Y-%m-%d.%H:%M:%S")
-        filename = __main__.__file__.split("/")[-1].split(".")[0]
-        logging.basicConfig(
-            filename=f".log/{start_time}.{filename}.{level}.log",
-            format="%(filename)s: %(message)s",
-            level=lvl,  # TODO: hook it to env or config file
-            force=True,
-        )
+    
+    start_time = d.now().strftime("%Y-%m-%d_%H-%M-%S")
+    logging.basicConfig(
+        filename=f".log/{start_time}.{level}.log",
+        format="%(filename)s: %(message)s",
+        level=lvl,  # TODO: hook it to env or config file
+        force=True,
+    )
