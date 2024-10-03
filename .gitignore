@@ -3,6 +3,7 @@
 .vscode/c_cpp_properties.json
 .vscode/arduino.json
 **/.env
+.venv/
 *.pyc
 .log/*.log
 __pycache__/
