@@ -51,8 +51,8 @@ for msg in bus:
             print("No errors")
         else:
             print("Axis error!  Error code: "+str(hex(errorCode.value)))
-            data = db.encode_message('Axis1_Get_Motor_Error', {'Motor_Error': 0x01})
-            msg = can.Message(arbitration_id=db.get_message_by_name('Axis0_Get_Motor_Error').frame_id, is_extended_id=False, data=data)
+            data = db.encode_message('Get_Motor_Error', {'Motor_Error': 0x01})
+            msg = can.Message(arbitration_id= (axisID << 5) | db.get_message_by_name('Get_Motor_Error').frame_id, is_extended_id=False, data=data)
             try:
                 bus.send(msg)
                 print("Message sent on {}".format(bus.channel_info))
@@ -91,7 +91,7 @@ for msg in bus:
 
 target = 0
 #print("eror pls" + bus)
-data = db.encode_message('Axis1_Set_Limits', {'Velocity_Limit':10.0, 'Current_Limit':10.0})
+data = db.encode_message('Set_Limits', {'Velocity_Limit':10.0, 'Current_Limit':10.0})
 msg = can.Message(arbitration_id=axisID << 5 | 0x00F, is_extended_id=False, data=data)
 bus.send(msg)
 
@@ -99,7 +99,7 @@ t0 = time.monotonic()
 while True:
     setpoint = 2.0 * math.sin((time.monotonic() - t0)*2)
     print("goto " + str(setpoint))
-    data = db.encode_message('Axis1_Set_Input_Pos', {'Input_Pos':setpoint, 'Vel_FF':0.0, 'Torque_FF':0.0})
+    data = db.encode_message('Set_Input_Pos', {'Input_Pos':setpoint, 'Vel_FF':0.0, 'Torque_FF':0.0})
     msg = can.Message(arbitration_id=axisID << 5 | 0x00C, data=data, is_extended_id=False)
     bus.send(msg)
     time.sleep(0.01)
