@@ -5,5 +5,4 @@ RPi.GPIO; sys_platform == 'linux'
 PyYAML
 python-dotenv
 textual
-adafruit_mcp230xx
-odrive
+adafruit_circuitpython_mcp230xx
