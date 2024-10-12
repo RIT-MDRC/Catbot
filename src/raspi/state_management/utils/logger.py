@@ -30,10 +30,10 @@ def configure_logger(level: str = "Debug"):
     """
     lvl = map_level(level)
     print(f"Configuring logger {lvl}...")
-    start_time = d.now().strftime("%Y-%m-%d.%H:%M:%S")
-    filename = __main__.__file__.split("/")[-1].split(".")[0]
+    
+    start_time = d.now().strftime("%Y-%m-%d_%H-%M-%S")
     logging.basicConfig(
-        filename=f".log/{start_time}.{filename}.{level}.log",
+        filename=f".log/{start_time}.{level}.log",
         format="%(filename)s: %(message)s",
         level=lvl,  # TODO: hook it to env or config file
         force=True,
