@@ -5,4 +5,5 @@ smbus2
 RPi.GPIO; sys_platform == 'linux'
 PyYAML
 python-dotenv
-adafruit_mcp230xx; sys_platform == 'linux'
+textual
+adafruit_circuitpython_mcp230xx
