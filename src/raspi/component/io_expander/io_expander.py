@@ -1,7 +1,7 @@
 import logging
 from dataclasses import dataclass, field
 
-import board
+
 import busio
 from state_management.utils import is_dev, FakeMCP23017, FakeDirection, FakePull
 from gpiozero import DigitalInputDevice
@@ -17,6 +17,7 @@ from state_management import (
 from . import interrupt_pin_action
 
 if not is_dev():
+    import board
     from digitalio import Direction, Pull
     from adafruit_mcp230xx.mcp23017 import MCP23017, DigitalInOut
 
@@ -26,7 +27,7 @@ USE = False
 
 @dataclass
 class IOExpanderInputDevice:
-    pin: DigitalInOut
+    pin: object
     pin_num: int
     name: str
 
