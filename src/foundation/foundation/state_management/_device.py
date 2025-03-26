@@ -9,6 +9,11 @@ from functools import reduce, wraps
 from .utils.logger import configure_logger
 
 
+@dataclass(slots=True, frozen=True)
+class Identifier:
+    ctx: "Context"
+
+
 @dataclass
 class Context:
     context_name: str
@@ -19,6 +24,57 @@ class Context:
     masked_device_contexts: list
     on_exit: callable
     masked_from: "Context" = None
+
+    def device_parser(self, func):
+        def wrapped_func(value, _identifier):
+            if isinstance(value, dict):
+                value["_identifier"] = _identifier
+            device = func(value)
+            return device
+
+        self.parse_device = wrapped_func
+        for sub_context in self.masked_device_contexts:
+            DEVICE_CONTEXT_COLLECTION[sub_context].parse_device = wrapped_func
+        return wrapped_func
+
+    def device_exit(self, func):
+        self.on_exit = func
+        return func
+
+    def device_action(self, func):
+        if not hasattr(func, "_ctx"):
+            setattr(func, "_ctx", self)
+        if not hasattr(func, "_func_path"):
+            setattr(func, "_func_path", f"{self.context_name}/{func.__name__}")
+
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            if len(args) < 1:
+                raise ValueError("Missing argument")
+            if not (
+                check_only_class_instance(self, args[0]) or isinstance(args[0], str)
+            ):
+                raise ValueError(
+                    f"First argument({args[0]}) must be a identifier(string) or "
+                    + "/".join([x.__name__ for x in self.allowed_classes])
+                )
+            value = self.store.get(args[0]) if isinstance(args[0], str) else args[0]
+            if value is None and isinstance(args[0], str):
+                raise ValueError(f"{args[0]} not found in {self}")
+            return func(value, *args[1:], **kwargs)
+
+        return wrapper
+
+    def identifier(self):
+        """function used to mark an attribute of a class as an identifier for the device decorator to find and correctly parse the device.
+
+        Args:
+            ctx (Context): context of where the attribute device is stored
+
+        Returns:
+            Identifier: Identifier class that stores the context for the device decorator to find and correctly parse the device.
+        """
+        return Identifier(self)
 
 
 DEVICE_CONTEXT_COLLECTION = {}
@@ -100,7 +156,16 @@ def get_context(device_name: str) -> Context:
 
 
 def device_parser(ctx: Context):
-    def decorator(func: callable):
+    """DEPRECATED: See Context.device_parser
+    This function is used to mark a function as a device parser. This will be used to parse the device from the pinconfig file.
+
+    Args:
+        ctx (Context): Context object that is responsible for the device.
+    Returns:
+        callable: decorated function that will be used to parse the device.
+    """
+
+    def decorator(func):
         def wrapped_func(value, _identifier):
             if isinstance(value, dict):
                 value["_identifier"] = _identifier
@@ -116,7 +181,17 @@ def device_parser(ctx: Context):
 
 
 def device_exit(ctx: Context):
-    def decorator(func: callable):
+    """DEPRECATED: See Context.device_exit
+    This function is used to mark a function as a device exit. This will run when the script is exiting when using the context manager.
+    This will be used to clean up the device and free the resources.
+
+    Args:
+        ctx (Context): Context object that is responsible for the device.
+    Returns:
+        callable: decorator function that will be used to clean up the device.
+    """
+
+    def decorator(func):
         ctx.on_exit = func
         return func
 
@@ -124,7 +199,17 @@ def device_exit(ctx: Context):
 
 
 def device_action(ctx: Context):
-    def decorator(func: callable):
+    """DEPRECATED: See Context.device_action
+    This function is used to mark a function as a device action. This will be used to run the action on the device.
+    This will be help retrieve the device from the store and run the action using the device name.
+
+    Args:
+        ctx (Context): Context object that is responsible for the device.
+    Returns:
+        callable: decorator function that will be used to run the action on the device.
+    """
+
+    def decorator(func):
         if not hasattr(func, "_ctx"):
             setattr(func, "_ctx", ctx)
         if not hasattr(func, "_func_path"):
@@ -151,13 +236,8 @@ def device_action(ctx: Context):
     return decorator
 
 
-@dataclass(slots=True, frozen=True)
-class Identifier:
-    ctx: Context
-
-
 def identifier(ctx: Context):
-    """function used to mark an attribute of a class as an identifier for the device decorator to find and correctly parse the device.
+    """DEPRECATED: function used to mark an attribute of a class as an identifier for the device decorator to find and correctly parse the device.
 
     Args:
         ctx (Context): context of where the attribute device is stored

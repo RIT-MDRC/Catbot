@@ -1,4 +1,11 @@
+"""
+!!!DEPRECATED!!!: This module is deprecated and will be removed in a future version.
+
+This module is used to control the step pin and direction pin of a motor used by the raw_motor module.
+"""
+
 from gpiozero import DigitalOutputDevice
+
 from ....state_management import create_masked_context, device_action, output_device_ctx
 
 step_ctx = create_masked_context(output_device_ctx, "stepPin")

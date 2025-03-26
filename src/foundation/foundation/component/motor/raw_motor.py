@@ -1,8 +1,18 @@
+"""
+!!!DEPRECATED!!!: This module is deprecated and will be removed in a future version.
+
+This is a raw motor module that used to be used for motor controller used by pulse width modulation (PWM) and GPIO pins.
+Now, it is replaced by odrive motor controller.
+@see odrive_motor.py
+@see odrive_enums.py
+"""
+
 import logging
 from dataclasses import dataclass, field
 from time import sleep
 
 from gpiozero import DigitalOutputDevice
+
 from ...state_management import (
     create_context,
     device,
@@ -10,7 +20,6 @@ from ...state_management import (
     device_parser,
     identifier,
 )
-
 from .pin import step_pin_action
 
 
