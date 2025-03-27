@@ -1,0 +1,91 @@
+{
+	"input_device": {
+		"expander_interrupt_pin_A": {
+			"pin": 18,
+			"pull_up": true
+		},
+		"expander_interrupt_pin_B": {
+			"pin": 4,
+			"pull_up": true
+		}
+	},
+	"output_device": {
+		"pneumatic_1": 17,
+		"pneumatic_2": 27,
+		"pneumatic_3": 23,
+		"pneumatic_4": 22
+	},
+	"smbus2": {
+		"smbus": 1
+	},
+	"adc": {
+		"adc_1": {
+			"i2c": "smbus",
+			"address": "0x48",
+			"power_down": "0b01",
+			"input_devices": {
+				"pot1": 0,
+				"pot2": 1,
+				"pot3": 2,
+				"pot4": 3,
+				"pot5": 4,
+				"pot6": 5,
+				"pot7": 6,
+				"pot8": 7
+			}
+		}
+	},
+	"potentiometer": {
+		"pot1": {
+			"input_device": "adc_1.pot1",
+			"max_degree": 285,
+			"min_degree": 0,
+			"max_data": 4095,
+			"min_data": 0
+		}
+	},
+	"compressor": {
+		"main_compressor": 24
+	},
+	"muscle": {
+		"muscle_1": {
+			"pressure": "adc_1.pot1",
+			"valve": "pneumatic_1"
+		},
+		"muscle_2": {
+			"pressure": "adc_1.pot2",
+			"valve": "pneumatic_2"
+		},
+		"muscle_3": {
+			"pressure": "adc_1.pot3",
+			"valve": "pneumatic_3"
+		},
+		"muscle_4": {
+			"pressure": "adc_1.pot4",
+			"valve": "pneumatic_4"
+		}
+	},
+	"can_bus": {
+		"can_bus_1": {
+			"silence": true
+		}
+	},
+	"odrive_motor": {
+		"odrive_1": {
+			"bus": "can_bus_1",
+			"axisID": 0,
+			"control_mode": 2,
+			"input_mode": 1,
+			"position_min": -35,
+			"position_max": 35
+		},
+		"odrive_2": {
+			"bus": "can_bus_1",
+			"axisID": 1,
+			"control_mode": 2,
+			"input_mode": 1,
+			"position_min": -35,
+			"position_max": 35
+		}
+	}
+}

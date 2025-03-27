@@ -3,7 +3,7 @@ import json
 import logging
 from collections import OrderedDict
 from contextlib import contextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from functools import reduce, wraps
 
 from .utils.logger import configure_logger
@@ -269,7 +269,7 @@ def device(cls):
                     raise ValueError(
                         f"{ctx}: {value} does not exist. Unique identifiers: \n{ctx.stored_keys}"
                     )
-                if not value in ctx.stored_keys:
+                if value not in ctx.stored_keys:
                     ctx.stored_keys.add(value)
 
                 return value
