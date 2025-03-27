@@ -1,14 +1,4 @@
 {
-	"input_device": {
-		"expander_interrupt_pin_A": {
-			"pin": 18,
-			"pull_up": true
-		},
-		"expander_interrupt_pin_B": {
-			"pin": 4,
-			"pull_up": true
-		}
-	},
 	"output_device": {
 		"pneumatic_1": 17,
 		"pneumatic_2": 27,
@@ -24,19 +14,12 @@
 			"address": "0x48",
 			"power_down": "0b01",
 			"input_devices": {
-				"pot1": 0,
-				"pot2": 1,
-				"pot3": 2,
-				"pot4": 3,
-				"pot5": 4,
-				"pot6": 5,
-				"pot7": 6,
-				"pot8": 7
+				"pot1": 0
 			}
 		}
 	},
 	"potentiometer": {
-		"pot1": {
+		"pressure_sensor": {
 			"input_device": "adc_1.pot1",
 			"max_degree": 285,
 			"min_degree": 0,
@@ -53,15 +36,15 @@
 			"valve": "pneumatic_1"
 		},
 		"muscle_2": {
-			"pressure": "adc_1.pot2",
+			"pressure": "adc_1.pot1",
 			"valve": "pneumatic_2"
 		},
 		"muscle_3": {
-			"pressure": "adc_1.pot3",
+			"pressure": "adc_1.pot1",
 			"valve": "pneumatic_3"
 		},
 		"muscle_4": {
-			"pressure": "adc_1.pot4",
+			"pressure": "adc_1.pot1",
 			"valve": "pneumatic_4"
 		}
 	},

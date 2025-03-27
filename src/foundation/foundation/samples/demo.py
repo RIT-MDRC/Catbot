@@ -1,11 +1,14 @@
 import asyncio
 from dataclasses import dataclass
 
+from component.adc import adc_actions
 from component.compressor import compressor_actions
 from component.motor import motor_actions
 from component.muscle import muscle_actions
 from component.potentiometer import potentiometer_actions
 from state_management import configure_device
+
+adc_actions.USE = True
 
 configure_device("samples/demo_config.json")
 
