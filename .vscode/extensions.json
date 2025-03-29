@@ -7,7 +7,6 @@
 		"ms-iot.vscode-ros",
 		"ms-vscode-remote.remote-containers",
 		"donjayamanne.githistory",
-		"donjayamanne.python-environment-manager",
 		"njqdev.vscode-python-typehint",
 		"emeraldwalk.runonsave"
 	]
