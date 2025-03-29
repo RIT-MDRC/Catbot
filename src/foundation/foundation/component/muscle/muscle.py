@@ -3,14 +3,14 @@ from dataclasses import dataclass
 
 from gpiozero import DigitalOutputDevice
 
-from ...state_management.generic_devices.generic_devices import AnalogInputDevice
-from ...state_management import (
+from state_management import (
     create_generic_context,
     device,
     device_action,
     device_parser,
     identifier,
 )
+from state_management.generic_devices.generic_devices import AnalogInputDevice
 
 from .pneumatics import pressure_actions, valve_actions
 

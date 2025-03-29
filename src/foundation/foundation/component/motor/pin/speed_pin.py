@@ -8,11 +8,7 @@ import logging
 
 from gpiozero import PWMOutputDevice
 
-from ....state_management import (
-    create_masked_context,
-    device_action,
-    pwm_output_device_ctx,
-)
+from state_management import create_masked_context, device_action, pwm_output_device_ctx
 
 ctx = create_masked_context(pwm_output_device_ctx, "speedPin")
 

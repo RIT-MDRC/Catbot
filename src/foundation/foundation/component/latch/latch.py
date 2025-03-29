@@ -3,7 +3,8 @@ from dataclasses import dataclass, field
 from time import sleep
 
 from gpiozero import DigitalOutputDevice
-from ...state_management import (
+
+from state_management import (
     create_generic_context,
     device,
     device_parser,
@@ -11,7 +12,7 @@ from ...state_management import (
     output_device_ctx,
     register_device,
 )
-from ...state_management.utils.deviceMock import value_change
+from state_management.utils.deviceMock import value_change
 
 from .pin import latch_pin_actions
 

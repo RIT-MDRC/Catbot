@@ -1,19 +1,18 @@
 import logging
 from dataclasses import dataclass
 
-from ...state_management.generic_devices.generic_devices import AnalogInputDevice
-
-from ...state_management.generic_devices import analog_input_device_ctx
-
-from ...component.smbus import smbus_actions
 from smbus2 import i2c_msg
-from ...state_management import (
+
+from component.smbus import smbus_actions
+from state_management import (
     create_context,
     device,
     device_parser,
     identifier,
     register_device,
 )
+from state_management.generic_devices import analog_input_device_ctx
+from state_management.generic_devices.generic_devices import AnalogInputDevice
 
 USE = False
 

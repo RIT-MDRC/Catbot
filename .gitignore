@@ -5,8 +5,14 @@
 **/.env
 .venv/
 *.pyc
-.log/*.log
+**/.log/*.log
 __pycache__/
+
+# uv stuff for now
+**/uv.lock
+**/pyproject.toml
+**/.python-version
+
 # Colcon build artifacts
 build/
 install/
