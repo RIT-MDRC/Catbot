@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 from component.adc import adc_actions
+from pin import analog_pin_actions
 from state_management import (
     create_context,
     device,
@@ -14,7 +15,7 @@ from state_management import (
 @dataclass
 class Potentiometer:
     input_device: adc_actions.ADCAnalogInputDevice = identifier(
-        adc_actions.analog_input_device_ctx
+        analog_pin_actions.ctx
     )
     # constants used for mapping data to degree can be changed from the config including the cached_data
     max_degree: int = 285
@@ -61,7 +62,7 @@ def get_data(potentiometer: Potentiometer):
     Returns:
         int: integer representation of the bytearr returned by the adc(adc_actions.ADCAnalogInputDevice)
     """
-    bytearr = adc_actions.get_data(potentiometer.input_device)
+    bytearr = analog_pin_actions.read_data(potentiometer.input_device)
     fbyte, sbyte = bytearr
     data = fbyte << 8 | sbyte
     return data
