@@ -14,7 +14,7 @@
 			"address": "0x48",
 			"power_down": "0b01",
 			"input_devices": {
-				"pot1": 0
+				"pot1": 7
 			}
 		}
 	},

@@ -72,7 +72,7 @@ LEGS = [
 ]
 COMPRESSOR = Compressor(
     compressor="main_compressor",
-    potentiometer="potentiometer_1",
+    potentiometer="pressure_sensor",
     # minPressure=100,
     # maxPressure=120,
     # checkInterval=1,
@@ -110,6 +110,8 @@ async def pressure_demo(compressor: Compressor):
 
         pressure = potentiometer_actions.get_degree(compressor.potentiometer)
 
+        print(pressure)
+
         return (
             True
             if pressure < compressor.minPressure
@@ -130,12 +132,22 @@ async def pressure_demo(compressor: Compressor):
         await asyncio.sleep(compressor.checkInterval)
 
 
-if __name__ == "__main__":
-    # Run the demo for each leg concurrently forever
-    asyncio.run(
-        asyncio.gather(
-            *[asyncio.create_task(main(leg)) for leg in LEGS],
-            asyncio.create_task(pressure_demo(COMPRESSOR))
-        )
+async def run_all():
+    # Gather all tasks and run them concurrently
+    await asyncio.gather(
+        *[main(leg) for leg in LEGS],
+        pressure_demo(COMPRESSOR)
     )
-    asyncio.get_event_loop().run_forever()
+
+if __name__ == "__main__":
+    asyncio.run(run_all())
+
+# if __name__ == "__main__":
+#     # Run the demo for each leg concurrently forever
+#     asyncio.run(
+#         asyncio.gather(
+#             # *[asyncio.create_task(main(leg)) for leg in LEGS],
+#             asyncio.create_task(pressure_demo(COMPRESSOR))
+#         )
+#     )
+#     asyncio.get_event_loop().run_forever()
