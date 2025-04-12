@@ -79,7 +79,7 @@ def read_heartbeat(motor: ODriveMotor, data):
     state = data["Axis_State"].value
     if motor.current_state != state:
         motor.current_state = state
-        logging.info(f"Axis {motor.axisID} Heartbeat w/ state: " + str(state))
+        logging.info(f"Axis {motor.axisID} Heartbeat w/ state: " + str(state) + " data: " + f"{data}")
         axis_error = data["Axis_Error"]
         if get_error_num(axis_error) != 0:
             logging.error(
@@ -89,6 +89,7 @@ def read_heartbeat(motor: ODriveMotor, data):
 
 @event_decorator("Get_Encoder_Estimates")
 def update_estimates(motor: ODriveMotor, data):
+    logging.info(f"Axis {motor.axisID} Encoder Estimates {data}")
     motor.current_position = data["Pos_Estimate"]
     motor.current_velocity = data["Vel_Estimate"]
 
@@ -291,7 +292,7 @@ def set_controller_mode(
         logging.warning(
             f"Motor {motor.axisID} has position limits, but is being set to non-position control. Position limits can not be enforced under non-position control."
         )
-    return send_message(
+    res = send_message(
         motor,
         "Set_Controller_Mode",
         {
@@ -301,6 +302,9 @@ def set_controller_mode(
             "Input_Mode": new_input_mode if new_input_mode else motor.input_mode,
         },
     )
+    if res:
+        motor.control_mode = new_control_mode
+        motor.input_mode = new_input_mode
 
 
 @device_action(ctx)

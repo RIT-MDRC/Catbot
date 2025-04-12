@@ -21,14 +21,16 @@ configure_device("samples/demo_config.json")
 
 @dataclass
 class Leg:
-    motor: str
+    motor: str # flex and extension motor
     muscle: str
 
     # Default speed and delays will be used for all of the legs unless overridden
     # when creating this class instance below
-    leftSpeed: int = 10
-    rightSpeed: int = -10
+    leftSpeed: int = 1
+    rightSpeed: int = -1
     stopSpeed: int = 0
+
+    # no such thing as left and right in one leg
     leftDelay: float = 1
     rightDelay: float = 1
     muscleDelay: float = 1
@@ -39,7 +41,6 @@ class Leg:
 class Compressor:
     compressor: str
     potentiometer: str
-
     # Pressure check parameters will be shared among all compressor objects unless
     # overridden for that specific compressor when creating this class instance
     minPressure: int = (
@@ -52,8 +53,10 @@ class Compressor:
 
 
 LEGS = [
+    # front left
     Leg(
         motor="odrive_1",
+        # abd_ad="odrive_2",
         muscle="muscle_1",
         # Uncomment to override default speed and delays
         # leftSpeed=LEFT_SPEED,
@@ -61,9 +64,34 @@ LEGS = [
         # leftDelay=1,
         # rightDelay=1,
     ),
+    # back left
     Leg(
-        motor="odrive_2",
+        motor="odrive_3",
+        # abd_ad="odrive_4",
         muscle="muscle_2",
+        # Uncomment to override default speed and delays
+        # leftSpeed=LEFT_SPEED,
+        # rightSpeed=RIGHT_SPEED,
+        # leftDelay=1,
+        # rightDelay=1,
+    ),
+    # back right
+    Leg(
+        motor="odrive_5",
+        # abd_ad="odrive_6",
+        muscle="muscle_3",
+        # Uncomment to override default speed and delays
+        # leftSpeed=LEFT_SPEED,
+        # rightSpeed=RIGHT_SPEED,
+        # leftDelay=1,
+        # rightDelay=1,
+    ),
+    # front right
+    Leg(
+        motor="odrive_7",
+        # abd_ad="odrive_8",
+        muscle="muscle_4",
+        # Uncomment to override default speed and delays
         # leftSpeed=LEFT_SPEED,
         # rightSpeed=RIGHT_SPEED,
         # leftDelay=1,
@@ -78,26 +106,35 @@ COMPRESSOR = Compressor(
     # checkInterval=1,
 )
 
+SLEEP_TIME = 1
 
 async def main(leg: Leg):
     # This is a simple demo that will move the leg back and forth and contract and expand the muscle in a cycle.
     # Each leg will move in a cycle independently.
+
+    # while motor_actions.get_state(leg.motor) != motor_actions.MotorState.IDLE:
+    #     print(f"Calibrating {leg.motor}...")
+    if motor_actions.set_controller_mode(leg.motor, motor_actions.ControlMode.POSITION_CONTROL):
+        print("main")
+
+
     while True:
-        motor_actions.set_target_velocity(
+        # motor_actions.set_controller_mode(leg.motor, motor_actions.ControlMode.POSITION_CONTROL)
+        motor_actions.set_target_position(
             leg.motor,
             leg.leftSpeed,
         )
         await asyncio.sleep(leg.leftDelay)
-        motor_actions.set_target_velocity(leg.motor, leg.stopSpeed)
-        muscle_actions.contract(leg.muscle)
+        motor_actions.set_target_position(leg.motor, leg.stopSpeed)
+        # muscle_actions.contract(leg.muscle)
         await asyncio.sleep(leg.muscleDelay)
-        motor_actions.set_target_velocity(
+        motor_actions.set_target_position(
             leg.motor,
             leg.rightSpeed,
         )
         await asyncio.sleep(leg.rightDelay)
-        motor_actions.set_target_velocity(leg.motor, leg.stopSpeed)
-        muscle_actions.relax(leg.muscle)
+        motor_actions.set_target_position(leg.motor, leg.stopSpeed)
+        # muscle_actions.relax(leg.muscle)
         await asyncio.sleep(leg.muscleDelay)
         await asyncio.sleep(leg.cycleInterval)
 
@@ -124,10 +161,10 @@ async def pressure_demo(compressor: Compressor):
     while True:
         check_res = check_pressure()
         if check_res and not compressor_state:
-            compressor_actions.turn_compressor_on()
+            compressor_actions.turn_compressor_on(compressor.compressor)
             compressor_state = True
         elif check_res is False and compressor_state:
-            compressor_actions.turn_compressor_off()
+            compressor_actions.turn_compressor_off(compressor.compressor)
             compressor_state = False
         await asyncio.sleep(compressor.checkInterval)
 
@@ -135,8 +172,9 @@ async def pressure_demo(compressor: Compressor):
 async def run_all():
     # Gather all tasks and run them concurrently
     await asyncio.gather(
-        *[main(leg) for leg in LEGS],
-        pressure_demo(COMPRESSOR)
+        main(LEGS[2])
+        # *[main(leg) for leg in LEGS],
+        # pressure_demo(COMPRESSOR)
     )
 
 if __name__ == "__main__":

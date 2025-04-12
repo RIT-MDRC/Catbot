@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 from component.adc import adc_actions
-from pin import analog_pin_actions
+from .pin import analog_pin_actions
 from state_management import (
     create_context,
     device,
@@ -62,10 +62,7 @@ def get_data(potentiometer: Potentiometer):
     Returns:
         int: integer representation of the bytearr returned by the adc(adc_actions.ADCAnalogInputDevice)
     """
-    bytearr = analog_pin_actions.read_data(potentiometer.input_device)
-    fbyte, sbyte = bytearr
-    data = fbyte << 8 | sbyte
-    return data
+    return analog_pin_actions.read_data(potentiometer.input_device)
 
 
 @device_action(ctx)
