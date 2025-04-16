@@ -85,6 +85,10 @@ def get_degree(potentiometer: Potentiometer):
     data = get_data(potentiometer)
     return (data - min_data) * cached_data + min_degree
 
+def get_psi(raw: int, slope: float = 0.0514, y_intercept: float = -26.2) -> float:
+    """gets psi based on wacky values"""
+    return slope * raw + y_intercept
+
 
 def create_cached_data(pot: Potentiometer) -> float:
     """(MAX_DEGREE - MIN_DEGREE) / (MAX_DATA - MIN_DATA)"""

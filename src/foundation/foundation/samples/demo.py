@@ -44,12 +44,12 @@ class Compressor:
     # Pressure check parameters will be shared among all compressor objects unless
     # overridden for that specific compressor when creating this class instance
     minPressure: int = (
-        100  # unit: PSI turns on the compressor when pressure is below this value
+        75  # unit: PSI turns on the compressor when pressure is below this value
     )
     maxPressure: int = (
-        120  # unit: PSI turns off the compressor when pressure is above this value
+        80 # unit: PSI turns off the compressor when pressure is above this value
     )
-    checkInterval: float = 1  # unit: seconds
+    checkInterval: float = 0.5  # unit: seconds
 
 
 LEGS = [
@@ -113,6 +113,9 @@ DEFAULT_TORQUE = .001
 def convert_degrees_to_positions(n: float):
     return n * (5.33/30) # 5.33 positions per 30 degrees
 
+async def startup(leg: Leg):
+    pos = motor_actions.get_current_position(leg.motor)
+
 async def main(leg: Leg):
     # This is a simple demo that will move the leg back and forth and contract and expand the muscle in a cycle.
     # Each leg will move in a cycle independently.
@@ -137,7 +140,7 @@ async def main(leg: Leg):
         )
         await asyncio.sleep(leg.leftDelay)
         motor_actions.set_target_position(leg.motor, 0, ONE_DEGREE_PER_SECOND_IN_REV_PER_SECOND)
-        # muscle_actions.contract(leg.muscle)
+        muscle_actions.contract(leg.muscle)
         await asyncio.sleep(leg.muscleDelay)
         motor_actions.set_target_position(
             leg.motor,
@@ -146,7 +149,7 @@ async def main(leg: Leg):
         )
         await asyncio.sleep(leg.rightDelay)
         motor_actions.set_target_position(leg.motor, 0,ONE_DEGREE_PER_SECOND_IN_REV_PER_SECOND )
-        # muscle_actions.relax(leg.muscle)
+        muscle_actions.relax(leg.muscle)
         await asyncio.sleep(leg.muscleDelay)
         await asyncio.sleep(leg.cycleInterval)
 
@@ -157,9 +160,10 @@ async def pressure_demo(compressor: Compressor):
     def check_pressure():
         # Return True if pressure is too low, False if pressure is too high, None if pressure is within range
 
-        pressure = potentiometer_actions.get_degree(compressor.potentiometer)
+        pressure = potentiometer_actions.get_psi(potentiometer_actions.get_data(compressor.potentiometer))
 
-        print(pressure)
+        print(str(pressure) + " degree")
+        print(str(potentiometer_actions.get_data(compressor.potentiometer)) + " raw data")
 
         return (
             True
@@ -184,12 +188,16 @@ async def pressure_demo(compressor: Compressor):
 async def run_all():
     # Gather all tasks and run them concurrently
     await asyncio.gather(
-        main(LEGS[3])
-        # *[main(leg) for leg in LEGS],
-        # pressure_demo(COMPRESSOR)
+        # *[main(leg) for leg in LEGS]
+        # main(LEGS[0]),
+        # main(LEGS[1]),
+        # main(LEGS[2]),
+        # main(LEGS[3]),
+        pressure_demo(COMPRESSOR)
     )
 
 if __name__ == "__main__":
+    # motor_actions.reboot("odrive_5")
     asyncio.run(run_all())
 
 # if __name__ == "__main__":
