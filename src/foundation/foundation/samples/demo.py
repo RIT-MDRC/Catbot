@@ -107,6 +107,11 @@ COMPRESSOR = Compressor(
 )
 
 SLEEP_TIME = 1
+ONE_DEGREE_PER_SECOND_IN_REV_PER_SECOND = .0027760417
+DEFAULT_TORQUE = .001
+
+def convert_degrees_to_positions(n: float):
+    return n * (5.33/30) # 5.33 positions per 30 degrees
 
 async def main(leg: Leg):
     # This is a simple demo that will move the leg back and forth and contract and expand the muscle in a cycle.
@@ -117,23 +122,30 @@ async def main(leg: Leg):
     if motor_actions.set_controller_mode(leg.motor, motor_actions.ControlMode.POSITION_CONTROL):
         print("main")
 
+    print("main2")
+
+    motor_actions.set_position_control_velocity(leg.motor, ONE_DEGREE_PER_SECOND_IN_REV_PER_SECOND)
+
+    degrees = convert_degrees_to_positions(1)
 
     while True:
         # motor_actions.set_controller_mode(leg.motor, motor_actions.ControlMode.POSITION_CONTROL)
         motor_actions.set_target_position(
             leg.motor,
-            leg.leftSpeed,
+            degrees,
+            ONE_DEGREE_PER_SECOND_IN_REV_PER_SECOND
         )
         await asyncio.sleep(leg.leftDelay)
-        motor_actions.set_target_position(leg.motor, leg.stopSpeed)
+        motor_actions.set_target_position(leg.motor, 0, ONE_DEGREE_PER_SECOND_IN_REV_PER_SECOND)
         # muscle_actions.contract(leg.muscle)
         await asyncio.sleep(leg.muscleDelay)
         motor_actions.set_target_position(
             leg.motor,
-            leg.rightSpeed,
+            degrees * -1,
+            ONE_DEGREE_PER_SECOND_IN_REV_PER_SECOND
         )
         await asyncio.sleep(leg.rightDelay)
-        motor_actions.set_target_position(leg.motor, leg.stopSpeed)
+        motor_actions.set_target_position(leg.motor, 0,ONE_DEGREE_PER_SECOND_IN_REV_PER_SECOND )
         # muscle_actions.relax(leg.muscle)
         await asyncio.sleep(leg.muscleDelay)
         await asyncio.sleep(leg.cycleInterval)
@@ -172,7 +184,7 @@ async def pressure_demo(compressor: Compressor):
 async def run_all():
     # Gather all tasks and run them concurrently
     await asyncio.gather(
-        main(LEGS[2])
+        main(LEGS[3])
         # *[main(leg) for leg in LEGS],
         # pressure_demo(COMPRESSOR)
     )

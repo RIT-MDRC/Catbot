@@ -1,0 +1,37 @@
+must enable can first
+by running enable_can.sh in /install-script
+
+
+flexion & extension front left
+axisID 0
+odrive 1
+
+abduction & aduction front left
+axisID 1
+odrive 2
+
+flexion & extension back left
+axisID 2
+odrive 3
+
+ab ad back left
+axisID 3
+odrive 4
+
+flex ext back right
+axisId 4
+odrive 5
+
+ab ad back right
+axisID 5
+odrive 6
+
+flex ext front right
+axis id 6
+odrive 7
+
+ab ad front right
+axis id 7
+odrive 8
+
+5.33 positions per 30 degrees

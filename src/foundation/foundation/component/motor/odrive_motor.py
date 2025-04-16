@@ -199,6 +199,17 @@ def set_target_position(
         {"Input_Pos": position, "Vel_FF": velocity_FF, "Torque_FF": torque_FF},
     )
 
+@device_action(ctx)
+def set_position_control_velocity(
+    motor: ODriveMotor,
+    velocity_FF: float = 0.0,
+) -> bool:
+    return send_message(
+        motor,
+        "Set_Input_Pos",
+        {"Input_Pos": ControlMode.POSITION_CONTROL, "Vel_FF": velocity_FF, "Torque_FF": 0.0},
+    )
+
 
 @device_action(ctx)
 def set_trajectory_velocity(motor: ODriveMotor, velocity: float) -> bool:
@@ -322,12 +333,18 @@ def get_input_mode(motor: ODriveMotor) -> InputMode:
     return motor.input_mode
 
 
+
 @device_action(ctx)
 def send_message(motor: ODriveMotor, msg_name: str, data: dict) -> bool:
     msg = ODRIVE_CAN_DB.get_message_by_name(msg_name)
     msg_id = msg.frame_id | motor.axisID << 5
     data = msg.encode(data)
     return can_actions.send_message(motor.bus, msg_id, data)
+
+@device_action(ctx)
+def reboot(motor: ODriveMotor) -> bool:
+    return send_message(motor, "Reboot", {})
+    
 
 
 # endregion
