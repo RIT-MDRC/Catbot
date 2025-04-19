@@ -3,7 +3,6 @@ import os
 from dataclasses import dataclass
 
 import cantools
-
 from state_management import (
     create_generic_context,
     device,
@@ -13,7 +12,7 @@ from state_management import (
 )
 
 from ..can import can_actions
-from .odrive_enums import *
+from .odrive_enums import ControlMode, InputMode, MotorState
 
 ODRIVE_CAN_DB = cantools.db.load_file(
     os.path.dirname(__file__) + "/odrive-cansimple.dbc"
@@ -173,7 +172,7 @@ def set_target_position(
             f"Can not set position on motor {motor.axisID} when not set to POSITION_CONTROL."
         )
         return False
-    if motor.position_min != None and position < motor.position_min:
+    if motor.position_min is not None and position < motor.position_min:
         if motor.strict_bounds:
             logging.error(
                 f"Attempting to set position on motor {motor.axisID} past lower bounds in strict bounds mode. This can be turned off by setting strict_bounds to False in pinconfig.json."
@@ -183,7 +182,7 @@ def set_target_position(
             f"Attempting to set position on motor {motor.axisID} past lower bounds."
         )
         position = motor.position_min
-    elif motor.position_max != None and position > motor.position_max:
+    elif motor.position_max is not None and position > motor.position_max:
         if motor.strict_bounds:
             logging.error(
                 f"Attempting to set position on motor {motor.axisID} past upper bounds in strict bounds mode. This can be turned off by setting strict_bounds to False in pinconfig.json."
@@ -346,5 +345,8 @@ def reboot(motor: ODriveMotor) -> bool:
     return send_message(motor, "Reboot", {})
     
 
+@device_action(ctx)
+def set_axis_state(motor: ODriveMotor, state: MotorState) -> bool:
+    return send_message(motor, "Set_Axis_State", {"Axis_Requested_State": state})
 
 # endregion
