@@ -1,5 +1,6 @@
 import os
 import sys
+import numpy as np
 
 # Add project root to sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -120,8 +121,10 @@ async def main(leg: Leg):
     # This is a simple demo that will move the leg back and forth and contract and expand the muscle in a cycle.
     # Each leg will move in a cycle independently.
 
-    # while motor_actions.get_state(leg.motor) != motor_actions.MotorState.IDLE:
-    #     print(f"Calibrating {leg.motor}...")
+    startup(leg)
+    while motor_actions.get_state(leg.motor) != motor_actions.MotorState.IDLE:
+        print(f"Calibrating {leg.motor}...")
+    await asyncio.sleep(3)
     if motor_actions.set_controller_mode(leg.motor, motor_actions.ControlMode.POSITION_CONTROL):
         print("main")
 
@@ -129,7 +132,7 @@ async def main(leg: Leg):
 
     motor_actions.set_position_control_velocity(leg.motor, ONE_DEGREE_PER_SECOND_IN_REV_PER_SECOND)
 
-    degrees = convert_degrees_to_positions(1)
+    degrees = convert_degrees_to_positions(30)
 
     while True:
         # motor_actions.set_controller_mode(leg.motor, motor_actions.ControlMode.POSITION_CONTROL)
@@ -140,7 +143,7 @@ async def main(leg: Leg):
         )
         await asyncio.sleep(leg.leftDelay)
         motor_actions.set_target_position(leg.motor, 0, ONE_DEGREE_PER_SECOND_IN_REV_PER_SECOND)
-        muscle_actions.contract(leg.muscle)
+        # muscle_actions.contract(leg.muscle)
         await asyncio.sleep(leg.muscleDelay)
         motor_actions.set_target_position(
             leg.motor,
@@ -149,10 +152,41 @@ async def main(leg: Leg):
         )
         await asyncio.sleep(leg.rightDelay)
         motor_actions.set_target_position(leg.motor, 0,ONE_DEGREE_PER_SECOND_IN_REV_PER_SECOND )
-        muscle_actions.relax(leg.muscle)
+        # muscle_actions.relax(leg.muscle)
         await asyncio.sleep(leg.muscleDelay)
         await asyncio.sleep(leg.cycleInterval)
 
+
+TWO_PI = 2 * np.pi
+THREE_PI_HALVES = 3 * np.pi_half / 2
+PI_HALF = np.pi / 2
+
+async def gait_cycle(leg: Leg, degrees: float, time: int, steps: int, phase: float):
+        """
+        degrees: length of gait in degrees
+                    (step size)
+        time: total time for whole cycle
+        steps: number of steps to break the walking portion into
+        phase: phase in radians to start at, each leg
+                    starting leg phase should be 0
+        """
+        gait = convert_degrees_to_positions(degrees) / 2.0
+        time_between = time / steps
+        steps_per_second = steps / time
+        angular_frequency = TWO_PI / steps_per_second 
+        current_phase = phase
+        current_phase = (current_phase + angular_frequency)
+        pos = gait * np.cos(current_phase)
+        motor_actions.set_target_position(
+            leg.motor,
+            -1*(pos),
+        )
+        if(current_phase == 0):
+            motor_actions.release()
+        if (current_phase == time):
+            motor_actions.contract()
+        current_phase = current_phase % time
+        await asyncio.sleep(time_between)
 
 async def pressure_demo(compressor: Compressor):
     # This is a function that will turn on and off the compressor to maintain pressure in the pneumatics.
@@ -190,14 +224,13 @@ async def run_all():
     await asyncio.gather(
         # *[main(leg) for leg in LEGS]
         # main(LEGS[0]),
-        # main(LEGS[1]),
+        main(LEGS[1]),
         # main(LEGS[2]),
         # main(LEGS[3]),
-        pressure_demo(COMPRESSOR)
+        # pressure_demo(COMPRESSOR)
     )
 
 if __name__ == "__main__":
-    # motor_actions.reboot("odrive_5")
     asyncio.run(run_all())
 
 # if __name__ == "__main__":
