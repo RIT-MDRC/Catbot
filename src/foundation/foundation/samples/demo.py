@@ -25,7 +25,7 @@ STEPS = 4
 TIME = 1
 TIME_PER_STEP = TIME / STEPS
 STEPS_PER_SECOND = STEPS / TIME
-ANGULAR_FREQUENCY = TWO_PI / STEPS_PER_SECOND 
+ANGULAR_FREQUENCY = TWO_PI / STEPS
 
 @dataclass
 class Leg:
@@ -133,47 +133,49 @@ DEFAULT_TORQUE = .001
 def convert_degrees_to_positions(n: float):
     return n * (5.33/30) # 5.33 positions per 30 degrees
 
+
+import time
+
 def calibrate():
+    print("back left calibration")
+    motor_actions.set_axis_state(LEGS[1].motor, motor_actions.MotorState.FULL_CALIBRATION_SEQUENCE)
+    time.sleep(20)
+    print("back left homing")
+    motor_actions.set_axis_state(LEGS[1].motor, motor_actions.MotorState.HOMING)
+    time.sleep(20)
+    print("back right calibration")
+    motor_actions.set_axis_state(LEGS[2].motor, motor_actions.MotorState.FULL_CALIBRATION_SEQUENCE)
+    time.sleep(20)
+    print("back right homing")
+    motor_actions.set_axis_state(LEGS[2].motor, motor_actions.MotorState.HOMING)
+    time.sleep(20)
+    print("front right calibration")
+    motor_actions.set_axis_state(LEGS[3].motor, motor_actions.MotorState.FULL_CALIBRATION_SEQUENCE)
+    time.sleep(20)
+    print("front right homing")
+    motor_actions.set_axis_state(LEGS[3].motor, motor_actions.MotorState.HOMING)
+    time.sleep(20)
+    print("front left calibration")
+    motor_actions.set_axis_state(LEGS[0].motor, motor_actions.MotorState.FULL_CALIBRATION_SEQUENCE)
+    time.sleep(20)
+    print("front left homing")
+    motor_actions.set_axis_state(LEGS[0].motor, motor_actions.MotorState.HOMING)
+    time.sleep(10)
+
     for leg in LEGS:
-        motor_actions.set_axis_state(leg.motor, motor_actions.MotorState.FULL_CALIBRATION_SEQUENCE)
-        while motor_actions.get_state(leg.motor) != motor_actions.MotorState.IDLE:
-            pass
+        if motor_actions.set_axis_state(leg.motor, motor_actions.MotorState.CLOSED_LOOP_CONTROL):
+            print("leg in closed loop")
 
+    
+
+async def startup(degrees: float):
+    
+    # this section moves the legs to their correct starting position given the amble gait cycle
 
     for leg in LEGS:
-        motor_actions.set_axis_state(leg.motor, motor_actions.MotorState.HOMING)
-        while motor_actions.get_state(leg.motor) != motor_actions.MotorState.IDLE:
-            pass
+        gait_cycle(leg, degrees, 0)
 
-    
-
-def startup():
-    pass
-
-    # for leg in LEGS:
-    #     motor_actions.set_controller_mode(leg.motor, motor_actions.ControlMode.POSITION_CONTROL)
-
-    # degrees = convert_degrees_to_positions(degrees)
-    
-
-    # # this section moves the legs to their correct starting position given the amble gait cycle
-
-    # # move front left leg
-    # amount = (STEPS * 3) / 4
-    # for _ in range(amount):
-    #     gait_cycle(LEGS[0], degrees)
-    
-    # # move back left leg
-    # amount = STEPS / 4
-    # for _ in range(amount):
-    #     gait_cycle(LEGS[1], degrees)
-    
-    # # move back right leg
-    # amount = STEPS / 2
-    # for _ in range(amount):
-    #     gait_cycle(LEGS[2],degrees)
-
-    # # front right leg naturally starts in correct position when perpendicular to ground
+    time.sleep(5)
 
 
 
@@ -181,40 +183,44 @@ async def main(leg: Leg, degrees: float):
     # This is a simple demo that will move the leg back and forth and contract and expand the muscle in a cycle.
     # Each leg will move in a cycle independently.
     while motor_actions.get_state(leg.motor) != motor_actions.MotorState.IDLE:
-        print("Calibrating {leg.motor}...")
+        # print("Calibrating {leg.motor}...")
+        continue
     await asyncio.sleep(3)
-    if motor_actions.set_controller_mode(leg.motor, motor_actions.ControlMode.POSITION_CONTROL):
+
+    if motor_actions.set_axis_state(leg.motor, motor_actions.MotorState.CLOSED_LOOP_CONTROL):
+        print("set to closed loop")
+    
+    await asyncio.sleep(3)
+
+
+    if motor_actions.set_controller_mode(leg.motor, motor_actions.ControlMode.POSITION_CONTROL, motor_actions.InputMode.PASSTHROUGH):
         print("Set leg to position_control")
 
     motor_actions.set_position_control_velocity(leg.motor, ONE_DEGREE_PER_SECOND_IN_REV_PER_SECOND)
 
     while True:
-
-        gait_cycle(leg,degrees)
-
-        # motor_actions.set_controller_mode(leg.motor, motor_actions.ControlMode.POSITION_CONTROL)
-        # motor_actions.set_target_position(
-        #     leg.motor,
-        #     degrees,
-        #     ONE_DEGREE_PER_SECOND_IN_REV_PER_SECOND
-        # )
-        # await asyncio.sleep(leg.leftDelay)
-        # motor_actions.set_target_position(leg.motor, 0, ONE_DEGREE_PER_SECOND_IN_REV_PER_SECOND)
-        # # muscle_actions.contract(leg.muscle)
-        # await asyncio.sleep(leg.muscleDelay)
-        # motor_actions.set_target_position(
-        #     leg.motor,
-        #     degrees * -1,
-        #     ONE_DEGREE_PER_SECOND_IN_REV_PER_SECOND
-        # )
-        # await asyncio.sleep(leg.rightDelay)
-        # motor_actions.set_target_position(leg.motor, 0,ONE_DEGREE_PER_SECOND_IN_REV_PER_SECOND )
-        # # muscle_actions.relax(leg.muscle)
-        # await asyncio.sleep(leg.muscleDelay)
-        # await asyncio.sleep(leg.cycleInterval)
+        motor_actions.set_target_position(
+            leg.motor,
+            degrees,
+            ONE_DEGREE_PER_SECOND_IN_REV_PER_SECOND
+        )
+        await asyncio.sleep(leg.leftDelay)
+        motor_actions.set_target_position(leg.motor, 0, ONE_DEGREE_PER_SECOND_IN_REV_PER_SECOND)
+        # muscle_actions.contract(leg.muscle)
+        await asyncio.sleep(leg.muscleDelay)
+        motor_actions.set_target_position(
+            leg.motor,
+            degrees * -1,
+            ONE_DEGREE_PER_SECOND_IN_REV_PER_SECOND
+        )
+        await asyncio.sleep(leg.rightDelay)
+        motor_actions.set_target_position(leg.motor, 0,ONE_DEGREE_PER_SECOND_IN_REV_PER_SECOND )
+        # muscle_actions.relax(leg.muscle)
+        await asyncio.sleep(leg.muscleDelay)
+        await asyncio.sleep(leg.cycleInterval)
 
 
-async def gait_cycle(leg: Leg, degrees: float):
+async def gait_cycle(leg: Leg, degrees: float, current_step: int):
         """
         does one "cycle" not as in a full cycle, as in one part ie one "2pi / steps/time" of a cycle
         the gait is broken into chunks, size of which is defined by steps/time,
@@ -228,20 +234,18 @@ async def gait_cycle(leg: Leg, degrees: float):
         phase: phase in radians to start at, each leg
                     starting leg phase should be 0 (it is assumed 0 is leg down and perpendicular to the ground)
         """
+
         gait = convert_degrees_to_positions(degrees) / 2.0
-        current_phase = (leg.phase + ANGULAR_FREQUENCY)
-        pos = gait * np.cos(current_phase)
+        leg_pos_in_radians = ANGULAR_FREQUENCY * current_step + leg.phase
+        leg_degree = gait * np.cos(leg_pos_in_radians)
         motor_actions.set_target_position(
             leg.motor,
-            -1*(pos),
+            -1*(leg_degree), # might depend on which leg
         )
-        if(current_phase == 0):
+        if(-1 * np.sin(leg_pos_in_radians) < 0):
             motor_actions.release()
-        if (current_phase == TIME): # maybe is 2pi and not TIME
+        if (-1 * np.sin(leg_pos_in_radians) > 0): # maybe is 2pi and not TIME
             motor_actions.contract()
-        current_phase = current_phase % TIME
-        leg.phase = current_phase
-        await asyncio.sleep(TIME_PER_STEP)
 
 async def pressure_demo(compressor: Compressor):
     # This is a function that will turn on and off the compressor to maintain pressure in the pneumatics.
@@ -274,16 +278,17 @@ async def pressure_demo(compressor: Compressor):
         await asyncio.sleep(compressor.checkInterval)
 
 
-async def run_all():
+async def run_all(degrees: float):
     # Gather all tasks and run them concurrently
     await asyncio.gather(
-        # main(LEGS[0]),
-        # main(LEGS[1]),
-        # main(LEGS[2]),
-        # main(LEGS[3]),
+        main(LEGS[0],degrees),
+        main(LEGS[1],degrees),
+        main(LEGS[2],degrees),
+        main(LEGS[3],degrees),
         # pressure_demo(COMPRESSOR)
     )
 
 if __name__ == "__main__":
-    calibrate()
+    # calibrate()
+
     # asyncio.run(run_all())
