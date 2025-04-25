@@ -1,6 +1,7 @@
 import os
 import sys
 import numpy as np
+import time
 
 # Add project root to sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -19,10 +20,10 @@ adc_actions.USE = True
 
 configure_device("samples/demo_config.json")
 
-
+DEGREES = 7
 TWO_PI = 2 * np.pi
-STEPS = 4
-TIME = 1
+STEPS = 60 # total per cycle
+TIME = 5 # in seconds
 TIME_PER_STEP = TIME / STEPS
 STEPS_PER_SECOND = STEPS / TIME
 ANGULAR_FREQUENCY = TWO_PI / STEPS
@@ -33,7 +34,11 @@ class Leg:
     abd_ad: str # abductor and aductor (i can't spell) motor
     muscle: str
     appendage: str # which leg this represents as in FRONT_RIGHT, BACK_RIGHT, FRONT_LEFT, BACK_LEFT
+    side: int # left is -1 right is pos 1, do no do different values than this, used for compressor
     
+    # phase, used for gait cycle, is either 0 pi/2 pi or 3pi/2
+    # because the gait cycle is based on a cosine loop
+    phase: float = 0
         
 
     # Default speed and delays will be used for all of the legs unless overridden
@@ -41,10 +46,6 @@ class Leg:
     leftSpeed: int = 1
     rightSpeed: int = -1
     stopSpeed: int = 0
-
-    # phase, used for gait cycle, is either 0 pi/2 pi or 3pi/2
-    # because the gait cycle is based on a cosine loop
-    phase: float = 0
 
     # no such thing as left and right in one leg
     leftDelay: float = 1
@@ -74,7 +75,9 @@ LEGS = [
         motor="odrive_1",
         abd_ad="odrive_2",
         muscle="muscle_1",
-        appendage="FRONT_LEFT"
+        appendage="FRONT_LEFT",
+        phase = 0,
+        side = -1,
         # Uncomment to override default speed and delays
         # leftSpeed=LEFT_SPEED,
         # rightSpeed=RIGHT_SPEED,
@@ -87,6 +90,8 @@ LEGS = [
         abd_ad="odrive_4",
         muscle="muscle_2",
         appendage="BACK_LEFT",
+        phase = np.pi,
+        side = -1,
         # Uncomment to override default speed and delays
         # leftSpeed=LEFT_SPEED,
         # rightSpeed=RIGHT_SPEED,
@@ -99,6 +104,8 @@ LEGS = [
         abd_ad="odrive_6",
         muscle="muscle_3",
         appendage="BACK_RIGHT",
+        phase = np.pi,
+        side = 1,
         # Uncomment to override default speed and delays
         # leftSpeed=LEFT_SPEED,
         # rightSpeed=RIGHT_SPEED,
@@ -111,6 +118,8 @@ LEGS = [
         abd_ad="odrive_8",
         muscle="muscle_4",
         appendage="FRONT_RIGHT",
+        phase= 0,
+        side = 1,
         # Uncomment to override default speed and delays
         # leftSpeed=LEFT_SPEED,
         # rightSpeed=RIGHT_SPEED,
@@ -133,28 +142,25 @@ DEFAULT_TORQUE = .001
 def convert_degrees_to_positions(n: float):
     return n * (5.33/30) # 5.33 positions per 30 degrees
 
-
-import time
-
 def calibrate():
     print("back left calibration")
     motor_actions.set_axis_state(LEGS[1].motor, motor_actions.MotorState.FULL_CALIBRATION_SEQUENCE)
     time.sleep(20)
     print("back left homing")
     motor_actions.set_axis_state(LEGS[1].motor, motor_actions.MotorState.HOMING)
-    time.sleep(20)
+    time.sleep(10)
     print("back right calibration")
     motor_actions.set_axis_state(LEGS[2].motor, motor_actions.MotorState.FULL_CALIBRATION_SEQUENCE)
     time.sleep(20)
     print("back right homing")
     motor_actions.set_axis_state(LEGS[2].motor, motor_actions.MotorState.HOMING)
-    time.sleep(20)
+    time.sleep(10)
     print("front right calibration")
     motor_actions.set_axis_state(LEGS[3].motor, motor_actions.MotorState.FULL_CALIBRATION_SEQUENCE)
     time.sleep(20)
     print("front right homing")
     motor_actions.set_axis_state(LEGS[3].motor, motor_actions.MotorState.HOMING)
-    time.sleep(20)
+    time.sleep(10)
     print("front left calibration")
     motor_actions.set_axis_state(LEGS[0].motor, motor_actions.MotorState.FULL_CALIBRATION_SEQUENCE)
     time.sleep(20)
@@ -164,63 +170,57 @@ def calibrate():
 
     for leg in LEGS:
         if motor_actions.set_axis_state(leg.motor, motor_actions.MotorState.CLOSED_LOOP_CONTROL):
-            print("leg in closed loop")
+            print("leg flex in closed loop")
+        if motor_actions.set_axis_state(leg.abd_ad, motor_actions.MotorState.CLOSED_LOOP_CONTROL):
+            print("leg abd in closed loop")
 
     
-
-async def startup(degrees: float):
+def startup(degrees: float):
     
     # this section moves the legs to their correct starting position given the amble gait cycle
 
     for leg in LEGS:
+        if motor_actions.set_controller_mode(leg.motor, motor_actions.ControlMode.POSITION_CONTROL):
+            print("leg flex in position_control")
+    time.sleep(1)
+
+    for leg in LEGS:
         gait_cycle(leg, degrees, 0)
 
+    print("startup complete")
     time.sleep(5)
 
 
 
 async def main(leg: Leg, degrees: float):
-    # This is a simple demo that will move the leg back and forth and contract and expand the muscle in a cycle.
-    # Each leg will move in a cycle independently.
-    while motor_actions.get_state(leg.motor) != motor_actions.MotorState.IDLE:
-        # print("Calibrating {leg.motor}...")
-        continue
-    await asyncio.sleep(3)
 
-    if motor_actions.set_axis_state(leg.motor, motor_actions.MotorState.CLOSED_LOOP_CONTROL):
-        print("set to closed loop")
-    
-    await asyncio.sleep(3)
-
-
-    if motor_actions.set_controller_mode(leg.motor, motor_actions.ControlMode.POSITION_CONTROL, motor_actions.InputMode.PASSTHROUGH):
-        print("Set leg to position_control")
-
-    motor_actions.set_position_control_velocity(leg.motor, ONE_DEGREE_PER_SECOND_IN_REV_PER_SECOND)
-
+    i = 1
     while True:
-        motor_actions.set_target_position(
-            leg.motor,
-            degrees,
-            ONE_DEGREE_PER_SECOND_IN_REV_PER_SECOND
-        )
-        await asyncio.sleep(leg.leftDelay)
-        motor_actions.set_target_position(leg.motor, 0, ONE_DEGREE_PER_SECOND_IN_REV_PER_SECOND)
-        # muscle_actions.contract(leg.muscle)
-        await asyncio.sleep(leg.muscleDelay)
-        motor_actions.set_target_position(
-            leg.motor,
-            degrees * -1,
-            ONE_DEGREE_PER_SECOND_IN_REV_PER_SECOND
-        )
-        await asyncio.sleep(leg.rightDelay)
-        motor_actions.set_target_position(leg.motor, 0,ONE_DEGREE_PER_SECOND_IN_REV_PER_SECOND )
-        # muscle_actions.relax(leg.muscle)
-        await asyncio.sleep(leg.muscleDelay)
-        await asyncio.sleep(leg.cycleInterval)
+        gait_cycle(leg,degrees,i)
+        await asyncio.sleep(TIME_PER_STEP)
+        # motor_actions.set_target_position(
+        #     leg.motor,
+        #     degrees,
+        #     ONE_DEGREE_PER_SECOND_IN_REV_PER_SECOND
+        # )
+        # await asyncio.sleep(leg.leftDelay)
+        # motor_actions.set_target_position(leg.motor, 0, ONE_DEGREE_PER_SECOND_IN_REV_PER_SECOND)
+        # # muscle_actions.contract(leg.muscle)
+        # await asyncio.sleep(leg.muscleDelay)
+        # motor_actions.set_target_position(
+        #     leg.motor,
+        #     degrees * -1,
+        #     ONE_DEGREE_PER_SECOND_IN_REV_PER_SECOND
+        # )
+        # await asyncio.sleep(leg.rightDelay)
+        # motor_actions.set_target_position(leg.motor, 0,ONE_DEGREE_PER_SECOND_IN_REV_PER_SECOND )
+        # # muscle_actions.relax(leg.muscle)
+        # await asyncio.sleep(leg.muscleDelay)
+        # await asyncio.sleep(leg.cycleInterval)
+        i += 1
 
 
-async def gait_cycle(leg: Leg, degrees: float, current_step: int):
+def gait_cycle(leg: Leg, degrees: float, current_step: int):
         """
         does one "cycle" not as in a full cycle, as in one part ie one "2pi / steps/time" of a cycle
         the gait is broken into chunks, size of which is defined by steps/time,
@@ -240,23 +240,23 @@ async def gait_cycle(leg: Leg, degrees: float, current_step: int):
         leg_degree = gait * np.cos(leg_pos_in_radians)
         motor_actions.set_target_position(
             leg.motor,
-            -1*(leg_degree), # might depend on which leg
+            -1 * (leg_degree), # might depend on which leg
         )
-        if(-1 * np.sin(leg_pos_in_radians) < 0):
-            motor_actions.release()
-        if (-1 * np.sin(leg_pos_in_radians) > 0): # maybe is 2pi and not TIME
-            motor_actions.contract()
+        if(leg.side * np.sin(leg_pos_in_radians) < 0):
+            muscle_actions.relax(leg.muscle)
+        if (leg.side * np.sin(leg_pos_in_radians) > 0): # maybe is 2pi and not TIME
+            muscle_actions.contract(leg.muscle)
 
 async def pressure_demo(compressor: Compressor):
     # This is a function that will turn on and off the compressor to maintain pressure in the pneumatics.
-    # It will cycle between 100 and 120 PSI.
+    # It will cycle between 75 and 80 PSI.
     def check_pressure():
         # Return True if pressure is too low, False if pressure is too high, None if pressure is within range
 
         pressure = potentiometer_actions.get_psi(potentiometer_actions.get_data(compressor.potentiometer))
 
-        print(str(pressure) + " degree")
-        print(str(potentiometer_actions.get_data(compressor.potentiometer)) + " raw data")
+        print(str(pressure) + " PSI")
+        # print(str(potentiometer_actions.get_data(compressor.potentiometer)) + " raw data")
 
         return (
             True
@@ -289,6 +289,7 @@ async def run_all(degrees: float):
     )
 
 if __name__ == "__main__":
-    # calibrate()
-
-    # asyncio.run(run_all())
+    calibrate()
+    startup(DEGREES)
+    print("beginning main loop")
+    asyncio.run(run_all(DEGREES))
