@@ -175,7 +175,7 @@ def calibrate():
             print("leg abd in closed loop")
 
     
-def startup(degrees: float):
+def startup(degrees: float, compressor: Compressor):
     
     # this section moves the legs to their correct starting position given the amble gait cycle
 
@@ -185,18 +185,18 @@ def startup(degrees: float):
     time.sleep(1)
 
     for leg in LEGS:
-        gait_cycle(leg, degrees, 0)
+        gait_cycle(leg, degrees, 0, compressor)
 
     print("startup complete")
     time.sleep(5)
 
 
 
-async def main(leg: Leg, degrees: float):
+async def main(leg: Leg, degrees: float, compressor: Compressor):
 
     i = 1
     while True:
-        gait_cycle(leg,degrees,i)
+        gait_cycle(leg,degrees,i,compressor)
         await asyncio.sleep(TIME_PER_STEP)
         # motor_actions.set_target_position(
         #     leg.motor,
@@ -220,7 +220,7 @@ async def main(leg: Leg, degrees: float):
         i += 1
 
 
-def gait_cycle(leg: Leg, degrees: float, current_step: int):
+def gait_cycle(leg: Leg, degrees: float, current_step: int, compressor: Compressor):
         """
         does one "cycle" not as in a full cycle, as in one part ie one "2pi / steps/time" of a cycle
         the gait is broken into chunks, size of which is defined by steps/time,
@@ -244,8 +244,9 @@ def gait_cycle(leg: Leg, degrees: float, current_step: int):
         )
         if(leg.side * np.sin(leg_pos_in_radians) < 0):
             muscle_actions.relax(leg.muscle)
-        if (leg.side * np.sin(leg_pos_in_radians) > 0): # maybe is 2pi and not TIME
-            muscle_actions.contract(leg.muscle)
+        if (leg.side * np.sin(leg_pos_in_radians) > 0):
+            if (potentiometer_actions.get_psi(potentiometer_actions.get_data(compressor.potentiometer)) >= 75):
+                muscle_actions.contract(leg.muscle)
 
 async def pressure_demo(compressor: Compressor):
     # This is a function that will turn on and off the compressor to maintain pressure in the pneumatics.
@@ -278,18 +279,18 @@ async def pressure_demo(compressor: Compressor):
         await asyncio.sleep(compressor.checkInterval)
 
 
-async def run_all(degrees: float):
+async def run_all(degrees: float, compressor: Compressor):
     # Gather all tasks and run them concurrently
     await asyncio.gather(
-        main(LEGS[0],degrees),
-        main(LEGS[1],degrees),
-        main(LEGS[2],degrees),
-        main(LEGS[3],degrees),
-        # pressure_demo(COMPRESSOR)
+        main(LEGS[0],degrees,compressor),
+        main(LEGS[1],degrees,compressor),
+        main(LEGS[2],degrees,compressor),
+        main(LEGS[3],degrees,compressor),
+        pressure_demo(compressor), # comment out to stop pressure
     )
 
 if __name__ == "__main__":
     calibrate()
-    startup(DEGREES)
+    startup(DEGREES,COMPRESSOR)
     print("beginning main loop")
-    asyncio.run(run_all(DEGREES))
+    asyncio.run(run_all(DEGREES,COMPRESSOR))
