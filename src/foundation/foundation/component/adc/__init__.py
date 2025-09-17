@@ -1,1 +1,1 @@
-from . import adc as adc_action
+from . import adc as adc_actions

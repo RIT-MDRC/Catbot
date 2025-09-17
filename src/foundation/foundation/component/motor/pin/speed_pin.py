@@ -1,10 +1,14 @@
+"""
+!!!DEPRECATED!!!: This module is deprecated and will be removed in a future version.
+
+This module is used to control the step pin and direction pin of a motor used by the raw_motor module.
+"""
+
 import logging
+
 from gpiozero import PWMOutputDevice
-from ....state_management import (
-    create_masked_context,
-    device_action,
-    pwm_output_device_ctx,
-)
+
+from state_management import create_masked_context, device_action, pwm_output_device_ctx
 
 ctx = create_masked_context(pwm_output_device_ctx, "speedPin")
 

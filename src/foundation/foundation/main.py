@@ -1,22 +1,23 @@
 #!/usr/bin/env /workspace/.venv/bin/python
 
-from dataclasses import dataclass, field
 import logging
 import os
+from dataclasses import dataclass, field
 from typing import Union
 
-from .state_management._device import Context
 import rclpy
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from rclpy.node import Node
 from std_msgs.msg import Empty, Float64
-from .state_management import configure_device
-from .component.muscle import muscle_actions, pressure_actions
-from .component.compressor import compressor_actions
-from .component.adc import adc_action
-from .component.motor import motor_actions, motor_enums
 
-adc_action.USE = True
+from component.adc import adc_actions
+from component.compressor import compressor_actions
+from component.motor import motor_actions, motor_enums
+from component.muscle import muscle_actions, pressure_actions
+from state_management import configure_device
+from state_management._device import Context
+
+adc_actions.USE = True
 
 COMPRESSOR = "main_compressor"
 COMPRESSOR_THRESHOLD = 600

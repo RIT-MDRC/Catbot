@@ -2,6 +2,7 @@ import json
 import logging
 import os
 
+from dotenv import load_dotenv
 from gpiozero import DigitalInputDevice, DigitalOutputDevice, PWMOutputDevice
 
 from .deviceMock import (
@@ -17,8 +18,9 @@ def is_dev() -> bool:
 
     :return: True if the environment is set to development, False otherwise
     """
+    res = load_dotenv(".env")
     config_data = os.environ
-    if config_data is None:
+    if config_data is None and res is False:
         raise ValueError("No config file found. Create a .env file in src/raspi")
     return config_data.get("ENV") == "dev"
 

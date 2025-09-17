@@ -1,12 +1,13 @@
 from dataclasses import dataclass
 
-from ...state_management import (
-    device,
-    identifier,
+from state_management import (
     create_context,
-    device_parser,
+    device,
     device_action,
+    device_parser,
+    identifier,
 )
+
 from . import raw_motor_actions
 
 

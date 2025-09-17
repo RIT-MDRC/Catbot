@@ -1,9 +1,10 @@
-import can
 import logging
-from typing import Callable
 from dataclasses import dataclass, field
+from typing import Callable
 
-from ...state_management import (
+import can
+
+from state_management import (
     create_generic_context,
     device,
     device_action,

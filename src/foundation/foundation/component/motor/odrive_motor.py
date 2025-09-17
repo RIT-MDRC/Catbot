@@ -1,18 +1,18 @@
-import os
-import cantools
 import logging
+import os
 from dataclasses import dataclass
-from .odrive_enums import *
 
-from ..can import can_actions
-
-from ...state_management import (
+import cantools
+from state_management import (
     create_generic_context,
     device,
     device_action,
     device_parser,
     identifier,
 )
+
+from ..can import can_actions
+from .odrive_enums import ControlMode, InputMode, MotorState
 
 ODRIVE_CAN_DB = cantools.db.load_file(
     os.path.dirname(__file__) + "/odrive-cansimple.dbc"
@@ -78,7 +78,7 @@ def read_heartbeat(motor: ODriveMotor, data):
     state = data["Axis_State"].value
     if motor.current_state != state:
         motor.current_state = state
-        logging.info(f"Axis {motor.axisID} Heartbeat w/ state: " + str(state))
+        logging.info(f"Axis {motor.axisID} Heartbeat w/ state: " + str(state) + " data: " + f"{data}")
         axis_error = data["Axis_Error"]
         if get_error_num(axis_error) != 0:
             logging.error(
@@ -88,8 +88,12 @@ def read_heartbeat(motor: ODriveMotor, data):
 
 @event_decorator("Get_Encoder_Estimates")
 def update_estimates(motor: ODriveMotor, data):
-    motor.current_position = data["Pos_Estimate"]
-    motor.current_velocity = data["Vel_Estimate"]
+    posEstimate = data["Pos_Estimate"]
+    velEstimate = data["Vel_Estimate"]
+    if motor.current_position != posEstimate or motor.current_velocity != velEstimate:
+        logging.info(f"New Axis {motor.axisID} Encoder Estimates {data}")
+    motor.current_position = posEstimate
+    motor.current_velocity = velEstimate
 
     if motor.strict_bounds:
         if (
@@ -171,7 +175,7 @@ def set_target_position(
             f"Can not set position on motor {motor.axisID} when not set to POSITION_CONTROL."
         )
         return False
-    if motor.position_min != None and position < motor.position_min:
+    if motor.position_min is not None and position < motor.position_min:
         if motor.strict_bounds:
             logging.error(
                 f"Attempting to set position on motor {motor.axisID} past lower bounds in strict bounds mode. This can be turned off by setting strict_bounds to False in pinconfig.json."
@@ -181,7 +185,7 @@ def set_target_position(
             f"Attempting to set position on motor {motor.axisID} past lower bounds."
         )
         position = motor.position_min
-    elif motor.position_max != None and position > motor.position_max:
+    elif motor.position_max is not None and position > motor.position_max:
         if motor.strict_bounds:
             logging.error(
                 f"Attempting to set position on motor {motor.axisID} past upper bounds in strict bounds mode. This can be turned off by setting strict_bounds to False in pinconfig.json."
@@ -197,14 +201,28 @@ def set_target_position(
         {"Input_Pos": position, "Vel_FF": velocity_FF, "Torque_FF": torque_FF},
     )
 
+@device_action(ctx)
+def set_position_control_velocity(
+    motor: ODriveMotor,
+    velocity_FF: float = 0.0,
+) -> bool:
+    logging.info("Setting position control velocity")
+    return send_message(
+        motor,
+        "Set_Input_Pos",
+        {"Input_Pos": ControlMode.POSITION_CONTROL, "Vel_FF": velocity_FF, "Torque_FF": 0.0},
+    )
+
 
 @device_action(ctx)
 def set_trajectory_velocity(motor: ODriveMotor, velocity: float) -> bool:
+    logging.info("Setting trajectory velocity")
     return send_message(motor, "Set_Traj_Vel_Limit", {"Traj_Vel_Limit": velocity})
 
 
 @device_action(ctx)
 def set_trajectory_accel(motor: ODriveMotor, accel: float, decel: float = None) -> bool:
+    logging.info("Setting trajectory acceleration")
     return send_message(
         motor,
         "Set_Traj_Accel_Limits",
@@ -217,6 +235,7 @@ def set_target_velocity(
     motor: ODriveMotor, velocity: float, torque_FF: float = 0.0
 ) -> bool:
     """Set the target velocity for this motor"""
+    logging.info(f"Setting target velocity to {velocity}")
     if (
         motor.control_mode == ControlMode.POSITION_CONTROL
         and motor.input_mode == InputMode.TRAP_TRAJ
@@ -234,6 +253,7 @@ def set_target_velocity(
 
 @device_action(ctx)
 def stop(motor: ODriveMotor):
+    logging.info(f"Stopping motor(Axis: {motor.axisID})")
     match motor.control_mode:
         case ControlMode.POSITION_CONTROL:
             if motor.current_position is not None:
@@ -244,16 +264,19 @@ def stop(motor: ODriveMotor):
 
 @device_action(ctx)
 def get_current_position(motor: ODriveMotor) -> float:
+    logging.info(f"Getting current position of motor(Axis: {motor.axisID})")
     return motor.current_position
 
 
 @device_action(ctx)
 def get_position_limits(motor: ODriveMotor) -> list[float]:
+    logging.info(f"Getting position limits of motor(Axis: {motor.axisID})")
     return [motor.position_min, motor.position_max]
 
 
 @device_action(ctx)
 def get_current_velocity(motor: ODriveMotor) -> float:
+    logging.info(f"Getting current velocity of motor(Axis: {motor.axisID})")
     return motor.current_velocity
 
 
@@ -269,12 +292,14 @@ def get_current_velocity(motor: ODriveMotor) -> float:
 def request_set_state(motor: ODriveMotor, state: MotorState) -> bool:
     """Set the state of the motor
     Motor will not recieve position/velocity input if not set to CLOSED_LOOP_CONTROL"""
+    logging.info(f"Setting state of motor(Axis: {motor.axisID}) to {state}")
     return send_message(motor, "Set_Axis_State", {"Axis_Requested_State": state})
 
 
 @device_action(ctx)
 def get_state(motor: ODriveMotor) -> MotorState:
     """Returns the most recent state reported by the motor."""
+    logging.info(f"Getting state of motor(Axis: {motor.axisID})")
     return motor.current_state
 
 
@@ -290,7 +315,7 @@ def set_controller_mode(
         logging.warning(
             f"Motor {motor.axisID} has position limits, but is being set to non-position control. Position limits can not be enforced under non-position control."
         )
-    return send_message(
+    res = send_message(
         motor,
         "Set_Controller_Mode",
         {
@@ -300,6 +325,9 @@ def set_controller_mode(
             "Input_Mode": new_input_mode if new_input_mode else motor.input_mode,
         },
     )
+    if res:
+        motor.control_mode = new_control_mode
+        motor.input_mode = new_input_mode
 
 
 @device_action(ctx)
@@ -317,6 +345,7 @@ def get_input_mode(motor: ODriveMotor) -> InputMode:
     return motor.input_mode
 
 
+
 @device_action(ctx)
 def send_message(motor: ODriveMotor, msg_name: str, data: dict) -> bool:
     msg = ODRIVE_CAN_DB.get_message_by_name(msg_name)
@@ -324,5 +353,14 @@ def send_message(motor: ODriveMotor, msg_name: str, data: dict) -> bool:
     data = msg.encode(data)
     return can_actions.send_message(motor.bus, msg_id, data)
 
+@device_action(ctx)
+def reboot(motor: ODriveMotor) -> bool:
+    return send_message(motor, "Reboot", {})
+    
+
+@device_action(ctx)
+def set_axis_state(motor: ODriveMotor, state: MotorState) -> bool:
+    logging.info(f"Motor {motor.axisID} is being set to state {state}")
+    return send_message(motor, "Set_Axis_State", {"Axis_Requested_State": state})
 
 # endregion
