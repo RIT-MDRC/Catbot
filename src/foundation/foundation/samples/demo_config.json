@@ -72,7 +72,7 @@
 		},
 		"odrive_3": {
 			"bus": "can_bus_1",
-			"axisID": 2,
+			"axisID": 4,
 			"control_mode": 2,
 			"input_mode": 1,
 			"position_min": -35,
@@ -80,7 +80,7 @@
 		},
 		"odrive_4": {
 			"bus": "can_bus_1",
-			"axisID": 3,
+			"axisID": 5,
 			"control_mode": 2,
 			"input_mode": 1,
 			"position_min": -35,
@@ -88,7 +88,7 @@
 		},
 		"odrive_5": {
 			"bus": "can_bus_1",
-			"axisID": 4,
+			"axisID": 2,
 			"control_mode": 2,
 			"input_mode": 1,
 			"position_min": -35,
@@ -96,7 +96,7 @@
 		},
 		"odrive_6": {
 			"bus": "can_bus_1",
-			"axisID": 5,
+			"axisID": 3,
 			"control_mode": 2,
 			"input_mode": 1,
 			"position_min": -35,
