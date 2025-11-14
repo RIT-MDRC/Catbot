@@ -78,7 +78,12 @@ def read_heartbeat(motor: ODriveMotor, data):
     state = data["Axis_State"].value
     if motor.current_state != state:
         motor.current_state = state
-        logging.info(f"Axis {motor.axisID} Heartbeat w/ state: " + str(state) + " data: " + f"{data}")
+        logging.info(
+            f"Axis {motor.axisID} Heartbeat w/ state: "
+            + str(state)
+            + " data: "
+            + f"{data}"
+        )
         axis_error = data["Axis_Error"]
         if get_error_num(axis_error) != 0:
             logging.error(
@@ -201,6 +206,7 @@ def set_target_position(
         {"Input_Pos": position, "Vel_FF": velocity_FF, "Torque_FF": torque_FF},
     )
 
+
 @device_action(ctx)
 def set_position_control_velocity(
     motor: ODriveMotor,
@@ -210,7 +216,11 @@ def set_position_control_velocity(
     return send_message(
         motor,
         "Set_Input_Pos",
-        {"Input_Pos": ControlMode.POSITION_CONTROL, "Vel_FF": velocity_FF, "Torque_FF": 0.0},
+        {
+            "Input_Pos": ControlMode.POSITION_CONTROL,
+            "Vel_FF": velocity_FF,
+            "Torque_FF": 0.0,
+        },
     )
 
 
@@ -345,7 +355,6 @@ def get_input_mode(motor: ODriveMotor) -> InputMode:
     return motor.input_mode
 
 
-
 @device_action(ctx)
 def send_message(motor: ODriveMotor, msg_name: str, data: dict) -> bool:
     msg = ODRIVE_CAN_DB.get_message_by_name(msg_name)
@@ -353,14 +362,16 @@ def send_message(motor: ODriveMotor, msg_name: str, data: dict) -> bool:
     data = msg.encode(data)
     return can_actions.send_message(motor.bus, msg_id, data)
 
+
 @device_action(ctx)
 def reboot(motor: ODriveMotor) -> bool:
     return send_message(motor, "Reboot", {})
-    
+
 
 @device_action(ctx)
 def set_axis_state(motor: ODriveMotor, state: MotorState) -> bool:
     logging.info(f"Motor {motor.axisID} is being set to state {state}")
     return send_message(motor, "Set_Axis_State", {"Axis_Requested_State": state})
+
 
 # endregion

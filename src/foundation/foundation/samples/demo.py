@@ -146,6 +146,14 @@ def convert_degrees_to_positions(n: float):
 
 
 def calibrate():
+    print("Clearing all errors")
+    for leg in LEGS:
+        motor_actions.clear_error_message(leg.motor)
+        print(f"Cleared errors on {leg.motor}")
+        motor_actions.clear_error_message(leg.abd_ad)
+        print(f"Cleared errors on {leg.abd_ad}")
+    print("Finished clearing all errors")
+
     print("back left calibration")
     motor_actions.set_axis_state(
         LEGS[1].motor, motor_actions.MotorState.FULL_CALIBRATION_SEQUENCE
