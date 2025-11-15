@@ -169,20 +169,20 @@ def calibrate():
     motor_actions.set_axis_state(LEGS[1].abd_ad, motor_actions.MotorState.HOMING)
     time.sleep(10)
 
-    # print("back left calibration")
-    # motor_actions.set_axis_state(
-    #     LEGS[2].motor, motor_actions.MotorState.FULL_CALIBRATION_SEQUENCE
-    # )
-    # time.sleep(1)
-    # motor_actions.set_axis_state(
-    #     LEGS[2].abd_ad, motor_actions.MotorState.FULL_CALIBRATION_SEQUENCE
-    # )
-    # time.sleep(20)
-    # print("back left homing")
-    # motor_actions.set_axis_state(LEGS[2].motor, motor_actions.MotorState.HOMING)
-    # time.sleep(1)
-    # motor_actions.set_axis_state(LEGS[2].abd_ad, motor_actions.MotorState.HOMING)
-    # time.sleep(10)
+    print("back left calibration")
+    motor_actions.set_axis_state(
+        LEGS[2].motor, motor_actions.MotorState.FULL_CALIBRATION_SEQUENCE
+    )
+    time.sleep(1)
+    motor_actions.set_axis_state(
+        LEGS[2].abd_ad, motor_actions.MotorState.FULL_CALIBRATION_SEQUENCE
+    )
+    time.sleep(20)
+    print("back left homing")
+    motor_actions.set_axis_state(LEGS[2].motor, motor_actions.MotorState.HOMING)
+    time.sleep(1)
+    motor_actions.set_axis_state(LEGS[2].abd_ad, motor_actions.MotorState.HOMING)
+    time.sleep(10)
 
     print("front right calibration")
     motor_actions.set_axis_state(
