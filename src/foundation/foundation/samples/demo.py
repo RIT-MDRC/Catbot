@@ -147,81 +147,48 @@ def convert_degrees_to_positions(n: float):
 
 def calibrate():
     print("Clearing all errors")
-    for leg in LEGS:
+    for i, leg in enumerate(LEGS):
         motor_actions.clear_error_message(leg.motor)
-        print(f"Cleared errors on {leg.motor}")
+        print(f"{i}: Cleared errors on {leg.motor}")
         motor_actions.clear_error_message(leg.abd_ad)
-        print(f"Cleared errors on {leg.abd_ad}")
+        print(f"{i}: Cleared errors on {leg.abd_ad}")
     print("Finished clearing all errors")
 
+    def calibration(leg):
+        motor_actions.set_axis_state(
+            leg.motor, motor_actions.MotorState.FULL_CALIBRATION_SEQUENCE
+        )
+        time.sleep(1)
+        motor_actions.set_axis_state(
+            leg.abd_ad, motor_actions.MotorState.FULL_CALIBRATION_SEQUENCE
+        )
+        time.sleep(15)
+        motor_actions.set_axis_state(leg.motor, motor_actions.MotorState.HOMING)
+        time.sleep(1)
+        motor_actions.set_axis_state(leg.abd_ad, motor_actions.MotorState.HOMING)
+        time.sleep(15)
+
     print("back right calibration")
-    motor_actions.set_axis_state(
-        LEGS[1].motor, motor_actions.MotorState.FULL_CALIBRATION_SEQUENCE
-    )
-    time.sleep(1)
-    motor_actions.set_axis_state(
-        LEGS[1].abd_ad, motor_actions.MotorState.FULL_CALIBRATION_SEQUENCE
-    )
-    time.sleep(20)
-    print("back right homing")
-    motor_actions.set_axis_state(LEGS[1].motor, motor_actions.MotorState.HOMING)
-    time.sleep(1)
-    motor_actions.set_axis_state(LEGS[1].abd_ad, motor_actions.MotorState.HOMING)
-    time.sleep(10)
+    calibration(LEGS[1])
 
     print("back left calibration")
-    motor_actions.set_axis_state(
-        LEGS[2].motor, motor_actions.MotorState.FULL_CALIBRATION_SEQUENCE
-    )
-    time.sleep(1)
-    motor_actions.set_axis_state(
-        LEGS[2].abd_ad, motor_actions.MotorState.FULL_CALIBRATION_SEQUENCE
-    )
-    time.sleep(20)
-    print("back left homing")
-    motor_actions.set_axis_state(LEGS[2].motor, motor_actions.MotorState.HOMING)
-    time.sleep(1)
-    motor_actions.set_axis_state(LEGS[2].abd_ad, motor_actions.MotorState.HOMING)
-    time.sleep(10)
+    calibration(LEGS[2])
 
     print("front right calibration")
-    motor_actions.set_axis_state(
-        LEGS[3].motor, motor_actions.MotorState.FULL_CALIBRATION_SEQUENCE
-    )
-    time.sleep(1)
-    motor_actions.set_axis_state(
-        LEGS[3].abd_ad, motor_actions.MotorState.FULL_CALIBRATION_SEQUENCE
-    )
-    print("front right homing")
-    motor_actions.set_axis_state(LEGS[3].motor, motor_actions.MotorState.HOMING)
-    time.sleep(1)
-    motor_actions.set_axis_state(LEGS[3].abd_ad, motor_actions.MotorState.HOMING)
-    time.sleep(10)
+    calibration(LEGS[3])
 
     print("front left calibration")
-    motor_actions.set_axis_state(
-        LEGS[0].motor, motor_actions.MotorState.FULL_CALIBRATION_SEQUENCE
-    )
-    time.sleep(1)
-    motor_actions.set_axis_state(
-        LEGS[0].abd_ad, motor_actions.MotorState.FULL_CALIBRATION_SEQUENCE
-    )
-    time.sleep(20)
-    print("front left homing")
-    motor_actions.set_axis_state(LEGS[0].motor, motor_actions.MotorState.HOMING)
-    time.sleep(1)
-    motor_actions.set_axis_state(LEGS[0].abd_ad, motor_actions.MotorState.HOMING)
-    time.sleep(10)
+    calibration(LEGS[0])
 
-    for leg in LEGS:
+    for i, leg in enumerate(LEGS):
         if motor_actions.set_axis_state(
             leg.motor, motor_actions.MotorState.CLOSED_LOOP_CONTROL
         ):
-            print("leg flex in closed loop")
+            print(f"{i}: leg flex in closed loop")
         if motor_actions.set_axis_state(
             leg.abd_ad, motor_actions.MotorState.CLOSED_LOOP_CONTROL
         ):
-            print("leg abd in closed loop")
+            print(f"{i}: leg abd in closed loop")
 
 
 def startup(degrees: float, compressor: Compressor):
