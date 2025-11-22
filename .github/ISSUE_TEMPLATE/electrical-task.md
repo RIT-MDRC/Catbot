@@ -1,8 +1,8 @@
 ---
 name: Electrical Task
 about: Electrical task template for project planning and review
-title: "[ELECTRICAL]"
-labels: ''
+title: "[EE]"
+labels: Electrical
 assignees: ''
 
 ---
@@ -14,22 +14,35 @@ assignees: ''
 MM/DD/YYYY
 
 # Requirements
-- Is there a strict dimension that this feature need to meet? if so, what?
-- How will this be manufactured? and What material is used? (3d print? molded? welded?)
-- How will this feature be assembled? (with relative to other part's assembly steps)
-- What other parts are going to interact with this feature?
-- How much force will be applied to this part? and from where?
-- What are some failure point of this feature when stress tested?
-- How will this part going to mitigate these failure points?
-- What should the tolerance be on each connection/interaction point? 
+- [ ] PCBs
+      - Specific Micro to be used
+      - Input Power voltage/current
+      - Communication Protocals supported
+      - Capabilities
+      - Methods of Testing
+            - Accessable to Test Via Multimeter (Test Pads?)
+      - Cost
+      - Connection to External Components (Input/Output)
+      - embedded Components/Modules (GPS, Bluetooth, Wifi, etc)
+- [ ] Wire Harness
+      - Function
+      - Connections to Components
+      - 
+- [ ] Dev
+
+# Risks
+      - [ ] PCBs
+            - Shorting
+            -  Over/Under Volting/Current
+            - Potential Hazards (Internally and/or to External Components)
+            - Redundancies
 
 # Final part information
 
 ## Module
-- [ ] Leg
-- [ ] Hip
-- [ ] Chassis
-- [ ] Pneumatics
+- [ ] PCBs
+- [ ] Wire Harness
+- [ ] Dev
 
 ## File and weight
 > copy if multiple
