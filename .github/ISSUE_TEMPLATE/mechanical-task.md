@@ -1,7 +1,7 @@
 ---
 name: Mechanical Task
 about: Mechanical task template for project planning and review
-title: "[MECHA] task name here"
+title: "[MECHA] "
 labels: Mechanical
 assignees: ''
 
