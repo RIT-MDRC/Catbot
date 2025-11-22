@@ -8,7 +8,7 @@ assignees: ''
 ---
 
 # Feature description
-> 2 to 3 sentence describing where this part goes and what does it serve
+> 2 to 3 sentence describing where this part goes and what is its purpose?
 
 # Deadline
 MM/DD/YYYY
