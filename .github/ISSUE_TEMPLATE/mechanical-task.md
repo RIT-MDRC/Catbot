@@ -14,21 +14,24 @@ assignees: ''
 MM/DD/YYYY
 
 # Requirements
-- Is there a strict dimension that this part need to meet? if so, what?
-- What other parts are going to interact with this new part(s)?
+- Is there a strict dimension that this feature need to meet? if so, what?
+- How will this be manufactured? and What material is used? (3d print? molded? welded?)
+- How will this feature be assembled? (with relative to other part's assembly steps)
+- What other parts are going to interact with this feature?
 - How much force will be applied to this part? and from where?
-- What are some failure point of this part when stress tested?
+- What are some failure point of this feature when stress tested?
 - How will this part going to mitigate these failure points?
-- What should the tolerance be on each connection point? 
+- What should the tolerance be on each connection/interaction point? 
 
 # Final part information
+
 ## Module
 - [ ] Leg
 - [ ] Hip
 - [ ] Chassis
 - [ ] Pneumatics
 
-# File and weight
+## File and weight
 > copy if multiple
 
 Part ID: #X
@@ -36,7 +39,7 @@ Part name in fusion:
 Estimated weight: XX.X lb
 Fusion file location: XXX/YYY/ZZZ
 
-# Test methods
+## Test methods
 > physical testing and assembly testing
 
 # Rough design notes and decisions
@@ -66,4 +69,4 @@ Check list:
    - [ ] Test engineering requirements(did it pass?)
    - [ ] Test assembly interactions(did it pass?)
 - [ ] Updated [Part List](https://docs.google.com/spreadsheets/d/1Lz6Sw-Gd7orjvEfe1vMTaa1BJ5Jo_y5QtSiVIIQgiJI/edit?usp=sharing)
-- [ ] Ask task for review
+- [ ] Ask reviewer for review of this task
