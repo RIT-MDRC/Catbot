@@ -175,12 +175,9 @@ function sample(args) {
 
 	const scriptArgs = [];
 	if (args.file === 'motor-test') {
-		if (!args.motor) {
-			console.error('The motor-test sample requires --motor, for example --motor odrive_1.');
-			process.exitCode = 1;
-			return;
+		if (args.motor) {
+			scriptArgs.push('--motor', args.motor);
 		}
-		scriptArgs.push('--motor', args.motor);
 		if (args.config) {
 			scriptArgs.push('--config', path.resolve(args.config));
 		}

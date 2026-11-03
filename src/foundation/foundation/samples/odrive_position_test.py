@@ -25,7 +25,6 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--motor",
-        required=True,
         help="configured motor name, for example odrive_1",
     )
     parser.add_argument(
@@ -35,6 +34,28 @@ def parse_args() -> argparse.Namespace:
         help=f"device configuration file (default: {default_config})",
     )
     return parser.parse_args()
+
+
+def describe_motors(motors) -> str:
+    """List configured motor names and their CAN axis IDs."""
+    return ", ".join(
+        f"{name} (axis {motor.axisID})" for name, motor in sorted(motors.items())
+    ) or "none"
+
+
+def report_bus_errors(motors) -> bool:
+    """Print every currently reported ODrive error on the configured CAN bus."""
+    errors = [
+        f"{name} (axis {motor.axisID}): 0x{motor.axis_error:x}"
+        for name, motor in sorted(motors.items())
+        if motor.axis_error
+    ]
+    if not errors:
+        return False
+    print("ODrive error(s) detected on the CAN bus:")
+    for error in errors:
+        print(f"  {error}")
+    return True
 
 
 def wait_for(motor, predicate, timeout: float) -> bool:
@@ -64,10 +85,14 @@ def main() -> int:
     try:
         configure_device(os.fspath(args.config))
         configured = True
-        selected_motor = motor_actions.ctx.store.get(args.motor)
+        motors = motor_actions.ctx.store
+        selected_motor = motors.get(args.motor) if args.motor else None
         if selected_motor is None:
-            choices = ", ".join(sorted(motor_actions.ctx.store)) or "none"
-            print(f'Unknown motor "{args.motor}". Configured motors: {choices}')
+            if args.motor:
+                print(f'Unknown motor "{args.motor}".')
+            else:
+                print("No motor was selected.")
+            print(f"Configured motors: {describe_motors(motors)}")
             return 2
 
         print(f"Waiting for an ODrive heartbeat from {args.motor}...")
@@ -81,11 +106,7 @@ def main() -> int:
                 "matches the ODrive, and the configured axis ID is correct."
             )
             return 3
-        if selected_motor.axis_error:
-            print(
-                f"ODrive axis error: 0x{selected_motor.axis_error:x}. Not moving motor."
-            )
-            return 4
+        report_bus_errors(motors)
 
         if not motor_actions.set_controller_mode(
             args.motor,
@@ -104,18 +125,20 @@ def main() -> int:
         ):
             print("Failed to set trajectory acceleration.")
             return 5
-        if not motor_actions.set_axis_state(args.motor, MotorState.CLOSED_LOOP_CONTROL):
-            print("Failed to request closed-loop control.")
-            return 5
-        if not wait_for(
-            selected_motor,
-            lambda motor: motor.current_state == MotorState.CLOSED_LOOP_CONTROL,
-            HEARTBEAT_TIMEOUT_SECONDS,
-        ):
-            print("The ODrive did not enter closed-loop control. Not moving motor.")
-            return 6
+        if not selected_motor.axis_error:
+            motor_actions.set_axis_state(args.motor, MotorState.CLOSED_LOOP_CONTROL)
+            if not wait_for(
+                selected_motor,
+                lambda motor: motor.current_state == MotorState.CLOSED_LOOP_CONTROL,
+                HEARTBEAT_TIMEOUT_SECONDS,
+            ):
+                print("The ODrive did not enter closed-loop control. Not moving motor.")
+                report_bus_errors(motors)
 
-        print("Ready. Enter an absolute homed joint angle in degrees, or q to stop.")
+        print(
+            "Commands: angle in degrees, c = calibrate, h = home, "
+            "e = clear errors, q = stop."
+        )
         while True:
             try:
                 raw_value = input("angle> ").strip()
@@ -123,11 +146,52 @@ def main() -> int:
                 break
             if raw_value.lower() in {"q", "quit", "exit"}:
                 break
+            if raw_value.lower() in {"e", "clear"}:
+                if motor_actions.clear_error_message(args.motor):
+                    print(f"Requested error clear for {args.motor}.")
+                    time.sleep(0.2)
+                    report_bus_errors(motors)
+                else:
+                    print("Failed to send the clear-errors command.")
+                continue
+            if raw_value.lower() in {"c", "calibrate"}:
+                print("WARNING: calibration moves the motor; keep the mechanism clear.")
+                if motor_actions.set_axis_state(
+                    args.motor, MotorState.FULL_CALIBRATION_SEQUENCE
+                ):
+                    print(f"Requested full calibration for {args.motor}.")
+                else:
+                    print("Failed to send the calibration command.")
+                continue
+            if raw_value.lower() in {"h", "home"}:
+                print("WARNING: homing moves the motor; keep the mechanism clear.")
+                if motor_actions.set_axis_state(args.motor, MotorState.HOMING):
+                    print(f"Requested homing for {args.motor}.")
+                else:
+                    print("Failed to send the homing command.")
+                continue
             try:
                 angle_degrees = float(raw_value)
             except ValueError:
                 print("Enter a numeric angle or q.")
                 continue
+            report_bus_errors(motors)
+            if selected_motor.axis_error:
+                print("Clear the error before commanding motion.")
+                continue
+            if selected_motor.current_state != MotorState.CLOSED_LOOP_CONTROL:
+                motor_actions.set_axis_state(
+                    args.motor, MotorState.CLOSED_LOOP_CONTROL
+                )
+                if not wait_for(
+                    selected_motor,
+                    lambda motor: motor.current_state
+                    == MotorState.CLOSED_LOOP_CONTROL,
+                    HEARTBEAT_TIMEOUT_SECONDS,
+                ):
+                    print("The ODrive is not in closed-loop control. Not moving motor.")
+                    report_bus_errors(motors)
+                    continue
             target_turns = degrees_to_motor_turns(angle_degrees)
             if motor_actions.set_target_position(args.motor, target_turns):
                 print(

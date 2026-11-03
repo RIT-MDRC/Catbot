@@ -12,7 +12,7 @@ sys.path.insert(0, str(SAMPLES_ROOT))
 from component.motor import motor_actions
 from component.motor.odrive_enums import ControlMode, InputMode
 from component.motor.odrive_motor import ODriveMotor
-from odrive_position_test import degrees_to_motor_turns
+from odrive_position_test import degrees_to_motor_turns, describe_motors, report_bus_errors
 
 
 def make_motor() -> ODriveMotor:
@@ -30,6 +30,27 @@ def test_degrees_to_motor_turns() -> None:
     assert degrees_to_motor_turns(0) == 0
     assert degrees_to_motor_turns(30) == 5.33
     assert degrees_to_motor_turns(-15) == -2.665
+
+
+def test_describe_motors_includes_names_and_axis_ids() -> None:
+    first = make_motor()
+    second = make_motor()
+    second.axisID = 7
+
+    assert describe_motors({"odrive_7": second, "odrive_1": first}) == (
+        "odrive_1 (axis 0), odrive_7 (axis 7)"
+    )
+
+
+def test_report_bus_errors_lists_faulted_motors(capsys) -> None:
+    healthy = make_motor()
+    healthy.axis_error = 0
+    faulted = make_motor()
+    faulted.axisID = 4
+    faulted.axis_error = 0x100
+
+    assert report_bus_errors({"healthy": healthy, "faulted": faulted}) is True
+    assert "faulted (axis 4): 0x100" in capsys.readouterr().out
 
 
 def test_controller_mode_preserves_omitted_input_mode() -> None:

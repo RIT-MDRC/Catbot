@@ -13,11 +13,10 @@ test('CLI help lists setup and sample commands', () => {
 	assert.match(result.stdout, /sample/);
 });
 
-test('motor test requires an explicit motor', () => {
+test('motor test lets the sample list motors when --motor is omitted', () => {
 	const result = spawnSync(process.execPath, [cli, 'sample', 'motor-test', '-D'], {
 		cwd: path.resolve(path.dirname(cli), '..'),
 		encoding: 'utf8',
 	});
-	assert.equal(result.status, 1);
-	assert.match(result.stderr, /requires --motor/);
+	assert.doesNotMatch(result.stderr, /requires --motor/);
 });
