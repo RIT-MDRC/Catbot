@@ -1,8 +1,7 @@
 import os
 import sys
 import time
-
-import numpy as np
+import math
 
 # Add project root to sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -22,7 +21,7 @@ adc_actions.USE = True
 configure_device("samples/demo_config.json")
 
 DEGREES = 7
-TWO_PI = 2 * np.pi
+TWO_PI = 2 * math.pi
 STEPS = 60  # total per cycle
 TIME = 5  # in seconds
 TIME_PER_STEP = TIME / STEPS
@@ -91,7 +90,7 @@ LEGS = [
         abd_ad="odrive_4",
         muscle="muscle_2",
         appendage="BACK_RIGHT",
-        phase=np.pi,
+        phase=math.pi,
         side=-1,
         # Uncomment to override default speed and delays
         # leftSpeed=LEFT_SPEED,
@@ -105,7 +104,7 @@ LEGS = [
         abd_ad="odrive_6",
         muscle="muscle_3",
         appendage="BACK_LEFT",
-        phase=np.pi,
+        phase=math.pi,
         side=1,
         # Uncomment to override default speed and delays
         # leftSpeed=LEFT_SPEED,
@@ -254,14 +253,14 @@ def gait_cycle(leg: Leg, degrees: float, current_step: int, compressor: Compress
 
     gait = convert_degrees_to_positions(degrees) / 2.0
     leg_pos_in_radians = ANGULAR_FREQUENCY * current_step + leg.phase
-    leg_degree = gait * np.cos(leg_pos_in_radians)
+    leg_degree = gait * math.cos(leg_pos_in_radians)
     motor_actions.set_target_position(
         leg.motor,
         -1 * (leg_degree),  # might depend on which leg
     )
-    if leg.side * np.sin(leg_pos_in_radians) < 0:
+    if leg.side * math.sin(leg_pos_in_radians) < 0:
         muscle_actions.relax(leg.muscle)
-    if leg.side * np.sin(leg_pos_in_radians) > 0:
+    if leg.side * math.sin(leg_pos_in_radians) > 0:
         if (
             potentiometer_actions.get_psi(
                 potentiometer_actions.get_data(compressor.potentiometer)

@@ -296,7 +296,6 @@ def open_json(file_name: str = "pinconfig.json"):
         yield key, value
 
 
-@contextmanager
 def log_states():
     logging.info("Device configuration complete")
     logging.info(
@@ -323,7 +322,6 @@ def log_states():
     )
 
 
-@contextmanager
 def configure_device(
     file_name: str = "pinconfig.json",
     file_kv_generator: callable = open_json,

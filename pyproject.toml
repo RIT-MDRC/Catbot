@@ -1,0 +1,25 @@
+[project]
+name = "catbot-runtime"
+version = "0.1.0"
+description = "Runtime dependencies for the Catbot ROS 2 workspace"
+requires-python = ">=3.10,<3.11"
+dependencies = [
+    "adafruit-circuitpython-mcp230xx==2.6.2",
+    "cantools==45.1.2",
+    "gpiozero==2.0.1.post3",
+    "python-can==4.6.1",
+    "python-dotenv==1.2.4",
+    "RPi.GPIO==0.7.1; sys_platform == 'linux'",
+    "smbus2==0.6.1",
+    "textual==8.2.8",
+    "watchdog==6.0.0",
+]
+
+[dependency-groups]
+dev = [
+    "black>=24.10,<27",
+    "pytest>=8,<10",
+]
+
+[tool.uv]
+package = false

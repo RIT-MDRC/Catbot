@@ -9,13 +9,19 @@ Quadruped Hybrid Pneumatic-Electric Robot. Utilizes McKibben Muscles for bio-inp
 * Install [Docker](https://docs.docker.com/get-docker/)
 * `ctrl+shift+p` -> `Dev Containers: Reopen in Container`
 
-### Setup Docker environment
-* Run the following
-* `source .venv/bin/activate`
-* `pip install -r requirements.txt`
-* `source /opt/ros/jazzy/setup.bash`
-* `colcon build`
-* `source install/local_setup.bash`
+### Set up the Python environment
+
+Install uv and use the Catbot CLI. On the Raspberry Pi this keeps ROS Humble's
+system Python ABI while uv manages the project dependencies in a user-local
+environment.
+
+```bash
+npm install -g .
+catbot setup
+```
+
+For development from the current checkout, use `catbot setup -D` and pass `-D`
+to later commands.
 
 ### Run script
 Build the packages:
@@ -24,24 +30,14 @@ To run the UI package:
 * `ros2 run ui ui`
 
 ### Install dependencies
-* install [python](https://www.python.org/downloads/)
+* install [uv](https://docs.astral.sh/uv/)
 * install [nodejs](https://nodejs.org/en/download/)
-
-### Install python dependencies
-Run the following command in the terminal:
-```bash
-pip install -r requirements.txt
-```
-for macos:
-```bash
-pip3 install -r requirements.txt
-```
 
 ### Install nodejs dependencies and catbot-cli
 Run the following command in the terminal:
 ```bash
-npm -g install
-catbot
+npm install -g .
+catbot setup
 ```
 
 For more command information goto [catbot-cli](cli/README.md)

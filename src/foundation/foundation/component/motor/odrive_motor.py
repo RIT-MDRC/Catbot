@@ -14,7 +14,7 @@ from state_management import (
 from ..can import can_actions
 from .odrive_enums import ControlMode, InputMode, MotorState
 
-ODRIVE_CAN_DB = cantools.db.load_file(
+ODRIVE_CAN_DB = cantools.database.load_file(
     os.path.dirname(__file__) + "/odrive-cansimple.dbc"
 )
 
@@ -31,6 +31,7 @@ class ODriveMotor:
     position_max: float = None
 
     current_state: MotorState = MotorState.UNDEFINED
+    axis_error: int = 0
     current_position: float = None
     current_velocity: float = None
 
@@ -76,6 +77,8 @@ def event_decorator(name):
 @event_decorator("Heartbeat")
 def read_heartbeat(motor: ODriveMotor, data):
     state = data["Axis_State"].value
+    axis_error = data["Axis_Error"]
+    motor.axis_error = get_error_num(axis_error)
     if motor.current_state != state:
         motor.current_state = state
         logging.info(
@@ -84,8 +87,7 @@ def read_heartbeat(motor: ODriveMotor, data):
             + " data: "
             + f"{data}"
         )
-        axis_error = data["Axis_Error"]
-        if get_error_num(axis_error) != 0:
+        if motor.axis_error != 0:
             logging.error(
                 f"Axis {motor.axisID} Error w/ following data: " + str(axis_error)
             )
@@ -319,7 +321,9 @@ def set_controller_mode(
     new_control_mode: ControlMode = None,
     new_input_mode: InputMode = None,
 ) -> bool:
-    if new_control_mode != ControlMode.POSITION_CONTROL and (
+    control_mode = motor.control_mode if new_control_mode is None else new_control_mode
+    input_mode = motor.input_mode if new_input_mode is None else new_input_mode
+    if control_mode != ControlMode.POSITION_CONTROL and (
         motor.position_min is not None or motor.position_max is not None
     ):
         logging.warning(
@@ -329,15 +333,14 @@ def set_controller_mode(
         motor,
         "Set_Controller_Mode",
         {
-            "Control_Mode": (
-                new_control_mode if new_control_mode else motor.control_mode
-            ),
-            "Input_Mode": new_input_mode if new_input_mode else motor.input_mode,
+            "Control_Mode": control_mode,
+            "Input_Mode": input_mode,
         },
     )
     if res:
-        motor.control_mode = new_control_mode
-        motor.input_mode = new_input_mode
+        motor.control_mode = control_mode
+        motor.input_mode = input_mode
+    return res
 
 
 @device_action(ctx)

@@ -117,6 +117,38 @@
 			"input_mode": 1,
 			"position_min": -35,
 			"position_max": 35
+		},
+		"odrive_9": {
+			"bus": "can_bus_1",
+			"axisID": 4,
+			"control_mode": 2,
+			"input_mode": 1,
+			"position_min": -35,
+			"position_max": 35
+		},
+		"odrive_10": {
+			"bus": "can_bus_1",
+			"axisID": 5,
+			"control_mode": 2,
+			"input_mode": 1,
+			"position_min": -35,
+			"position_max": 35
+		},
+		"odrive_11": {
+			"bus": "can_bus_1",
+			"axisID": 6,
+			"control_mode": 2,
+			"input_mode": 1,
+			"position_min": -35,
+			"position_max": 35
+		},
+		"odrive_12": {
+			"bus": "can_bus_1",
+			"axisID": 7,
+			"control_mode": 2,
+			"input_mode": 1,
+			"position_min": -35,
+			"position_max": 35
 		}
 	}
 }

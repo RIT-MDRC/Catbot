@@ -9,9 +9,14 @@ setup(
     data_files=[
         ("share/ament_index/resource_index/packages", ["resource/" + package_name]),
         ("share/" + package_name, ["package.xml"]),
-        ("lib/python3.10/site-packages/ui", ["ui/index.tcss"]),
     ],
-    install_requires=["setuptools", "dotenv"],
+    package_data={"ui": ["index.tcss"]},
+    install_requires=[
+        "gpiozero",
+        "python-dotenv",
+        "textual",
+        "watchdog",
+    ],
     zip_safe=True,
     maintainer="root",
     maintainer_email="hiroto125takeuchi@gmail.com",

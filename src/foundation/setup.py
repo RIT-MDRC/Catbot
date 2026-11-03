@@ -9,13 +9,19 @@ setup(
     data_files=[
         ("share/ament_index/resource_index/packages", ["resource/" + package_name]),
         ("share/" + package_name, ["package.xml"]),
-        ("lib/python3.10/site-packages/foundation", ["foundation/pinconfig.json"]),
-        (
-            "lib/python3.10/site-packages/foundation/component/motor",
-            ["foundation/component/motor/odrive-cansimple.dbc"],
-        ),
     ],
-    install_requires=["setuptools", "dotenv"],
+    package_data={
+        "foundation": ["pinconfig.json"],
+        "foundation.component.motor": ["odrive-cansimple.dbc"],
+    },
+    install_requires=[
+        "adafruit-circuitpython-mcp230xx",
+        "cantools",
+        "gpiozero",
+        "python-can",
+        "python-dotenv",
+        "smbus2",
+    ],
     zip_safe=True,
     maintainer="catbot",
     description="Main low-level control node",

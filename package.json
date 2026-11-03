@@ -4,8 +4,7 @@
 	"description": "installer and cli for catbot",
 	"main": "cli/index.js",
 	"scripts": {
-		"postinstall": "node ./cli/postinstall.js",
-		"test": "echo \"Error: no test specified\" && exit 1",
+		"test": "node --test cli/*.test.js",
 		"meow": "echo \"Meow\""
 	},
 	"bin": {
@@ -28,12 +27,29 @@
 		"url": "https://github.com/RIT-MDRC/Catbot/issues"
 	},
 	"homepage": "https://github.com/RIT-MDRC/Catbot#readme",
+	"files": [
+		"cli/index.js",
+		"cli/README.md",
+		"src/**/*.py",
+		"src/**/*.json",
+		"src/**/*.dbc",
+		"src/**/*.tcss",
+		"src/**/*.txt",
+		"src/**/*.md",
+		"src/**/package.xml",
+		"src/**/setup.cfg",
+		"src/**/resource/*",
+		"!src/**/test/**",
+		"!src/foundation/foundation/.python-version",
+		"!src/foundation/foundation/pyproject.toml",
+		"!src/foundation/foundation/uv.lock",
+		"pyproject.toml",
+		"uv.lock",
+		".python-version",
+		"README.md",
+		"LICENSE"
+	],
 	"dependencies": {
-		"fs": "^0.0.1-security",
-		"yargs": "^17.7.2"
-	},
-	"devDependencies": {
-		"arduino-cli": "^0.37.0",
-		"esm": "^3.2.25"
+		"yargs": "^17.7.3"
 	}
 }

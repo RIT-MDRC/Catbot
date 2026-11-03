@@ -67,7 +67,7 @@ def send_message(
     try:
         bus.bus.send(msg)
         return True
-    except can.CanError:
+    except (can.CanError, OSError):
         logging.error("Unable to send message on CAN bus.")
         return False
 
@@ -86,7 +86,9 @@ def send_message_recurring(
     msg = can.Message(
         arbitration_id=arbitration_id, is_extended_id=is_extended_id, data=data
     )
-    return bus.send_periodic(msg, period, duration, modifier_callback=modifier_callback)
+    return bus.bus.send_periodic(
+        msg, period, duration, modifier_callback=modifier_callback
+    )
 
 
 @device_action(ctx)

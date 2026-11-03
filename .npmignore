@@ -1,0 +1,11 @@
+**/.env
+**/.log/
+**/.venv/
+**/.vscode/
+**/__pycache__/
+**/*.pyc
+src/foundation/foundation/.python-version
+src/foundation/foundation/pyproject.toml
+src/foundation/foundation/uv.lock
+src/foundation/test/
+src/ui/test/

@@ -55,7 +55,7 @@ class DeviceActionTimer:
 SUBSCRIBER_DEVICE_ACTION_CALLBACKS = [
     {
         "topic": "motor/set_target_position",
-        "callback": lambda device, data: motor_actions.set_target_velocity(
+        "callback": lambda device, data: motor_actions.set_target_position(
             device, data.data
         ),
         "context": motor_actions.ctx,

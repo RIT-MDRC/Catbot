@@ -8,10 +8,10 @@
 **/.log/*.log
 __pycache__/
 
-# uv stuff for now
-**/uv.lock
-**/pyproject.toml
-**/.python-version
+# Superseded local uv experiment; the supported project now lives at the root.
+src/foundation/foundation/.python-version
+src/foundation/foundation/pyproject.toml
+src/foundation/foundation/uv.lock
 
 # Colcon build artifacts
 build/
