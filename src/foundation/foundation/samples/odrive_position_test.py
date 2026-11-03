@@ -136,8 +136,8 @@ def main() -> int:
                 report_bus_errors(motors)
 
         print(
-            "Commands: angle in degrees, c = calibrate, h = home, "
-            "e = clear errors, q = stop."
+            "Commands: angle in degrees, c = motor calibration, "
+            "f = full calibration, h = home, e = clear errors, q = stop."
         )
         while True:
             try:
@@ -157,11 +157,23 @@ def main() -> int:
             if raw_value.lower() in {"c", "calibrate"}:
                 print("WARNING: calibration moves the motor; keep the mechanism clear.")
                 if motor_actions.set_axis_state(
+                    args.motor, MotorState.MOTOR_CALIBRATION
+                ):
+                    print(f"Requested motor calibration for {args.motor}.")
+                else:
+                    print("Failed to send the calibration command.")
+                continue
+            if raw_value.lower() in {"f", "full", "full-calibration"}:
+                print(
+                    "WARNING: full calibration moves the motor; "
+                    "keep the mechanism clear."
+                )
+                if motor_actions.set_axis_state(
                     args.motor, MotorState.FULL_CALIBRATION_SEQUENCE
                 ):
                     print(f"Requested full calibration for {args.motor}.")
                 else:
-                    print("Failed to send the calibration command.")
+                    print("Failed to send the full-calibration command.")
                 continue
             if raw_value.lower() in {"h", "home"}:
                 print("WARNING: homing moves the motor; keep the mechanism clear.")
