@@ -50,6 +50,15 @@ Run the interactive ODrive angle test:
 catbot sample motor-test --motor odrive_1
 ```
 
+Use a quoted `"*"` selector to make each interactive command apply to every
+configured CAN axis:
+
+```bash
+catbot sample motor-test --motor "*"
+```
+
+The wildcard also works per command, such as `arm *`, `15 *`, and `disarm *`.
+
 The test starts with the motor disarmed. At its prompt, explicitly arm it before
 commanding an angle, and disarm it when finished:
 

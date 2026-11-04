@@ -263,7 +263,7 @@ yargs(hideBin(process.argv))
 					type: 'string',
 				})
 				.option('motor', {
-					describe: 'configured motor name or CAN axis ID for motor-test',
+					describe: 'configured motor name, CAN axis ID, or * for every motor',
 					type: 'string',
 				})
 				.option('config', {

@@ -81,6 +81,18 @@ def test_find_motors_accepts_name_or_axis_id() -> None:
     assert find_motors(motors, "missing") == []
 
 
+def test_find_motors_wildcard_returns_every_motor_by_axis_id() -> None:
+    first = make_motor()
+    first.axisID = 7
+    second = make_motor()
+    second.axisID = 2
+
+    assert find_motors({"later": first, "earlier": second}, "*") == [
+        ("earlier", second),
+        ("later", first),
+    ]
+
+
 def test_find_motors_reports_duplicate_axis_ids() -> None:
     first = make_motor()
     second = make_motor()
