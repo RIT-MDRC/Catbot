@@ -12,7 +12,12 @@ sys.path.insert(0, str(SAMPLES_ROOT))
 from component.motor import motor_actions
 from component.motor.odrive_enums import ControlMode, InputMode
 from component.motor.odrive_motor import ODriveMotor
-from odrive_position_test import degrees_to_motor_turns, describe_motors, report_bus_errors
+from odrive_position_test import (
+    degrees_to_motor_turns,
+    describe_motors,
+    find_motors,
+    report_bus_errors,
+)
 
 
 def make_motor() -> ODriveMotor:
@@ -40,6 +45,27 @@ def test_describe_motors_includes_names_and_axis_ids() -> None:
     assert describe_motors({"odrive_7": second, "odrive_1": first}) == (
         "odrive_1 (axis 0), odrive_7 (axis 7)"
     )
+
+
+def test_find_motors_accepts_name_or_axis_id() -> None:
+    first = make_motor()
+    second = make_motor()
+    second.axisID = 7
+    motors = {"front": first, "rear": second}
+
+    assert find_motors(motors, "front") == [("front", first)]
+    assert find_motors(motors, "7") == [("rear", second)]
+    assert find_motors(motors, "missing") == []
+
+
+def test_find_motors_reports_duplicate_axis_ids() -> None:
+    first = make_motor()
+    second = make_motor()
+
+    assert find_motors({"first": first, "second": second}, "0") == [
+        ("first", first),
+        ("second", second),
+    ]
 
 
 def test_report_bus_errors_lists_faulted_motors(capsys) -> None:

@@ -25,7 +25,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--motor",
-        help="configured motor name, for example odrive_1",
+        help="configured motor name or CAN axis ID, for example odrive_1 or 0",
     )
     parser.add_argument(
         "--config",
@@ -41,6 +41,23 @@ def describe_motors(motors) -> str:
     return ", ".join(
         f"{name} (axis {motor.axisID})" for name, motor in sorted(motors.items())
     ) or "none"
+
+
+def find_motors(motors, selector: str | None):
+    """Find a motor by exact configured name or decimal CAN axis ID."""
+    if selector is None:
+        return []
+    if selector in motors:
+        return [(selector, motors[selector])]
+    try:
+        axis_id = int(selector, 10)
+    except ValueError:
+        return []
+    return [
+        (name, motor)
+        for name, motor in sorted(motors.items())
+        if motor.axisID == axis_id
+    ]
 
 
 def report_bus_errors(motors) -> bool:
@@ -86,14 +103,20 @@ def main() -> int:
         configure_device(os.fspath(args.config))
         configured = True
         motors = motor_actions.ctx.store
-        selected_motor = motors.get(args.motor) if args.motor else None
-        if selected_motor is None:
+        matches = find_motors(motors, args.motor)
+        if len(matches) != 1:
             if args.motor:
-                print(f'Unknown motor "{args.motor}".')
+                if matches:
+                    names = ", ".join(name for name, _ in matches)
+                    print(f'Axis ID "{args.motor}" is ambiguous: {names}.')
+                else:
+                    print(f'Unknown motor name or axis ID "{args.motor}".')
             else:
                 print("No motor was selected.")
             print(f"Configured motors: {describe_motors(motors)}")
             return 2
+        motor_name, selected_motor = matches[0]
+        args.motor = motor_name
 
         print(f"Waiting for an ODrive heartbeat from {args.motor}...")
         if not wait_for(
