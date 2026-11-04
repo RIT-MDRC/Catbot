@@ -45,6 +45,20 @@ Run the interactive ODrive angle test:
 catbot sample motor-test --motor odrive_1
 ```
 
+The test starts with the motor disarmed. At its prompt, explicitly arm it before
+commanding an angle, and disarm it when finished:
+
+```text
+angle> arm
+angle> 15
+angle> disarm
+```
+
+`arm [motor]` enters ODrive closed-loop position control only after checking for
+reported errors. `disarm [motor]`, quitting, Ctrl-C, and EOF request the ODrive
+`IDLE` state. Keep a physical emergency stop available; this software command is
+not a substitute for removing motor power.
+
 Use a different device configuration if needed:
 
 ```bash

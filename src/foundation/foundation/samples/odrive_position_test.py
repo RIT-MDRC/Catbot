@@ -140,44 +140,11 @@ def main() -> int:
                 )
                 return 3
             report_bus_errors(motors)
-
-            if not motor_actions.set_controller_mode(
-                default_motor_name,
-                ControlMode.POSITION_CONTROL,
-                InputMode.TRAP_TRAJ,
-            ):
-                print("Failed to send position-control mode.")
-                return 5
-            if not motor_actions.set_trajectory_velocity(
-                default_motor_name, TRAJECTORY_VELOCITY_TURNS_PER_SECOND
-            ):
-                print("Failed to set trajectory velocity.")
-                return 5
-            if not motor_actions.set_trajectory_accel(
-                default_motor_name, TRAJECTORY_ACCEL_TURNS_PER_SECOND_SQUARED
-            ):
-                print("Failed to set trajectory acceleration.")
-                return 5
-            if not selected_motor.axis_error:
-                motor_actions.set_axis_state(
-                    default_motor_name, MotorState.CLOSED_LOOP_CONTROL
-                )
-                if not wait_for(
-                    selected_motor,
-                    lambda motor: motor.current_state
-                    == MotorState.CLOSED_LOOP_CONTROL,
-                    HEARTBEAT_TIMEOUT_SECONDS,
-                ):
-                    print(
-                        "The ODrive did not enter closed-loop control. "
-                        "Not moving motor."
-                    )
-                    report_bus_errors(motors)
-                else:
-                    active_motor_names.add(default_motor_name)
+            print(f"{default_motor_name} is disarmed; type 'arm' to enable it.")
 
         print(
-            "Commands: angle [motor], c [motor] = motor calibration, "
+            "Commands: arm [motor], disarm [motor], angle [motor], "
+            "c [motor] = motor calibration, "
             "f [motor] = full calibration, h [motor] = home, "
             "e [motor] = clear errors, q = stop."
         )
@@ -202,7 +169,10 @@ def main() -> int:
                 "h": ("homing", MotorState.HOMING),
                 "home": ("homing", MotorState.HOMING),
             }
-            if command in {"e", "clear"} or command in shortcut_states:
+            if (
+                command in {"arm", "a", "disarm", "d", "e", "clear"}
+                or command in shortcut_states
+            ):
                 selector = parts[1] if len(parts) == 2 else default_motor_name
                 command_matches = find_motors(motors, selector)
                 if len(command_matches) != 1:
@@ -212,7 +182,74 @@ def main() -> int:
                     )
                     print(f"Configured motors: {describe_motors(motors)}")
                     continue
-                command_motor_name, _ = command_matches[0]
+                command_motor_name, command_motor = command_matches[0]
+            if command in {"arm", "a"}:
+                if command_motor.axis_error:
+                    print("Clear the ODrive error before arming.")
+                    report_bus_errors(motors)
+                    continue
+                if command_motor.current_position is None:
+                    print(
+                        "No encoder position has been received; refusing to arm "
+                        "without a safe initial hold position."
+                    )
+                    continue
+                print(
+                    f"WARNING: arming {command_motor_name} enables motor torque; "
+                    "keep the mechanism clear."
+                )
+                setup_commands_sent = (
+                    motor_actions.set_controller_mode(
+                        command_motor_name,
+                        ControlMode.POSITION_CONTROL,
+                        InputMode.TRAP_TRAJ,
+                    )
+                    and motor_actions.set_trajectory_velocity(
+                        command_motor_name,
+                        TRAJECTORY_VELOCITY_TURNS_PER_SECOND,
+                    )
+                    and motor_actions.set_trajectory_accel(
+                        command_motor_name,
+                        TRAJECTORY_ACCEL_TURNS_PER_SECOND_SQUARED,
+                    )
+                    and motor_actions.set_target_position(
+                        command_motor_name, command_motor.current_position
+                    )
+                )
+                if not setup_commands_sent or not motor_actions.set_axis_state(
+                    command_motor_name, MotorState.CLOSED_LOOP_CONTROL
+                ):
+                    print("Failed to send the arm command sequence.")
+                    continue
+                if not wait_for(
+                    command_motor,
+                    lambda motor: motor.current_state
+                    == MotorState.CLOSED_LOOP_CONTROL,
+                    HEARTBEAT_TIMEOUT_SECONDS,
+                ):
+                    print("The ODrive did not confirm that it is armed.")
+                    report_bus_errors(motors)
+                    motor_actions.set_axis_state(command_motor_name, MotorState.IDLE)
+                    continue
+                active_motor_names.add(command_motor_name)
+                print(f"Armed {command_motor_name} in position control.")
+                continue
+            if command in {"disarm", "d"}:
+                if not motor_actions.set_axis_state(
+                    command_motor_name, MotorState.IDLE
+                ):
+                    print("Failed to send the disarm command.")
+                    continue
+                if not wait_for(
+                    command_motor,
+                    lambda motor: motor.current_state == MotorState.IDLE,
+                    HEARTBEAT_TIMEOUT_SECONDS,
+                ):
+                    print("The ODrive did not confirm that it is disarmed.")
+                    continue
+                active_motor_names.discard(command_motor_name)
+                print(f"Disarmed {command_motor_name}.")
+                continue
             if command in {"e", "clear"}:
                 if motor_actions.clear_error_message(command_motor_name):
                     print(f"Requested error clear for {command_motor_name}.")
@@ -252,37 +289,13 @@ def main() -> int:
             if angle_motor.axis_error:
                 print("Clear the error before commanding motion.")
                 continue
-            if not motor_actions.set_controller_mode(
-                angle_motor_name,
-                ControlMode.POSITION_CONTROL,
-                InputMode.TRAP_TRAJ,
+            if (
+                angle_motor_name not in active_motor_names
+                or angle_motor.current_state != MotorState.CLOSED_LOOP_CONTROL
             ):
-                print("Failed to send position-control mode.")
+                active_motor_names.discard(angle_motor_name)
+                print(f"{angle_motor_name} is disarmed; run 'arm {angle_motor_name}'.")
                 continue
-            if not motor_actions.set_trajectory_velocity(
-                angle_motor_name, TRAJECTORY_VELOCITY_TURNS_PER_SECOND
-            ):
-                print("Failed to set trajectory velocity.")
-                continue
-            if not motor_actions.set_trajectory_accel(
-                angle_motor_name, TRAJECTORY_ACCEL_TURNS_PER_SECOND_SQUARED
-            ):
-                print("Failed to set trajectory acceleration.")
-                continue
-            if angle_motor.current_state != MotorState.CLOSED_LOOP_CONTROL:
-                motor_actions.set_axis_state(
-                    angle_motor_name, MotorState.CLOSED_LOOP_CONTROL
-                )
-                if not wait_for(
-                    angle_motor,
-                    lambda motor: motor.current_state
-                    == MotorState.CLOSED_LOOP_CONTROL,
-                    HEARTBEAT_TIMEOUT_SECONDS,
-                ):
-                    print("The ODrive is not in closed-loop control. Not moving motor.")
-                    report_bus_errors(motors)
-                    continue
-            active_motor_names.add(angle_motor_name)
             target_turns = degrees_to_motor_turns(angle_degrees)
             if motor_actions.set_target_position(angle_motor_name, target_turns):
                 print(
