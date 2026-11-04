@@ -1,0 +1,5 @@
+string actuator_name
+uint8 axis_id
+bool valid
+float64 position_degrees
+float64 velocity_degrees_per_second

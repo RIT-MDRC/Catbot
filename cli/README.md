@@ -16,6 +16,7 @@ On an Ubuntu 22.04 Raspberry Pi with ROS Humble, `catbot setup` creates
 `~/.local/share/catbot/.venv` from `/usr/bin/python3` so the apt-installed ROS
 Python bindings remain ABI compatible. On macOS it uses uv-managed Python 3.10.
 The command is safe to rerun after dependency updates.
+On the Pi, setup also builds the `catbot_interfaces` ROS message package.
 Use `catbot setup --reset` only when the environment itself must be recreated.
 
 Use `-D` or `--dev` with any command to run the current checkout rather than
@@ -32,6 +33,10 @@ Start the ROS foundation node:
 ```bash
 catbot start
 ```
+
+On the Pi, `catbot start` sources ROS Humble and the user-local generated
+interfaces so the custom body-control messages are available. If the interface
+package has not been built, rerun `catbot setup`.
 
 Run a sample:
 

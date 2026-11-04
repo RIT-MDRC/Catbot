@@ -74,4 +74,78 @@ cb sample dummySampleFile
 ```
 to run the sample code on your computer or on catbot.
 
+## Body control topics
+
+The foundation node clears ODrive errors, runs regular motor calibration one
+motor at a time, and enters closed-loop position control during startup.
+Calibration can move hardware. Keep the mechanism clear and keep a physical
+emergency stop available before starting the node.
+
+`/body/control/position` accepts a sparse
+`catbot_interfaces/msg/ActuatorPositionCommand`. Each actuator name is paired
+with an absolute joint angle in degrees. Actuators omitted from a message do
+not receive a new target and continue holding their previous target.
+
+```bash
+ros2 topic pub --once /body/control/position \
+  catbot_interfaces/msg/ActuatorPositionCommand \
+  "{actuator_names: [bra, brf], positions_degrees: [10.0, -5.0]}"
+```
+
+The current temporary conversion is 5.33 motor turns per 30 joint degrees.
+Every named actuator must be configured, heartbeat-responsive, error-free,
+within its configured motor-turn bounds, and confirmed in closed-loop control.
+A rejected message sends no targets. An error on an omitted actuator does not
+block the named subset. CAN frames cannot be sent atomically, so a transport
+failure after validation is logged for the affected actuator.
+
+The following `std_msgs/msg/Empty` topics act on every configured motor that is
+currently producing a heartbeat. Homing and calibration are sequential; after
+they finish, successful motors safely return to closed-loop position control.
+
+```bash
+ros2 topic pub --once /body/control/script/home std_msgs/msg/Empty "{}"
+ros2 topic pub --once /body/control/script/full_calibrate std_msgs/msg/Empty "{}"
+ros2 topic pub --once /body/control/script/calibrate std_msgs/msg/Empty "{}"
+ros2 topic pub --once /body/control/script/clear_errors std_msgs/msg/Empty "{}"
+```
+
+Only one script operation may run at a time. Missing heartbeats, ODrive errors,
+timeouts, rejected commands, and per-actuator CAN send failures are reported in
+the foundation node log. On shutdown, the node requests `IDLE` for every motor
+it armed and closes the CAN bus.
+
+## Body state topics
+
+`/body/state/position` publishes a
+`catbot_interfaces/msg/BodyKinematicState` snapshot at 50 Hz. Every configured
+actuator is included in CAN axis-ID order with its position in degrees and
+velocity in degrees per second. Encoder feedback older than 0.25 seconds, or
+feedback that has not arrived yet, is represented by `valid: false` and `NaN`
+position and velocity values.
+
+```bash
+ros2 topic echo /body/state/position \
+  catbot_interfaces/msg/BodyKinematicState
+```
+
+`/body/state/error` publishes a
+`catbot_interfaces/msg/BodyErrorState` whenever a heartbeat, readiness value,
+axis state, or error value changes. It uses reliable, transient-local QoS, so a
+late subscriber receives the most recent snapshot. A heartbeat is considered
+unavailable after 0.5 seconds. Each actuator reports the raw axis, motor,
+encoder, sensorless, and controller flag values plus readable flag names.
+Unknown bits are preserved as `UNKNOWN_BITS_0x...` messages.
+
+```bash
+ros2 topic echo /body/state/error \
+  catbot_interfaces/msg/BodyErrorState
+```
+
+Detailed errors use the repository's CANSimple 0.5.6 protocol. When heartbeat
+flags indicate a component error, the node requests the corresponding detailed
+error frame at most once per second until the flag clears. Upgrading the ODrive
+firmware to a CANSimple version with a different error layout requires updating
+the checked-in DBC and this mapping together.
+
 ##

@@ -73,6 +73,28 @@ def send_message(
 
 
 @device_action(ctx)
+def request_message(
+    bus: CanBus,
+    arbitration_id: int,
+    dlc: int = 8,
+    is_extended_id: bool = False,
+) -> bool:
+    """Request one CANSimple ``Get_`` response using a remote frame."""
+    msg = can.Message(
+        arbitration_id=arbitration_id,
+        is_extended_id=is_extended_id,
+        is_remote_frame=True,
+        dlc=dlc,
+    )
+    try:
+        bus.bus.send(msg)
+        return True
+    except (can.CanError, OSError):
+        logging.error("Unable to request message on CAN bus.")
+        return False
+
+
+@device_action(ctx)
 def send_message_recurring(
     bus: CanBus,
     arbitration_id: int,

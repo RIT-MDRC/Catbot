@@ -25,5 +25,6 @@
         "autoShowOutputPanel": "error"
       }
     ]
-  }
+  },
+  "cmake.sourceDirectory": "/Users/hirototakeuchi/project/rit/mdrc/catbot/src/catbot_interfaces"
 }

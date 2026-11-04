@@ -2,7 +2,7 @@
 
 from pathlib import Path
 import sys
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 FOUNDATION_ROOT = Path(__file__).resolve().parents[1] / "foundation"
 SAMPLES_ROOT = FOUNDATION_ROOT / "samples"
@@ -10,8 +10,16 @@ sys.path.insert(0, str(FOUNDATION_ROOT))
 sys.path.insert(0, str(SAMPLES_ROOT))
 
 from component.motor import motor_actions
-from component.motor.odrive_enums import ControlMode, InputMode
-from component.motor.odrive_motor import ODriveMotor
+from component.motor.odrive_enums import ControlMode, InputMode, MotorState
+from component.motor.odrive_motor import (
+    ODriveMotor,
+    read_heartbeat,
+    report_controller_error,
+    report_encoder_error,
+    report_motor_error,
+    report_sensorless_error,
+    update_estimates,
+)
 from odrive_position_test import (
     degrees_to_motor_turns,
     describe_motors,
@@ -28,6 +36,21 @@ def make_motor() -> ODriveMotor:
     motor.input_mode = InputMode.PASSTHROUGH
     motor.position_min = -35.0
     motor.position_max = 35.0
+    motor.strict_bounds = False
+    motor.axis_error = 0
+    motor.current_state = MotorState.UNDEFINED
+    motor.current_position = None
+    motor.current_velocity = None
+    motor.last_heartbeat_time = None
+    motor.last_encoder_estimate_time = None
+    motor.motor_error = 0
+    motor.encoder_error = 0
+    motor.sensorless_error = 0
+    motor.controller_error = 0
+    motor.motor_error_flag = False
+    motor.encoder_error_flag = False
+    motor.sensorless_error_flag = False
+    motor.controller_error_flag = False
     return motor
 
 
@@ -109,3 +132,67 @@ def test_controller_mode_does_not_update_after_failed_send() -> None:
     assert result is False
     assert motor.control_mode == ControlMode.VELOCITY_CONTROL
     assert motor.input_mode == InputMode.PASSTHROUGH
+
+
+def test_feedback_handlers_retain_timestamps_and_detailed_errors() -> None:
+    motor = make_motor()
+    heartbeat = {
+        "Axis_State": Mock(value=MotorState.IDLE),
+        "Axis_Error": 0x1C0,
+        "Motor_Error_Flag": 1,
+        "Encoder_Error_Flag": 1,
+        "Controller_Error_Flag": 1,
+    }
+    with patch("component.motor.odrive_motor.time.monotonic", return_value=12.5):
+        read_heartbeat(motor, heartbeat)
+        update_estimates(motor, {"Pos_Estimate": 1.5, "Vel_Estimate": -0.25})
+
+    report_motor_error(motor, {"Motor_Error": 8})
+    report_encoder_error(motor, {"Encoder_Error": 4})
+    report_sensorless_error(motor, {"Sensorless_Error": 2})
+    report_controller_error(motor, {"Controller_Error": 1})
+
+    assert motor.last_heartbeat_time == 12.5
+    assert motor.last_encoder_estimate_time == 12.5
+    assert motor.current_position == 1.5
+    assert motor.current_velocity == -0.25
+    assert motor.motor_error == 8
+    assert motor.encoder_error == 4
+    assert motor.sensorless_error == 2
+    assert motor.controller_error == 1
+    assert motor.motor_error_flag is True
+    assert motor.encoder_error_flag is True
+    assert motor.sensorless_error_flag is True
+    assert motor.controller_error_flag is True
+
+
+def test_request_error_details_requests_every_flagged_message() -> None:
+    motor = make_motor()
+    motor.motor_error_flag = True
+    motor.encoder_error_flag = True
+    motor.controller_error_flag = True
+    with patch.object(motor_actions, "request_message", return_value=True) as request:
+        assert motor_actions.request_error_details(motor) is True
+
+    assert [call.args[1] for call in request.call_args_list] == [
+        "Get_Motor_Error",
+        "Get_Encoder_Error",
+        "Get_Controller_Error",
+    ]
+
+
+def test_clear_errors_resets_cached_detailed_errors_after_success() -> None:
+    motor = make_motor()
+    motor.motor_error = 8
+    motor.encoder_error = 4
+    motor.sensorless_error = 2
+    motor.controller_error = 1
+    with patch.object(motor_actions, "send_message", return_value=True):
+        assert motor_actions.clear_error_message(motor) is True
+
+    assert (
+        motor.motor_error,
+        motor.encoder_error,
+        motor.sensorless_error,
+        motor.controller_error,
+    ) == (0, 0, 0, 0)

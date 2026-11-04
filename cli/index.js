@@ -94,6 +94,32 @@ function setup(args) {
 	status = run('uv', ['sync', '--frozen', '--no-dev', '--project', root], {
 		env: uvEnvironment(root),
 	});
+	if (status === 0 && isRosPi) {
+		console.log('Building Catbot ROS interfaces');
+		const rosRuntime = path.join(runtimeDirectory(), 'ros');
+		status = run(
+			'/bin/bash',
+			[
+				'-c',
+				'source "$1" && shift && exec "$@"',
+				'catbot',
+				ROS_SETUP,
+				'colcon',
+				'--log-base',
+				path.join(rosRuntime, 'log'),
+				'build',
+				'--base-paths',
+				path.join(root, 'src'),
+				'--build-base',
+				path.join(rosRuntime, 'build'),
+				'--install-base',
+				path.join(rosRuntime, 'install'),
+				'--packages-select',
+				'catbot_interfaces',
+			],
+			{ env: uvEnvironment(root) },
+		);
+	}
 	if (status === 0) {
 		console.log('Catbot setup complete.');
 	}
@@ -120,13 +146,15 @@ function spawnUv(root, script, scriptArgs = []) {
 	const env = uvEnvironment(root);
 	let child;
 	if (process.platform === 'linux' && existsSync(ROS_SETUP)) {
+		const workspaceSetup = path.join(runtimeDirectory(), 'ros', 'install', 'setup.bash');
 		child = spawn(
 			'/bin/bash',
 			[
 				'-c',
-				'source "$1" && shift && exec "$@"',
+				'source "$1" && shift && if [ ! -f "$1" ]; then echo "Catbot ROS interfaces are not built. Run: catbot setup" >&2; exit 1; fi && source "$1" && shift && exec "$@"',
 				'catbot',
 				ROS_SETUP,
+				workspaceSetup,
 				'uv',
 				...uvArgs,
 			],

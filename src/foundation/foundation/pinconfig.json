@@ -1,80 +1,6 @@
 {
-	"input_device": {
-		"expander_interrupt_pin_A": {
-			"pin": 18,
-			"pull_up": true
-		},
-		"expander_interrupt_pin_B": {
-			"pin": 4,
-			"pull_up": true
-		}
-	},
-	"output_device": {
-		"pneumatic_0": 17,
-		"pneumatic_1": 27,
-		"pneumatic_2": 23,
-		"pneumatic_3": 22
-	},
 	"smbus2": {
 		"smbus": 1
-	},
-	"adc": {
-		"adc_1": {
-			"i2c": "smbus",
-			"address": "0x48",
-			"power_down": "0b01",
-			"input_devices": {
-				"pot1": 0,
-				"pot2": 1,
-				"pot3": 2,
-				"pot4": 3,
-				"pot5": 4,
-				"pot6": 5,
-				"pot7": 6,
-				"pot8": 7
-			}
-		}
-	},
-	"io_expander": {
-		"io_expander_1": {
-			"address": "0x20",
-			"interrupt_pin": "expander_interrupt_pin_A",
-			"input_channels": {
-				"channel_1": 0,
-				"channel_2": 1,
-				"channel_3": 2,
-				"channel_4": 3,
-				"channel_5": 4,
-				"channel_6": 5,
-				"channel_7": 6,
-				"channel_8": 7
-			}
-		}
-	},
-	"potentiometer": {
-		"pot1": {
-			"input_device": "adc_1.pot1",
-			"max_degree": 285,
-			"min_degree": 0,
-			"max_data": 4095,
-			"min_data": 0
-		},
-		"pot2": "adc_1.pot2",
-		"pot3": "adc_1.pot3",
-		"pot4": "adc_1.pot4",
-		"pot5": "adc_1.pot5",
-		"pot6": "adc_1.pot6",
-		"pot7": "adc_1.pot7",
-		"pot8": "adc_1.pot8"
-	},
-	"compressor": {
-		"main_compressor": 24
-	},
-	"muscle": {
-		"left_muscle": {
-			"pressure": "adc_1.pot1",
-			"valve": "pneumatic_3"
-		}
 	},
 	"can_bus": {
 		"can_bus_1": {
@@ -82,21 +8,101 @@
 		}
 	},
 	"odrive_motor": {
-		"odrive_1": {
+		"bra": {
 			"bus": "can_bus_1",
 			"axisID": 0,
 			"control_mode": 2,
 			"input_mode": 1,
-			"position_min": -35,
-			"position_max": 35
+			"position_min": -41,
+			"position_max": 41
 		},
-		"odrive_2": {
+		"bla": {
 			"bus": "can_bus_1",
 			"axisID": 1,
 			"control_mode": 2,
 			"input_mode": 1,
-			"position_min": -35,
-			"position_max": 35
+			"position_min": -41,
+			"position_max": 41
+		},
+		"brf": {
+			"bus": "can_bus_1",
+			"axisID": 2,
+			"control_mode": 2,
+			"input_mode": 1,
+			"position_min": -41,
+			"position_max": 41
+		},
+		"blf": {
+			"bus": "can_bus_1",
+			"axisID": 3,
+			"control_mode": 2,
+			"input_mode": 1,
+			"position_min": -41,
+			"position_max": 41
+		},
+		"brk": {
+			"bus": "can_bus_1",
+			"axisID": 4,
+			"control_mode": 2,
+			"input_mode": 1,
+			"position_min": -41,
+			"position_max": 41
+		},
+		"blk": {
+			"bus": "can_bus_1",
+			"axisID": 5,
+			"control_mode": 2,
+			"input_mode": 1,
+			"position_min": -41,
+			"position_max": 41
+		},
+		"fra": {
+			"bus": "can_bus_1",
+			"axisID": 6,
+			"control_mode": 2,
+			"input_mode": 1,
+			"position_min": -41,
+			"position_max": 41
+		},
+		"fla": {
+			"bus": "can_bus_1",
+			"axisID": 7,
+			"control_mode": 2,
+			"input_mode": 1,
+			"position_min": -41,
+			"position_max": 41
+		},
+		"frf": {
+			"bus": "can_bus_1",
+			"axisID": 8,
+			"control_mode": 2,
+			"input_mode": 1,
+			"position_min": -41,
+			"position_max": 41
+		},
+		"flf": {
+			"bus": "can_bus_1",
+			"axisID": 9,
+			"control_mode": 2,
+			"input_mode": 1,
+			"position_min": -41,
+			"position_max": 41
+		},
+		"frk": {
+			"bus": "can_bus_1",
+			"axisID": 10,
+			"control_mode": 2,
+			"input_mode": 1,
+			"position_min": -41,
+			"position_max": 41
+		},
+		"flk": {
+			"bus": "can_bus_1",
+			"axisID": 11,
+			"control_mode": 2,
+			"input_mode": 1,
+			"position_min": -41,
+			"position_max": 41
 		}
 	}
 }

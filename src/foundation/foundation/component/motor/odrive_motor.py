@@ -1,5 +1,6 @@
 import logging
 import os
+import time
 from dataclasses import dataclass
 
 import cantools
@@ -12,7 +13,7 @@ from state_management import (
 )
 
 from ..can import can_actions
-from .odrive_enums import ControlMode, InputMode, MotorState
+from .odrive_enums import AxisError, ControlMode, InputMode, MotorState
 
 ODRIVE_CAN_DB = cantools.database.load_file(
     os.path.dirname(__file__) + "/odrive-cansimple.dbc"
@@ -34,6 +35,17 @@ class ODriveMotor:
     axis_error: int = 0
     current_position: float = None
     current_velocity: float = None
+    last_heartbeat_time: float = None
+    last_encoder_estimate_time: float = None
+
+    motor_error: int = 0
+    encoder_error: int = 0
+    sensorless_error: int = 0
+    controller_error: int = 0
+    motor_error_flag: bool = False
+    encoder_error_flag: bool = False
+    sensorless_error_flag: bool = False
+    controller_error_flag: bool = False
 
     strict_bounds: bool = True
 
@@ -78,7 +90,14 @@ def event_decorator(name):
 def read_heartbeat(motor: ODriveMotor, data):
     state = data["Axis_State"].value
     axis_error = data["Axis_Error"]
+    motor.last_heartbeat_time = time.monotonic()
     motor.axis_error = get_error_num(axis_error)
+    motor.motor_error_flag = bool(data["Motor_Error_Flag"])
+    motor.encoder_error_flag = bool(data["Encoder_Error_Flag"])
+    motor.controller_error_flag = bool(data["Controller_Error_Flag"])
+    motor.sensorless_error_flag = bool(
+        motor.axis_error & AxisError.SENSORLESS_ESTIMATOR_FAILED
+    )
     if motor.current_state != state:
         motor.current_state = state
         logging.info(
@@ -101,6 +120,7 @@ def update_estimates(motor: ODriveMotor, data):
         logging.info(f"New Axis {motor.axisID} Encoder Estimates {data}")
     motor.current_position = posEstimate
     motor.current_velocity = velEstimate
+    motor.last_encoder_estimate_time = time.monotonic()
 
     if motor.strict_bounds:
         if (
@@ -121,28 +141,38 @@ def update_estimates(motor: ODriveMotor, data):
 
 @event_decorator("Get_Motor_Error")
 def report_motor_error(motor: ODriveMotor, data):
-    logging.error(f"Motor Error on axis {motor.axisID} w/ following data: " + str(data))
+    motor.motor_error = get_error_num(data["Motor_Error"])
+    if motor.motor_error:
+        logging.error(
+            f"Motor Error on axis {motor.axisID} w/ following data: " + str(data)
+        )
 
 
 @event_decorator("Get_Encoder_Error")
 def report_encoder_error(motor: ODriveMotor, data):
-    logging.error(
-        f"Encoder Error on axis {motor.axisID} w/ following data: " + str(data)
-    )
+    motor.encoder_error = get_error_num(data["Encoder_Error"])
+    if motor.encoder_error:
+        logging.error(
+            f"Encoder Error on axis {motor.axisID} w/ following data: " + str(data)
+        )
 
 
 @event_decorator("Get_Sensorless_Error")
 def report_sensorless_error(motor: ODriveMotor, data):
-    logging.error(
-        f"Sensorless Error on axis {motor.axisID} w/ following data: " + str(data)
-    )
+    motor.sensorless_error = get_error_num(data["Sensorless_Error"])
+    if motor.sensorless_error:
+        logging.error(
+            f"Sensorless Error on axis {motor.axisID} w/ following data: " + str(data)
+        )
 
 
 @event_decorator("Get_Controller_Error")
 def report_controller_error(motor: ODriveMotor, data):
-    logging.error(
-        f"Controller Error on axis {motor.axisID} w/ following data: " + str(data)
-    )
+    motor.controller_error = get_error_num(data["Controller_Error"])
+    if motor.controller_error:
+        logging.error(
+            f"Controller Error on axis {motor.axisID} w/ following data: " + str(data)
+        )
 
 
 def get_error_num(error):
@@ -345,7 +375,31 @@ def set_controller_mode(
 
 @device_action(ctx)
 def clear_error_message(motor: ODriveMotor):
-    return send_message(motor, "Clear_Errors", {})
+    result = send_message(motor, "Clear_Errors", {})
+    if result:
+        motor.motor_error = 0
+        motor.encoder_error = 0
+        motor.sensorless_error = 0
+        motor.controller_error = 0
+    return result
+
+
+@device_action(ctx)
+def request_error_details(motor: ODriveMotor) -> bool:
+    """Request detailed CANSimple 0.5.6 errors indicated by the heartbeat."""
+    message_names = []
+    if motor.motor_error_flag:
+        message_names.append("Get_Motor_Error")
+    if motor.encoder_error_flag:
+        message_names.append("Get_Encoder_Error")
+    if motor.sensorless_error_flag:
+        message_names.append("Get_Sensorless_Error")
+    if motor.controller_error_flag:
+        message_names.append("Get_Controller_Error")
+    result = True
+    for name in message_names:
+        result = request_message(motor, name) and result
+    return result
 
 
 @device_action(ctx)
@@ -364,6 +418,13 @@ def send_message(motor: ODriveMotor, msg_name: str, data: dict) -> bool:
     msg_id = msg.frame_id | motor.axisID << 5
     data = msg.encode(data)
     return can_actions.send_message(motor.bus, msg_id, data)
+
+
+@device_action(ctx)
+def request_message(motor: ODriveMotor, msg_name: str) -> bool:
+    msg = ODRIVE_CAN_DB.get_message_by_name(msg_name)
+    msg_id = msg.frame_id | motor.axisID << 5
+    return can_actions.request_message(motor.bus, msg_id, msg.length)
 
 
 @device_action(ctx)

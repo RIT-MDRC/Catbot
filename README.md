@@ -29,6 +29,10 @@ Build the packages:
 To run the UI package:
 * `ros2 run ui ui`
 
+The main foundation node exposes sparse body position control and all-motor
+maintenance topics. See the [foundation body-control documentation](src/foundation/foundation/README.md#body-control-topics)
+for message formats and publish examples.
+
 ### Install dependencies
 * install [uv](https://docs.astral.sh/uv/)
 * install [nodejs](https://nodejs.org/en/download/)
