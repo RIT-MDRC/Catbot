@@ -54,7 +54,7 @@
 		}
 	},
 	"odrive_motor": {
-		"odrive_1": {
+		"bra_0": {
 			"bus": "can_bus_1",
 			"axisID": 0,
 			"control_mode": 2,
@@ -62,7 +62,7 @@
 			"position_min": -35,
 			"position_max": 35
 		},
-		"odrive_2": {
+		"bla_1": {
 			"bus": "can_bus_1",
 			"axisID": 1,
 			"control_mode": 2,
@@ -70,7 +70,7 @@
 			"position_min": -35,
 			"position_max": 35
 		},
-		"odrive_3": {
+		"brf_2": {
 			"bus": "can_bus_1",
 			"axisID": 2,
 			"control_mode": 2,
@@ -78,7 +78,7 @@
 			"position_min": -35,
 			"position_max": 35
 		},
-		"odrive_4": {
+		"blf_3": {
 			"bus": "can_bus_1",
 			"axisID": 3,
 			"control_mode": 2,
@@ -86,7 +86,7 @@
 			"position_min": -35,
 			"position_max": 35
 		},
-		"odrive_5": {
+		"brk_4": {
 			"bus": "can_bus_1",
 			"axisID": 4,
 			"control_mode": 2,
@@ -94,7 +94,7 @@
 			"position_min": -35,
 			"position_max": 35
 		},
-		"odrive_6": {
+		"blk_5": {
 			"bus": "can_bus_1",
 			"axisID": 5,
 			"control_mode": 2,
@@ -102,7 +102,7 @@
 			"position_min": -35,
 			"position_max": 35
 		},
-		"odrive_7": {
+		"fra_6": {
 			"bus": "can_bus_1",
 			"axisID": 6,
 			"control_mode": 2,
@@ -110,7 +110,7 @@
 			"position_min": -35,
 			"position_max": 35
 		},
-		"odrive_8": {
+		"fla_7": {
 			"bus": "can_bus_1",
 			"axisID": 7,
 			"control_mode": 2,
@@ -118,7 +118,7 @@
 			"position_min": -35,
 			"position_max": 35
 		},
-		"odrive_9": {
+		"frf_8": {
 			"bus": "can_bus_1",
 			"axisID": 8,
 			"control_mode": 2,
@@ -126,7 +126,7 @@
 			"position_min": -35,
 			"position_max": 35
 		},
-		"odrive_10": {
+		"flf_9": {
 			"bus": "can_bus_1",
 			"axisID": 9,
 			"control_mode": 2,
@@ -134,7 +134,7 @@
 			"position_min": -35,
 			"position_max": 35
 		},
-		"odrive_11": {
+		"frk_10": {
 			"bus": "can_bus_1",
 			"axisID": 10,
 			"control_mode": 2,
@@ -142,7 +142,7 @@
 			"position_min": -35,
 			"position_max": 35
 		},
-		"odrive_12": {
+		"flk_11": {
 			"bus": "can_bus_1",
 			"axisID": 11,
 			"control_mode": 2,
