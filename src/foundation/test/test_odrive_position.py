@@ -22,6 +22,7 @@ from component.motor.odrive_motor import (
 )
 from odrive_position_test import (
     degrees_to_motor_turns,
+    describe_axis_error,
     describe_motors,
     find_motors,
     report_bus_errors,
@@ -108,10 +109,15 @@ def test_report_bus_errors_lists_faulted_motors(capsys) -> None:
     healthy.axis_error = 0
     faulted = make_motor()
     faulted.axisID = 4
-    faulted.axis_error = 0x100
+    faulted.axis_error = 0x300
 
     assert report_bus_errors({"healthy": healthy, "faulted": faulted}) is True
-    assert "faulted (axis 4): 0x100" in capsys.readouterr().out
+    output = capsys.readouterr().out
+    assert "faulted (axis 4): 0x300 ([ENCODER_FAILED, CONTROLLER_FAILED])" in output
+
+
+def test_describe_axis_error_preserves_unknown_bits() -> None:
+    assert describe_axis_error(0x1000000) == "[UNKNOWN_BITS_0x1000000]"
 
 
 def test_controller_mode_preserves_omitted_input_mode() -> None:

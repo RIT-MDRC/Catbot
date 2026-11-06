@@ -68,10 +68,39 @@ def find_motors(motors, selector: str | None):
     ]
 
 
+def describe_axis_error(error: int) -> str:
+    """Decode an ODrive axis-error bitmask into a compact list of flag names."""
+    names = {
+        0x1: "INVALID_STATE",
+        0x40: "MOTOR_FAILED",
+        0x80: "SENSORLESS_ESTIMATOR_FAILED",
+        0x100: "ENCODER_FAILED",
+        0x200: "CONTROLLER_FAILED",
+        0x800: "WATCHDOG_TIMER_EXPIRED",
+        0x1000: "MIN_ENDSTOP_PRESSED",
+        0x2000: "MAX_ENDSTOP_PRESSED",
+        0x4000: "ESTOP_REQUESTED",
+        0x20000: "HOMING_WITHOUT_ENDSTOP",
+        0x40000: "OVER_TEMP",
+        0x80000: "UNKNOWN_POSITION",
+    }
+    known_mask = 0
+    decoded = []
+    for flag, name in names.items():
+        known_mask |= flag
+        if error & flag:
+            decoded.append(name)
+    unknown_bits = error & ~known_mask
+    if unknown_bits:
+        decoded.append(f"UNKNOWN_BITS_0x{unknown_bits:x}")
+    return f"[{', '.join(decoded)}]"
+
+
 def report_bus_errors(motors) -> bool:
     """Print every currently reported ODrive error on the configured CAN bus."""
     errors = [
-        f"{name} (axis {motor.axisID}): 0x{motor.axis_error:x}"
+        f"{name} (axis {motor.axisID}): 0x{motor.axis_error:x} "
+        f"({describe_axis_error(motor.axis_error)})"
         for name, motor in sorted(motors.items())
         if motor.axis_error
     ]
