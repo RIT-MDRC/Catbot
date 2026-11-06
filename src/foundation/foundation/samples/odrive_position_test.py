@@ -28,7 +28,10 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--motor",
-        help="configured motor name, CAN axis ID, or * for every motor",
+        help=(
+            "configured motor name, CAN axis ID, comma-separated selection, "
+            "or * for every motor"
+        ),
     )
     parser.add_argument(
         "--config",
@@ -50,9 +53,24 @@ def describe_motors(motors) -> str:
 
 
 def find_motors(motors, selector: str | None):
-    """Find motors by *, exact configured name, or decimal CAN axis ID."""
+    """Find motors by *, comma list, exact configured name, or CAN axis ID."""
     if selector is None:
         return []
+    if "," in selector:
+        selections = [selection.strip() for selection in selector.split(",")]
+        if any(not selection for selection in selections):
+            return []
+        matches = []
+        selected_names = set()
+        for selection in selections:
+            selection_matches = find_motors(motors, selection)
+            if len(selection_matches) != 1:
+                return []
+            name, motor = selection_matches[0]
+            if name not in selected_names:
+                matches.append((name, motor))
+                selected_names.add(name)
+        return matches
     if selector == "*":
         return sorted(motors.items(), key=lambda item: (item[1].axisID, item[0]))
     if selector in motors:
@@ -94,6 +112,11 @@ def describe_axis_error(error: int) -> str:
     if unknown_bits:
         decoded.append(f"UNKNOWN_BITS_0x{unknown_bits:x}")
     return f"[{', '.join(decoded)}]"
+
+
+def is_multi_motor_selector(selector: str | None) -> bool:
+    """Return whether a selector intentionally names multiple motors."""
+    return selector == "*" or (selector is not None and "," in selector)
 
 
 def report_bus_errors(motors) -> bool:
@@ -144,8 +167,10 @@ def main() -> int:
         default_motor_name = None
         if args.motor:
             matches = find_motors(motors, args.motor)
-            if not matches or (len(matches) != 1 and args.motor != "*"):
-                if matches and args.motor != "*":
+            if not matches or (
+                len(matches) != 1 and not is_multi_motor_selector(args.motor)
+            ):
+                if matches and not is_multi_motor_selector(args.motor):
                     names = ", ".join(name for name, _ in matches)
                     print(f'Axis ID "{args.motor}" is ambiguous: {names}.')
                 else:
@@ -182,7 +207,8 @@ def main() -> int:
             print(f"{selected_names} disarmed; type 'arm' to enable the selection.")
 
         print(
-            "Commands: arm [motor], disarm [motor], angle [motor], "
+            "Commands: arm [motor[,motor...]], disarm [motor[,motor...]], "
+            "angle [motor[,motor...]], "
             "c [motor] = motor calibration, "
             "f [motor] = full calibration, h [motor] = home, "
             "e [motor] = clear errors, q = stop."
@@ -215,11 +241,12 @@ def main() -> int:
                 selector = parts[1] if len(parts) == 2 else default_motor_name
                 command_matches = find_motors(motors, selector)
                 if not command_matches or (
-                    len(command_matches) != 1 and selector != "*"
+                    len(command_matches) != 1 and not is_multi_motor_selector(selector)
                 ):
                     print(
-                        "Invalid command: supply one valid motor name or axis ID, "
-                        "or start motor-test with --motor."
+                        "Invalid command: supply valid motor names or axis IDs "
+                        "(comma-separated for multiple motors), or start "
+                        "motor-test with --motor."
                     )
                     print(f"Configured motors: {describe_motors(motors)}")
                     continue
@@ -329,10 +356,13 @@ def main() -> int:
                 continue
             angle_selector = parts[1] if len(parts) == 2 else default_motor_name
             angle_matches = find_motors(motors, angle_selector)
-            if not angle_matches or (len(angle_matches) != 1 and angle_selector != "*"):
+            if not angle_matches or (
+                len(angle_matches) != 1 and not is_multi_motor_selector(angle_selector)
+            ):
                 print(
-                    "Invalid command: supply one valid motor name or axis ID after "
-                    "the angle, or start motor-test with --motor."
+                    "Invalid command: supply valid motor names or axis IDs after "
+                    "the angle (comma-separated for multiple motors), or start "
+                    "motor-test with --motor."
                 )
                 print(f"Configured motors: {describe_motors(motors)}")
                 continue

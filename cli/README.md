@@ -58,6 +58,9 @@ catbot sample motor-test --motor "*"
 ```
 
 The wildcard also works per command, such as `arm *`, `15 *`, and `disarm *`.
+Comma-separated motor names or axis IDs select a specific group, such as
+`h 1,2,3`, `arm front_left,front_right`, or `15 1,3`. Spaces after commas are
+optional.
 
 The test starts with the motor disarmed. At its prompt, explicitly arm it before
 commanding an angle, and disarm it when finished:

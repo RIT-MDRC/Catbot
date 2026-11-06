@@ -94,6 +94,35 @@ def test_find_motors_wildcard_returns_every_motor_by_axis_id() -> None:
     ]
 
 
+def test_find_motors_accepts_comma_separated_names_and_axis_ids() -> None:
+    first = make_motor()
+    second = make_motor()
+    second.axisID = 2
+    third = make_motor()
+    third.axisID = 3
+    motors = {"front": first, "middle": second, "rear": third}
+
+    assert find_motors(motors, "front, 2,rear") == [
+        ("front", first),
+        ("middle", second),
+        ("rear", third),
+    ]
+
+
+def test_find_motors_comma_selection_is_atomic_and_deduplicated() -> None:
+    first = make_motor()
+    second = make_motor()
+    second.axisID = 2
+    motors = {"front": first, "rear": second}
+
+    assert find_motors(motors, "front,front,2") == [
+        ("front", first),
+        ("rear", second),
+    ]
+    assert find_motors(motors, "front,missing") == []
+    assert find_motors(motors, "front,,rear") == []
+
+
 def test_find_motors_reports_duplicate_axis_ids() -> None:
     first = make_motor()
     second = make_motor()
