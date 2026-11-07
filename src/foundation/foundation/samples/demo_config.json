@@ -102,7 +102,7 @@
 			"position_min": -7.288888888888889,
 			"position_max": 7.288888888888889
 		},
-		"fra": {
+		"fla": {
 			"bus": "can_bus_1",
 			"axisID": 6,
 			"control_mode": 2,
@@ -110,7 +110,7 @@
 			"position_min": -7.288888888888889,
 			"position_max": 7.288888888888889
 		},
-		"fla": {
+		"fra": {
 			"bus": "can_bus_1",
 			"axisID": 7,
 			"control_mode": 2,
@@ -118,7 +118,7 @@
 			"position_min": -7.288888888888889,
 			"position_max": 7.288888888888889
 		},
-		"frf": {
+		"flf": {
 			"bus": "can_bus_1",
 			"axisID": 8,
 			"control_mode": 2,
@@ -126,7 +126,7 @@
 			"position_min": -7.288888888888889,
 			"position_max": 7.288888888888889
 		},
-		"flf": {
+		"frf": {
 			"bus": "can_bus_1",
 			"axisID": 9,
 			"control_mode": 2,
@@ -134,7 +134,7 @@
 			"position_min": -7.288888888888889,
 			"position_max": 7.288888888888889
 		},
-		"frk": {
+		"flk": {
 			"bus": "can_bus_1",
 			"axisID": 10,
 			"control_mode": 2,
@@ -142,7 +142,7 @@
 			"position_min": -7.288888888888889,
 			"position_max": 7.288888888888889
 		},
-		"flk": {
+		"frk": {
 			"bus": "can_bus_1",
 			"axisID": 11,
 			"control_mode": 2,
