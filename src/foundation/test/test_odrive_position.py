@@ -27,7 +27,9 @@ from odrive_position_test import (
     describe_axis_error,
     describe_motors,
     find_motors,
+    motor_turns_to_degrees,
     parse_angle_degrees,
+    parse_speed_degrees_per_second,
     report_bus_errors,
 )
 
@@ -62,6 +64,19 @@ def test_degrees_to_motor_turns() -> None:
     assert degrees_to_motor_turns(0) == 0
     assert degrees_to_motor_turns(30) == pytest.approx(64 / 12)
     assert degrees_to_motor_turns(-15) == pytest.approx(-64 / 24)
+
+
+def test_motor_turns_to_degrees() -> None:
+    assert motor_turns_to_degrees(0) == 0
+    assert motor_turns_to_degrees(64 / 12) == pytest.approx(30)
+    assert motor_turns_to_degrees(-64 / 24) == pytest.approx(-15)
+
+
+def test_parse_speed_degrees_per_second() -> None:
+    assert parse_speed_degrees_per_second("5.625") == 5.625
+    for invalid_value in ("", "not-a-speed", "0", "-1", "nan", "inf", "-inf"):
+        with pytest.raises(ValueError):
+            parse_speed_degrees_per_second(invalid_value)
 
 
 def test_parse_angle_degrees_rejects_empty_invalid_and_non_finite_values() -> None:

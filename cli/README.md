@@ -68,8 +68,22 @@ commanding an angle, and disarm it when finished:
 ```text
 angle> arm
 angle> 15
+angle> read
 angle> disarm
 ```
+
+`read [motor]` (or `r [motor]`) prints the latest encoder position as a homed
+joint angle and raw motor turns. It is read-only and works while the motor is
+disarmed. Use `read *` to read every configured motor.
+
+`speed <degrees-per-second> [motor]` changes the trapezoidal trajectory speed
+limit for later angle commands. For example, `speed 10 odrive_1` sets axis
+`odrive_1` to 10 joint degrees per second, and `speed 10 *` applies it to every
+configured motor. The setting is retained if that motor is subsequently armed.
+
+`read-speed [motor]` (or `rs [motor]`) prints the latest measured encoder speed
+in joint degrees per second and raw motor turns per second. It is read-only and
+works while the motor is disarmed.
 
 `arm [motor]` enters ODrive closed-loop position control only after checking for
 reported errors. `disarm [motor]`, quitting, Ctrl-C, and EOF request the ODrive

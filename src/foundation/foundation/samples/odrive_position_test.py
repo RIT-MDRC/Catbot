@@ -23,6 +23,19 @@ def degrees_to_motor_turns(degrees: float) -> float:
     return degrees * MOTOR_TURNS_PER_ACTUATOR_TURN / 360.0
 
 
+def motor_turns_to_degrees(turns: float) -> float:
+    """Convert ODrive motor turns to homed joint degrees."""
+    return turns * 360.0 / MOTOR_TURNS_PER_ACTUATOR_TURN
+
+
+def parse_speed_degrees_per_second(value: str) -> float:
+    """Parse a finite, positive joint-speed limit."""
+    speed = float(value)
+    if not math.isfinite(speed) or speed <= 0:
+        raise ValueError("speed must be finite and greater than zero")
+    return speed
+
+
 def parse_angle_degrees(value: str) -> float:
     """Parse a finite joint-angle command."""
     angle_degrees = float(value)
@@ -175,11 +188,15 @@ def main() -> int:
     configured = False
     selected_motors = []
     active_motor_names = set()
+    trajectory_velocities = {}
     can_actions = None
     try:
         configure_device(os.fspath(args.config))
         configured = True
         motors = motor_actions.ctx.store
+        trajectory_velocities = {
+            name: TRAJECTORY_VELOCITY_TURNS_PER_SECOND for name in motors
+        }
         default_motor_name = None
         if args.motor:
             matches = find_motors(motors, args.motor)
@@ -224,6 +241,9 @@ def main() -> int:
 
         print(
             "Commands: arm [motor[,motor...]], disarm [motor[,motor...]], "
+            "r/read [motor[,motor...]] = read angle, "
+            "speed <deg/s> [motor[,motor...]], "
+            "rs/read-speed [motor[,motor...]], "
             "angle [motor[,motor...]], "
             "c [motor] = motor calibration, "
             "f [motor] = full calibration, h [motor] = home, "
@@ -244,6 +264,44 @@ def main() -> int:
                 continue
             if command in {"q", "quit", "exit"}:
                 break
+            if command == "speed":
+                speed_parts = parts[1].split(maxsplit=1) if len(parts) == 2 else []
+                try:
+                    speed_degrees = parse_speed_degrees_per_second(speed_parts[0])
+                except (IndexError, ValueError):
+                    print(
+                        "Invalid speed. Use: speed <positive degrees/second> "
+                        "[motor[,motor...]]."
+                    )
+                    continue
+                selector = (
+                    speed_parts[1] if len(speed_parts) == 2 else default_motor_name
+                )
+                speed_matches = find_motors(motors, selector)
+                if not speed_matches or (
+                    len(speed_matches) != 1 and not is_multi_motor_selector(selector)
+                ):
+                    print(
+                        "Invalid command: supply valid motor names or axis IDs "
+                        "(comma-separated for multiple motors), or start "
+                        "motor-test with --motor."
+                    )
+                    print(f"Configured motors: {describe_motors(motors)}")
+                    continue
+                speed_turns = degrees_to_motor_turns(speed_degrees)
+                for speed_motor_name, _ in speed_matches:
+                    if motor_actions.set_trajectory_velocity(
+                        speed_motor_name, speed_turns
+                    ):
+                        trajectory_velocities[speed_motor_name] = speed_turns
+                        print(
+                            f"Set {speed_motor_name} trajectory speed to "
+                            f"{speed_degrees:g} degrees/second "
+                            f"({speed_turns:.4f} motor turns/second)."
+                        )
+                    else:
+                        print(f"Failed to set speed for {speed_motor_name}.")
+                continue
             shortcut_states = {
                 "c": ("motor calibration", MotorState.MOTOR_CALIBRATION),
                 "calibrate": ("motor calibration", MotorState.MOTOR_CALIBRATION),
@@ -257,7 +315,19 @@ def main() -> int:
                 "home": ("homing", MotorState.HOMING),
             }
             if (
-                command in {"arm", "a", "disarm", "d", "e", "clear"}
+                command
+                in {
+                    "arm",
+                    "a",
+                    "disarm",
+                    "d",
+                    "r",
+                    "read",
+                    "rs",
+                    "read-speed",
+                    "e",
+                    "clear",
+                }
                 or command in shortcut_states
             ):
                 selector = parts[1] if len(parts) == 2 else default_motor_name
@@ -272,6 +342,34 @@ def main() -> int:
                     )
                     print(f"Configured motors: {describe_motors(motors)}")
                     continue
+            if command in {"r", "read"}:
+                for command_motor_name, command_motor in command_matches:
+                    if command_motor.current_position is None:
+                        print(
+                            f"No encoder position received from {command_motor_name}."
+                        )
+                        continue
+                    angle_degrees = motor_turns_to_degrees(
+                        command_motor.current_position
+                    )
+                    print(
+                        f"{command_motor_name}: {angle_degrees:.2f} degrees "
+                        f"({command_motor.current_position:.4f} motor turns)."
+                    )
+                continue
+            if command in {"rs", "read-speed"}:
+                for command_motor_name, command_motor in command_matches:
+                    if command_motor.current_velocity is None:
+                        print(f"No encoder speed received from {command_motor_name}.")
+                        continue
+                    speed_degrees = motor_turns_to_degrees(
+                        command_motor.current_velocity
+                    )
+                    print(
+                        f"{command_motor_name}: {speed_degrees:.2f} degrees/second "
+                        f"({command_motor.current_velocity:.4f} motor turns/second)."
+                    )
+                continue
             if command in {"arm", "a"}:
                 for command_motor_name, command_motor in command_matches:
                     if command_motor.axis_error:
@@ -296,7 +394,8 @@ def main() -> int:
                             InputMode.TRAP_TRAJ,
                         )
                         and motor_actions.set_trajectory_velocity(
-                            command_motor_name, TRAJECTORY_VELOCITY_TURNS_PER_SECOND
+                            command_motor_name,
+                            trajectory_velocities[command_motor_name],
                         )
                         and motor_actions.set_trajectory_accel(
                             command_motor_name,
