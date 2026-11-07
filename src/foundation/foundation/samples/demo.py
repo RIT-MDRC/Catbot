@@ -141,7 +141,7 @@ DEFAULT_TORQUE = 0.001
 
 
 def convert_degrees_to_positions(n: float):
-    return n * (5.33 / 30)  # 5.33 positions per 30 degrees
+    return n * (64.0 / 360.0)  # 64 motor turns per actuator rotation
 
 
 def calibrate():

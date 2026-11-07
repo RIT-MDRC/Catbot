@@ -92,7 +92,7 @@ ros2 topic pub --once /body/control/position \
   "{actuator_names: [bra, brf], positions_degrees: [10.0, -5.0]}"
 ```
 
-The current temporary conversion is 5.33 motor turns per 30 joint degrees.
+The actuator gearbox reduction is 64:1, so one actuator rotation is 64 motor turns.
 Every named actuator must be configured, heartbeat-responsive, error-free,
 within its configured motor-turn bounds, and confirmed in closed-loop control.
 A rejected message sends no targets. An error on an omitted actuator does not

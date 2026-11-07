@@ -5,6 +5,8 @@ from types import SimpleNamespace
 import math
 import sys
 
+import pytest
+
 FOUNDATION_ROOT = Path(__file__).resolve().parents[1] / "foundation"
 sys.path.insert(0, str(FOUNDATION_ROOT))
 
@@ -19,8 +21,8 @@ def make_motor(
     axis_id: int,
     *,
     axis_error: int = 0,
-    position_min: float = -41.0,
-    position_max: float = 41.0,
+    position_min: float = -(64 * 41 / 360),
+    position_max: float = 64 * 41 / 360,
 ):
     """Create the subset of motor state used by command validation."""
     return SimpleNamespace(
@@ -32,8 +34,8 @@ def make_motor(
 
 
 def test_degrees_to_motor_turns_uses_current_scale() -> None:
-    assert degrees_to_motor_turns(30.0) == 5.33
-    assert degrees_to_motor_turns(-15.0) == -2.665
+    assert degrees_to_motor_turns(30.0) == pytest.approx(64 / 12)
+    assert degrees_to_motor_turns(-15.0) == pytest.approx(-64 / 24)
 
 
 def test_motors_are_ordered_by_unique_axis_id() -> None:
@@ -54,7 +56,7 @@ def test_duplicate_axis_ids_are_rejected() -> None:
 def test_sparse_command_only_returns_named_actuators() -> None:
     motors = {"bra": make_motor(0), "bla": make_motor(1)}
     targets = prepare_position_targets(["bla"], [30.0], motors, {"bra", "bla"})
-    assert targets == [("bla", 5.33)]
+    assert targets == [("bla", pytest.approx(64 / 12))]
 
 
 def test_faulted_omitted_actuator_does_not_block_command() -> None:
@@ -72,7 +74,8 @@ def test_invalid_sparse_commands_are_rejected_before_targets_are_returned() -> N
         (["bra", "bra"], [0.0, 1.0]),
         (["missing"], [0.0]),
         (["bra"], [math.nan]),
-        (["bra"], [300.0]),
+        (["bra"], [-41.0001]),
+        (["bra"], [41.0001]),
     ]
     for names, positions in invalid_commands:
         try:

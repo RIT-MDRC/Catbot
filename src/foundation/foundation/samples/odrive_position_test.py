@@ -1,13 +1,16 @@
 """Interactively command configured ODrive motors by joint angle."""
 
 import argparse
+import math
 import os
 import readline
 import sys
 import time
 from pathlib import Path
 
-MOTOR_TURNS_PER_30_DEGREES = 5.33
+MOTOR_TURNS_PER_ACTUATOR_TURN = 64.0
+MIN_ANGLE_DEGREES = -41.0
+MAX_ANGLE_DEGREES = 41.0
 HEARTBEAT_TIMEOUT_SECONDS = 3.0
 TRAJECTORY_VELOCITY_TURNS_PER_SECOND = 1.0
 TRAJECTORY_ACCEL_TURNS_PER_SECOND_SQUARED = 1.0
@@ -17,7 +20,20 @@ readline.set_history_length(100)
 
 def degrees_to_motor_turns(degrees: float) -> float:
     """Convert homed joint degrees to ODrive motor turns."""
-    return degrees * MOTOR_TURNS_PER_30_DEGREES / 30.0
+    return degrees * MOTOR_TURNS_PER_ACTUATOR_TURN / 360.0
+
+
+def parse_angle_degrees(value: str) -> float:
+    """Parse a finite joint-angle command."""
+    angle_degrees = float(value)
+    if not math.isfinite(angle_degrees):
+        raise ValueError("angle must be finite")
+    if not MIN_ANGLE_DEGREES <= angle_degrees <= MAX_ANGLE_DEGREES:
+        raise ValueError(
+            f"angle must be between {MIN_ANGLE_DEGREES:g} and "
+            f"{MAX_ANGLE_DEGREES:g} degrees"
+        )
+    return angle_degrees
 
 
 def parse_args() -> argparse.Namespace:
@@ -220,6 +236,12 @@ def main() -> int:
                 break
             parts = raw_value.split(maxsplit=1)
             command = parts[0].lower() if parts else ""
+            if not parts:
+                print(
+                    "Invalid command. Enter an angle from -41 to 41 degrees, "
+                    "a shortcut command, or q."
+                )
+                continue
             if command in {"q", "quit", "exit"}:
                 break
             shortcut_states = {
@@ -350,9 +372,12 @@ def main() -> int:
                         print(f"Failed to send {action_name} to {command_motor_name}.")
                 continue
             try:
-                angle_degrees = float(parts[0])
+                angle_degrees = parse_angle_degrees(parts[0])
             except ValueError:
-                print("Invalid command. Enter an angle, a shortcut command, or q.")
+                print(
+                    "Invalid command. Enter an angle from -41 to 41 degrees, "
+                    "a shortcut command, or q."
+                )
                 continue
             angle_selector = parts[1] if len(parts) == 2 else default_motor_name
             angle_matches = find_motors(motors, angle_selector)

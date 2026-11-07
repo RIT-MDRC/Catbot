@@ -23,8 +23,8 @@ from component.motor.odrive_enums import AxisError
 def make_motor(**overrides):
     """Create the telemetry attributes used by the state helpers."""
     values = {
-        "current_position": 5.33,
-        "current_velocity": 2.665,
+        "current_position": 64 / 12,
+        "current_velocity": 64 / 24,
         "last_encoder_estimate_time": 9.9,
         "last_heartbeat_time": 9.8,
     }
@@ -33,8 +33,8 @@ def make_motor(**overrides):
 
 
 def test_motor_turns_convert_back_to_joint_degrees() -> None:
-    assert motor_turns_to_degrees(5.33) == 30.0
-    assert motor_turns_to_degrees(-2.665) == -15.0
+    assert motor_turns_to_degrees(64 / 12) == 30.0
+    assert motor_turns_to_degrees(-64 / 24) == -15.0
 
 
 def test_fresh_kinematics_include_position_and_velocity() -> None:

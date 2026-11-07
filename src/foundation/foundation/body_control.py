@@ -2,12 +2,12 @@
 
 import math
 
-MOTOR_TURNS_PER_30_DEGREES = 5.33
+MOTOR_TURNS_PER_ACTUATOR_TURN = 64.0
 
 
 def degrees_to_motor_turns(degrees: float) -> float:
     """Convert a joint angle in degrees to the current ODrive motor-turn scale."""
-    return degrees * MOTOR_TURNS_PER_30_DEGREES / 30.0
+    return degrees * MOTOR_TURNS_PER_ACTUATOR_TURN / 360.0
 
 
 def motors_by_axis_id(motors: dict) -> list[tuple[str, object]]:

@@ -13,96 +13,96 @@
 			"axisID": 0,
 			"control_mode": 2,
 			"input_mode": 1,
-			"position_min": -41,
-			"position_max": 41
+			"position_min": -7.288888888888889,
+			"position_max": 7.288888888888889
 		},
 		"bla": {
 			"bus": "can_bus_1",
 			"axisID": 1,
 			"control_mode": 2,
 			"input_mode": 1,
-			"position_min": -41,
-			"position_max": 41
+			"position_min": -7.288888888888889,
+			"position_max": 7.288888888888889
 		},
 		"brf": {
 			"bus": "can_bus_1",
 			"axisID": 2,
 			"control_mode": 2,
 			"input_mode": 1,
-			"position_min": -41,
-			"position_max": 41
+			"position_min": -7.288888888888889,
+			"position_max": 7.288888888888889
 		},
 		"blf": {
 			"bus": "can_bus_1",
 			"axisID": 3,
 			"control_mode": 2,
 			"input_mode": 1,
-			"position_min": -41,
-			"position_max": 41
+			"position_min": -7.288888888888889,
+			"position_max": 7.288888888888889
 		},
 		"brk": {
 			"bus": "can_bus_1",
 			"axisID": 4,
 			"control_mode": 2,
 			"input_mode": 1,
-			"position_min": -41,
-			"position_max": 41
+			"position_min": -7.288888888888889,
+			"position_max": 7.288888888888889
 		},
 		"blk": {
 			"bus": "can_bus_1",
 			"axisID": 5,
 			"control_mode": 2,
 			"input_mode": 1,
-			"position_min": -41,
-			"position_max": 41
+			"position_min": -7.288888888888889,
+			"position_max": 7.288888888888889
 		},
 		"fra": {
 			"bus": "can_bus_1",
 			"axisID": 6,
 			"control_mode": 2,
 			"input_mode": 1,
-			"position_min": -41,
-			"position_max": 41
+			"position_min": -7.288888888888889,
+			"position_max": 7.288888888888889
 		},
 		"fla": {
 			"bus": "can_bus_1",
 			"axisID": 7,
 			"control_mode": 2,
 			"input_mode": 1,
-			"position_min": -41,
-			"position_max": 41
+			"position_min": -7.288888888888889,
+			"position_max": 7.288888888888889
 		},
 		"frf": {
 			"bus": "can_bus_1",
 			"axisID": 8,
 			"control_mode": 2,
 			"input_mode": 1,
-			"position_min": -41,
-			"position_max": 41
+			"position_min": -7.288888888888889,
+			"position_max": 7.288888888888889
 		},
 		"flf": {
 			"bus": "can_bus_1",
 			"axisID": 9,
 			"control_mode": 2,
 			"input_mode": 1,
-			"position_min": -41,
-			"position_max": 41
+			"position_min": -7.288888888888889,
+			"position_max": 7.288888888888889
 		},
 		"frk": {
 			"bus": "can_bus_1",
 			"axisID": 10,
 			"control_mode": 2,
 			"input_mode": 1,
-			"position_min": -41,
-			"position_max": 41
+			"position_min": -7.288888888888889,
+			"position_max": 7.288888888888889
 		},
 		"flk": {
 			"bus": "can_bus_1",
 			"axisID": 11,
 			"control_mode": 2,
 			"input_mode": 1,
-			"position_min": -41,
-			"position_max": 41
+			"position_min": -7.288888888888889,
+			"position_max": 7.288888888888889
 		}
 	}
 }

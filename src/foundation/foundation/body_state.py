@@ -3,12 +3,12 @@
 import math
 from enum import IntFlag
 
-from body_control import MOTOR_TURNS_PER_30_DEGREES
+from body_control import MOTOR_TURNS_PER_ACTUATOR_TURN
 
 
 def motor_turns_to_degrees(turns: float) -> float:
     """Convert the current ODrive motor-turn scale to joint degrees."""
-    return turns * 30.0 / MOTOR_TURNS_PER_30_DEGREES
+    return turns * 360.0 / MOTOR_TURNS_PER_ACTUATOR_TURN
 
 
 def kinematic_values(motor, now: float, stale_seconds: float) -> tuple:

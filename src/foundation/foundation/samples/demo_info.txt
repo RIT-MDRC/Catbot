@@ -34,4 +34,4 @@ ab ad front right
 axis id 7
 odrive 8
 
-5.33 positions per 30 degrees
+64 motor turns per actuator rotation

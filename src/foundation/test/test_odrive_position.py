@@ -4,6 +4,8 @@ from pathlib import Path
 import sys
 from unittest.mock import Mock, patch
 
+import pytest
+
 FOUNDATION_ROOT = Path(__file__).resolve().parents[1] / "foundation"
 SAMPLES_ROOT = FOUNDATION_ROOT / "samples"
 sys.path.insert(0, str(FOUNDATION_ROOT))
@@ -25,6 +27,7 @@ from odrive_position_test import (
     describe_axis_error,
     describe_motors,
     find_motors,
+    parse_angle_degrees,
     report_bus_errors,
 )
 
@@ -57,8 +60,31 @@ def make_motor() -> ODriveMotor:
 
 def test_degrees_to_motor_turns() -> None:
     assert degrees_to_motor_turns(0) == 0
-    assert degrees_to_motor_turns(30) == 5.33
-    assert degrees_to_motor_turns(-15) == -2.665
+    assert degrees_to_motor_turns(30) == pytest.approx(64 / 12)
+    assert degrees_to_motor_turns(-15) == pytest.approx(-64 / 24)
+
+
+def test_parse_angle_degrees_rejects_empty_invalid_and_non_finite_values() -> None:
+    assert parse_angle_degrees("30") == 30.0
+    assert parse_angle_degrees("-15.5") == -15.5
+    assert parse_angle_degrees("-41") == -41.0
+    assert parse_angle_degrees("41") == 41.0
+
+    for invalid_value in (
+        "",
+        "not-an-angle",
+        "nan",
+        "inf",
+        "-inf",
+        "-41.0001",
+        "41.0001",
+    ):
+        try:
+            parse_angle_degrees(invalid_value)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"invalid angle was accepted: {invalid_value}")
 
 
 def test_describe_motors_includes_names_and_axis_ids() -> None:
