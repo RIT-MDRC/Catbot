@@ -1,9 +1,8 @@
 import logging
+import typing
 from dataclasses import dataclass, field
-from typing import Callable
 
 import can
-
 from state_management import (
     create_generic_context,
     device,
@@ -11,12 +10,14 @@ from state_management import (
     device_parser,
 )
 
+logger = logging.getLogger(__name__)
 DEFAULT_BUS_CONFIG = {
     "channel": "can0",
     "interface": "socketcan",
     "config_context": None,
     "ignore_config": False,
 }
+USE = False
 
 
 @device
@@ -41,11 +42,11 @@ class CanBus:
 def read_message(can_bus: CanBus, msg) -> None:
     axisId = msg.arbitration_id >> 5
     if not can_bus.silence:
-        logging.info("Received message with id " + hex(msg.arbitration_id))
+        logger.info("Received message with id " + hex(msg.arbitration_id))
     if axisId in can_bus.listeners:
         can_bus.listeners[axisId](msg)
     else:
-        logging.warning("Unhandled message with id " + hex(msg.arbitration_id))
+        logger.warning("Unhandled message with id " + hex(msg.arbitration_id))
 
 
 ctx = create_generic_context("can_bus", [CanBus])
@@ -68,7 +69,7 @@ def send_message(
         bus.bus.send(msg)
         return True
     except (can.CanError, OSError):
-        logging.error("Unable to send message on CAN bus.")
+        logger.error("Unable to send message on CAN bus.")
         return False
 
 
@@ -90,7 +91,7 @@ def request_message(
         bus.bus.send(msg)
         return True
     except (can.CanError, OSError):
-        logging.error("Unable to request message on CAN bus.")
+        logger.error("Unable to request message on CAN bus.")
         return False
 
 
@@ -101,8 +102,8 @@ def send_message_recurring(
     data,
     period: float,
     is_extended_id: bool = False,
-    duration: float = None,
-    modifier_callback: Callable[[object], None] = None,
+    duration: float | None = None,
+    modifier_callback: typing.Callable[[object], None] | None = None,
 ) -> object:
     """Repeatedly sends a message through the can bus. Returns a task for it."""
     msg = can.Message(
@@ -114,10 +115,12 @@ def send_message_recurring(
 
 
 @device_action(ctx)
-def add_listener(bus: CanBus, axisID: int, callback: Callable[[object], None]) -> None:
+def add_listener(
+    bus: CanBus, axisID: int, callback: typing.Callable[[object], None]
+) -> None:
     """Adds a listener to check for messages on a certain axis. There should be one listener per axis."""
     if axisID in bus.listeners:
-        logging.warning(
+        logger.warning(
             "Attempting to register multiple listeners for the same CAN Axis when only one allowed. Overriding old listener."
         )
     bus.listeners[axisID] = callback
@@ -125,6 +128,6 @@ def add_listener(bus: CanBus, axisID: int, callback: Callable[[object], None]) -
 
 @device_action(ctx)
 def close(bus: CanBus) -> None:
-    logging.info("Closing CAN Bus")
+    logger.info("Closing CAN Bus")
     bus.notifier.stop()
     bus.bus.shutdown()

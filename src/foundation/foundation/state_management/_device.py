@@ -2,11 +2,19 @@ import inspect
 import json
 import logging
 from collections import OrderedDict
+from collections.abc import Callable
 from contextlib import contextmanager
 from dataclasses import dataclass
 from functools import reduce, wraps
+from typing import Concatenate, ParamSpec, TypeVar, cast
 
 from .utils.logger import configure_logger
+
+logger = logging.getLogger(__name__)
+
+Device = TypeVar("Device")
+Params = ParamSpec("Params")
+Return = TypeVar("Return")
 
 
 @dataclass(slots=True, frozen=True)
@@ -18,12 +26,12 @@ class Identifier:
 class Context:
     context_name: str
     allowed_classes: list
-    parse_device: callable
+    parse_device: Callable | None
     store: dict
     stored_keys: set
     masked_device_contexts: list
-    on_exit: callable
-    masked_from: "Context" = None
+    on_exit: Callable | None
+    masked_from: "Context|None" = None
 
     def device_parser(self, func):
         def wrapped_func(value, _identifier):
@@ -41,11 +49,13 @@ class Context:
         self.on_exit = func
         return func
 
-    def device_action(self, func):
+    def device_action(
+        self, func: Callable[Concatenate[Device, Params], Return]
+    ) -> Callable[Concatenate[Device | str, Params], Return]:
         if not hasattr(func, "_ctx"):
-            setattr(func, "_ctx", self)
+            func._ctx = self  # pyright: ignore[reportFunctionMemberAccess]
         if not hasattr(func, "_func_path"):
-            setattr(func, "_func_path", f"{self.context_name}/{func.__name__}")
+            func._func_path = f"{self.context_name}/{func.__name__}"  # pyright: ignore[reportFunctionMemberAccess]
 
         @wraps(func)
         def wrapper(*args, **kwargs):
@@ -61,9 +71,9 @@ class Context:
             value = self.store.get(args[0]) if isinstance(args[0], str) else args[0]
             if value is None and isinstance(args[0], str):
                 raise ValueError(f"{args[0]} not found in {self}")
-            return func(value, *args[1:], **kwargs)
+            return func(value, *args[1:], **kwargs)  # pyright: ignore[reportArgumentType]
 
-        return wrapper
+        return cast(Callable[Concatenate[Device | str, Params], Return], wrapper)
 
     def identifier(self):
         """function used to mark an attribute of a class as an identifier for the device decorator to find and correctly parse the device.
@@ -80,7 +90,7 @@ class Context:
 DEVICE_CONTEXT_COLLECTION = {}
 
 
-def check_only_class_instance(ctx: Context, x: any):
+def check_only_class_instance(ctx: Context, x):
     return reduce(lambda res, y: res or isinstance(x, y), ctx.allowed_classes, False)
 
 
@@ -99,8 +109,8 @@ def register_device(ctx: Context, name: str, device):
 def create_generic_context(
     generic_device_name: str,
     device_classes,
-    parser_func: callable = None,
-    on_exit: callable = None,
+    parser_func=None,
+    on_exit=None,
 ):
     if isinstance(device_classes, list):
         device_classes = tuple(device_classes)
@@ -108,11 +118,11 @@ def create_generic_context(
         device_classes = (device_classes,)
     ctx = Context(
         context_name=generic_device_name,
-        allowed_classes=device_classes,
+        allowed_classes=list(device_classes),
         parse_device=parser_func,
-        store=dict(),
+        store={},
         stored_keys=set(),
-        masked_device_contexts=list(),
+        masked_device_contexts=[],
         on_exit=on_exit,
     )
     DEVICE_CONTEXT_COLLECTION[generic_device_name] = ctx
@@ -122,15 +132,17 @@ def create_generic_context(
 def create_context(
     generic_device_name: str,
     device_classes: list,
-    parser_func: callable = None,
-    on_exit: callable = None,
+    parser_func=None,
+    on_exit=None,
 ):
     return create_generic_context(
         generic_device_name, device_classes, parser_func, on_exit
     )
 
 
-def create_masked_context(ctx: Context, device_name: str, extra_classes: list = None):
+def create_masked_context(
+    ctx: Context, device_name: str, extra_classes: list | None = None
+):
     if extra_classes is not None:
         ctx.allowed_classes += extra_classes
     new_ctx = Context(
@@ -139,7 +151,7 @@ def create_masked_context(ctx: Context, device_name: str, extra_classes: list = 
         parse_device=ctx.parse_device,
         store=ctx.store,
         stored_keys=set(),
-        masked_device_contexts=list(),
+        masked_device_contexts=[],
         on_exit=ctx.on_exit,
         masked_from=ctx,
     )
@@ -148,9 +160,9 @@ def create_masked_context(ctx: Context, device_name: str, extra_classes: list = 
     return new_ctx
 
 
-def get_context(device_name: str) -> Context:
+def get_context(device_name: str) -> Context | None:
     """NOTE: This function will not throw if context is missing. Returns None instead."""
-    logging.debug(f"Getting context for {device_name}")
+    logger.debug("Getting context for %s", device_name)
     ctx = DEVICE_CONTEXT_COLLECTION.get(device_name, None)
     return ctx
 
@@ -198,7 +210,12 @@ def device_exit(ctx: Context):
     return decorator
 
 
-def device_action(ctx: Context):
+def device_action(
+    ctx: Context,
+) -> Callable[
+    [Callable[Concatenate[Device, Params], Return]],
+    Callable[Concatenate[Device | str, Params], Return],
+]:
     """DEPRECATED: See Context.device_action
     This function is used to mark a function as a device action. This will be used to run the action on the device.
     This will be help retrieve the device from the store and run the action using the device name.
@@ -209,11 +226,13 @@ def device_action(ctx: Context):
         callable: decorator function that will be used to run the action on the device.
     """
 
-    def decorator(func):
+    def decorator(
+        func: Callable[Concatenate[Device, Params], Return],
+    ) -> Callable[Concatenate[Device | str, Params], Return]:
         if not hasattr(func, "_ctx"):
-            setattr(func, "_ctx", ctx)
+            func._ctx = ctx  # pyright: ignore[reportFunctionMemberAccess]
         if not hasattr(func, "_func_path"):
-            setattr(func, "_func_path", f"{ctx.context_name}/{func.__name__}")
+            func._func_path = f"{ctx.context_name}/{func.__name__}"  # pyright: ignore[reportFunctionMemberAccess]
 
         @wraps(func)
         def wrapper(*args, **kwargs):
@@ -229,9 +248,9 @@ def device_action(ctx: Context):
             value = ctx.store.get(args[0]) if isinstance(args[0], str) else args[0]
             if value is None and isinstance(args[0], str):
                 raise ValueError(f"{args[0]} not found in {ctx}")
-            return func(value, *args[1:], **kwargs)
+            return func(value, *args[1:], **kwargs)  # pyright: ignore[reportArgumentType]
 
-        return wrapper
+        return cast(Callable[Concatenate[Device | str, Params], Return], wrapper)
 
     return decorator
 
@@ -255,7 +274,7 @@ def device(cls):
         k: v.ctx for k, v in cls.__dict__.items() if isinstance(v, Identifier)
     }
 
-    def new_init(self, _identifier: str = None, **kwargs):
+    def new_init(self, _identifier: str | None = None, **kwargs):
         def convert_value(key, value):
             if key not in identifier_attrs or check_only_class_instance(
                 (ctx := identifier_attrs[key]), value
@@ -274,6 +293,10 @@ def device(cls):
 
                 return value
 
+            if ctx.parse_device is None:
+                raise ValueError(
+                    f"{ctx}: {key} is an identifier attribute but no parser is registered for this context. Please register a parser using the @device_parser decorator."
+                )
             # when an attribute's parameter is passed in as an attribute value
             newDevice = ctx.parse_device(value, _identifier=_identifier)
             newKey = f"{_identifier}.{key}"
@@ -292,21 +315,18 @@ def device(cls):
 def open_json(file_name: str = "pinconfig.json"):
     with open(file_name, "r") as file:
         config = json.load(file, object_pairs_hook=OrderedDict)
-    for key, value in config.items():
-        yield key, value
+    yield from config.items()
 
 
 def log_states():
-    logging.info("Device configuration complete")
-    logging.info(
-        "Total of %s device parsers configured", len(DEVICE_CONTEXT_COLLECTION)
-    )
-    logging.debug("Device parsers: \n%s", "\n".join(DEVICE_CONTEXT_COLLECTION.keys()))
-    logging.info(
+    logger.info("Device configuration complete")
+    logger.info("Total of %s device parsers configured", len(DEVICE_CONTEXT_COLLECTION))
+    logger.debug("Device parsers: \n%s", "\n".join(DEVICE_CONTEXT_COLLECTION.keys()))
+    logger.info(
         "Total of %s devices configured",
         sum([len(x.store) for x in DEVICE_CONTEXT_COLLECTION.values()]),
     )
-    logging.debug(
+    logger.debug(
         "Devices: \n%s",
         "\n".join(
             [
@@ -324,7 +344,7 @@ def log_states():
 
 def configure_device(
     file_name: str = "pinconfig.json",
-    file_kv_generator: callable = open_json,
+    file_kv_generator=open_json,
     log_level: str = "Debug",
 ):
     """configure the devices from the pinconfig file. This will parse the devices and store them in the global store.
@@ -345,16 +365,16 @@ def configure_device(
         This could happen for two reasons. The device store was not initialized due to the file that the initializer is in was not imported in the script file(memory benefit), or the parser's identifier had a typo in the pinconfig file(Will need to be fixed immediately).
     """
     configure_logger(log_level)
-    logging.info("Configuring devices...")
+    logger.info("Configuring devices...")
     for key, config in file_kv_generator(file_name):
         ctx = get_context(key)
         if ctx is None:
-            logging.warning(f"Context for {key} not found. Skipping...")
+            logger.warning(f"Context for {key} not found. Skipping...")
             continue
         if ctx.masked_from and (casted_devices := config.get("__cast", None)):
             for masked_key, masked_device_identifier in casted_devices.items():
                 if not isinstance(masked_device_identifier, str):
-                    raise ValueError(
+                    raise TypeError(
                         f"Masked device {masked_device_identifier} is not a valid identifier in {ctx}"
                     )
                 casting_device = ctx.masked_from.store.get(masked_device_identifier)
@@ -365,17 +385,21 @@ def configure_device(
                 register_device(ctx, masked_key, casting_device)
             del config["__cast"]
         for key, device_attr in config.items():
+            if ctx.parse_device is None:
+                raise ValueError(
+                    f"{ctx}: No parser is registered for this context. Please register a parser using the @device_parser decorator."
+                )
             device = ctx.parse_device(device_attr, _identifier=key)
             register_device(ctx, key, device)
 
     log_states()
-    logging.info("Device configuration complete")
+    logger.info("Device configuration complete")
 
 
 @contextmanager
 def configure_device_w_context(
     file_name: str = "pinconfig.json",
-    file_kv_generator: callable = open_json,
+    file_kv_generator=open_json,
     log_level: str = "Debug",
 ):
     configure_device(
@@ -384,9 +408,9 @@ def configure_device_w_context(
 
     yield
 
-    logging.info("Exiting system...")
+    logger.info("Exiting system...")
     for ctx in DEVICE_CONTEXT_COLLECTION.values():
         if ctx.on_exit is not None:
             ctx.on_exit()
-    logging.info("Successfully Exiting system...")
+    logger.info("Successfully Exiting system...")
     logging.shutdown()

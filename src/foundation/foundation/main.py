@@ -8,6 +8,25 @@ import time
 from dataclasses import dataclass, field
 
 import rclpy
+from body_control import motors_by_axis_id, prepare_position_targets
+from body_state import flag_messages, heartbeat_available, kinematic_values
+from component.can import can_actions
+from component.motor import motor_actions
+from component.motor.odrive_enums import (
+    AxisError,
+    ControllerError,
+    ControlMode,
+    EncoderError,
+    InputMode,
+    MotorError,
+    MotorState,
+    SensorlessError,
+)
+from rclpy.node import Node
+from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy
+from state_management import configure_device
+from std_msgs.msg import Empty
+
 from catbot_interfaces.msg import (
     ActuatorErrorState,
     ActuatorKinematicState,
@@ -15,25 +34,6 @@ from catbot_interfaces.msg import (
     BodyErrorState,
     BodyKinematicState,
 )
-from rclpy.node import Node
-from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy
-from std_msgs.msg import Empty
-
-from body_control import motors_by_axis_id, prepare_position_targets
-from body_state import flag_messages, heartbeat_available, kinematic_values
-from component.can import can_actions
-from component.motor import motor_actions
-from component.motor.odrive_enums import (
-    AxisError,
-    ControlMode,
-    ControllerError,
-    EncoderError,
-    InputMode,
-    MotorError,
-    MotorState,
-    SensorlessError,
-)
-from state_management import configure_device
 
 HEARTBEAT_TIMEOUT_SECONDS = 3.0
 OPERATION_TIMEOUT_SECONDS = 30.0
@@ -501,7 +501,7 @@ class BodyControlNode(Node):
             try:
                 can_actions.close(bus_name)
             except (OSError, ValueError) as error:
-                logging.error("Unable to close CAN bus %s: %s", bus_name, error)
+                logger.error("Unable to close CAN bus %s: %s", bus_name, error)
 
 
 def main(args=None):

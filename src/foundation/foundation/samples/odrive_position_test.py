@@ -9,8 +9,8 @@ import time
 from pathlib import Path
 
 MOTOR_TURNS_PER_ACTUATOR_TURN = 64.0
-MIN_ANGLE_DEGREES = -41.0
-MAX_ANGLE_DEGREES = 41.0
+MIN_ANGLE_DEGREES = -40.0
+MAX_ANGLE_DEGREES = 40.0
 HEARTBEAT_TIMEOUT_SECONDS = 3.0
 TRAJECTORY_VELOCITY_TURNS_PER_SECOND = 1.0
 TRAJECTORY_ACCEL_TURNS_PER_SECOND_SQUARED = 1.0
@@ -189,7 +189,7 @@ def main() -> int:
     selected_motors = []
     active_motor_names = set()
     trajectory_velocities = {}
-    can_actions = None
+    can_actions.USE = True
     try:
         configure_device(os.fspath(args.config))
         configured = True
@@ -256,6 +256,7 @@ def main() -> int:
                 break
             parts = raw_value.split(maxsplit=1)
             command = parts[0].lower() if parts else ""
+            command_matches = []
             if not parts:
                 print(
                     "Invalid command. Enter an angle from -41 to 41 degrees, "
@@ -414,8 +415,9 @@ def main() -> int:
                         continue
                     if not wait_for(
                         command_motor,
-                        lambda motor: motor.current_state
-                        == MotorState.CLOSED_LOOP_CONTROL,
+                        lambda motor: (
+                            motor.current_state == MotorState.CLOSED_LOOP_CONTROL
+                        ),
                         HEARTBEAT_TIMEOUT_SECONDS,
                     ):
                         print(f"{command_motor_name} did not confirm that it is armed.")
