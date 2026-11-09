@@ -11,6 +11,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/ActuatorPositionCommand.msg"
   "msg/BodyErrorState.msg"
   "msg/BodyKinematicState.msg"
+  "msg/PolicyFeedback.msg"
   DEPENDENCIES builtin_interfaces
 )
 

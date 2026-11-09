@@ -43,3 +43,17 @@ class BodyKinematicState:
     actuators: list[ActuatorKinematicState]
     def __init__(self, **kwargs: object) -> None: ...
 
+class PolicyFeedback:
+    stamp: Time
+    base_height_quaternion: list[float]
+    heading_linear_velocity: list[float]
+    base_angular_velocity: list[float]
+    joint_positions: list[float]
+    joint_velocities: list[float]
+    normalized_air_time: list[float]
+    previous_contact: list[bool]
+    has_stance: list[bool]
+    motion_travel: list[float]
+    motion_progress: float
+    def __init__(self, **kwargs: object) -> None: ...
+

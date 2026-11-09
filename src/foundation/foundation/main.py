@@ -455,7 +455,7 @@ class BodyControlNode(Node):
                 return
             commands_sent = (
                 actuator_actions.configure_trajectory(name)
-                and motor_actions.set_target_position(name, motor.current_position)
+                and motor_actions.hold_current_position(name)
                 and motor_actions.set_axis_state(name, MotorState.CLOSED_LOOP_CONTROL)
             )
             if not commands_sent:

@@ -15,7 +15,7 @@ from textual import events, on
 from textual.app import App, ComposeResult
 from textual.binding import BindingType
 from textual.containers import Horizontal, Vertical
-from textual.widgets import Input, RichLog, Static
+from textual.widgets import Input, Static, TextArea
 
 HEARTBEAT_TIMEOUT_SECONDS = 3.0
 
@@ -415,18 +415,24 @@ def run_motor_test(
                         f"WARNING: arming {command_motor_name} enables motor torque; "
                         "keep the mechanism clear."
                     )
-                    setup_commands_sent = actuator_actions.configure_trajectory(
-                        command_motor_name
-                    ) and motor_actions.set_target_position(
-                        command_motor_name,
-                        command_motor.current_position,
-                    )
-                    if not setup_commands_sent or not motor_actions.set_axis_state(
-                        command_motor_name,
-                        MotorState.CLOSED_LOOP_CONTROL,
+                    if not actuator_actions.configure_trajectory(command_motor_name):
+                        print(
+                            "Failed to configure position trajectory for "
+                            f"{command_motor_name}."
+                        )
+                        continue
+                    if not motor_actions.hold_current_position(command_motor_name):
+                        print(
+                            f"Failed to send the initial position hold to "
+                            f"{command_motor_name}."
+                        )
+                        continue
+                    if not motor_actions.set_axis_state(
+                        command_motor_name, MotorState.CLOSED_LOOP_CONTROL
                     ):
                         print(
-                            f"Failed to send the arm command sequence to {command_motor_name}."
+                            f"Failed to send the closed-loop request to "
+                            f"{command_motor_name}."
                         )
                         continue
                     if not wait_for(
@@ -652,7 +658,7 @@ class MotorTestApp(App[int]):
     #log {
         height: 1fr;
         min-height: 8;
-        border: round #464b57;
+        border: none;
         background: #111318;
         padding: 0 1;
         scrollbar-color: #6f7787;
@@ -662,12 +668,14 @@ class MotorTestApp(App[int]):
     #command {
         height: 3;
         margin-top: 1;
-        border: round #6f7787;
-        background: #181b21;
+        border: none;
+        background: #24272e;
+        padding: 0 1;
     }
 
     #command:focus {
-        border: round #8ab4f8;
+        border: none;
+        background: #2d313a;
     }
 
     #status-row {
@@ -689,14 +697,14 @@ class MotorTestApp(App[int]):
     """
 
     BINDINGS: ClassVar[list[BindingType]] = [
-        ("ctrl+c", "request_quit", "Stop"),
+        ("ctrl+q", "request_quit", "Stop"),
         ("ctrl+d", "request_quit", "Stop"),
     ]
 
     STOP = object()
     COMMAND_HINT = (
         "mp abs  mr rel  arm  disarm  read  speed  c/f calibrate  "
-        "home  clear  q quit"
+        "home  clear  q quit  select log + Ctrl/Cmd-C copy"
     )
 
     def __init__(self, args: argparse.Namespace):
@@ -712,12 +720,13 @@ class MotorTestApp(App[int]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="layout"):
-            yield RichLog(
+            yield TextArea(
                 id="log",
-                wrap=True,
-                highlight=False,
-                markup=False,
-                max_lines=2000,
+                soft_wrap=True,
+                read_only=True,
+                show_cursor=False,
+                highlight_cursor_line=False,
+                max_checkpoints=0,
             )
             yield CommandInput(
                 placeholder="Enter a command, for example: mp 15 0",
@@ -731,15 +740,15 @@ class MotorTestApp(App[int]):
                 yield Static(self.COMMAND_HINT, id="command-list")
 
     def on_mount(self) -> None:
-        log = self.query_one("#log", RichLog)
-        log.border_title = " Catbot motor test "
-        command = self.query_one("#command", CommandInput)
-        command.border_title = " Command "
         self.set_interval(0.25, self.refresh_can_status)
         self.write_log(
             "Motor control starts disarmed. Keep the mechanism clear and an "
             "emergency stop available.",
             "bold yellow",
+        )
+        self.write_log(
+            "Log text is selectable. Drag to highlight and press Ctrl-C/Cmd-C "
+            "to copy over SSH; use Shift-drag for native terminal selection."
         )
         self.session_thread = threading.Thread(
             target=self._run_session,
@@ -781,7 +790,7 @@ class MotorTestApp(App[int]):
         return str(value)
 
     def emit(self, *values, sep=" ", end="\n") -> None:
-        """Send command-loop output safely to the RichLog widget."""
+        """Send command-loop output safely to the log widget."""
         message = sep.join(str(value) for value in values)
         if end and end != "\n":
             message += end
@@ -827,8 +836,18 @@ class MotorTestApp(App[int]):
         self.commands.put(self.STOP)
 
     def write_log(self, message, style: str | None = None) -> None:
-        content = Text(str(message), style=style) if style else message
-        self.query_one("#log", RichLog).write(content)
+        del style  # TextArea provides selection and SSH clipboard support, not markup.
+        log = self.query_one("#log", TextArea)
+        line = str(message)
+        if log.text:
+            line = f"\n{line}"
+        log.insert(line, log.document.end, maintain_selection_offset=True)
+        if log.document.line_count > 2000:
+            excess_lines = log.document.line_count - 2000
+            log.delete((0, 0), (excess_lines, 0), maintain_selection_offset=True)
+        if log.selection.is_empty:
+            log.move_cursor(log.document.end)
+            log.scroll_cursor_visible()
 
     def write_output(self, message: str) -> None:
         lower = message.lower()

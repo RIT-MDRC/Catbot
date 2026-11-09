@@ -8,7 +8,8 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import pytest
-from textual.widgets import RichLog, Static
+from textual.widgets import Static, TextArea
+from textual.widgets.text_area import Selection
 
 FOUNDATION_ROOT = Path(__file__).resolve().parents[1] / "foundation"
 SAMPLES_ROOT = FOUNDATION_ROOT / "samples"
@@ -188,16 +189,22 @@ def test_motor_test_tui_reports_can_error_changes() -> None:
                 motor.axis_error = 0x300
                 app.refresh_can_status()
                 assert "CAN ERRORS (1)" in str(status.render())
-                log = app.query_one("#log", RichLog)
-                rendered_log = "\n".join(line.text for line in log.lines)
+                log = app.query_one("#log", TextArea)
+                rendered_log = log.text
                 assert "front (axis 3): 0x300" in rendered_log
                 assert "ENCODER_FAILED" in rendered_log
                 assert "CONTROLLER_FAILED" in rendered_log
 
                 motor.axis_error = 0
                 app.refresh_can_status()
-                rendered_log = "\n".join(line.text for line in log.lines)
+                rendered_log = log.text
                 assert "CAN errors cleared" in rendered_log
+
+                log.focus()
+                log.selection = Selection((0, 0), (0, 5))
+                await pilot.press("ctrl+c")
+                assert app.clipboard == log.text[:5]
+                assert app.stop_event.is_set() is False
                 app.action_request_quit()
                 await pilot.pause(0.1)
 
@@ -322,6 +329,30 @@ def test_controller_mode_does_not_update_after_failed_send() -> None:
     assert result is False
     assert motor.control_mode == ControlMode.VELOCITY_CONTROL
     assert motor.input_mode == InputMode.PASSTHROUGH
+
+
+def test_hold_current_position_uses_feedback_without_logical_bounds() -> None:
+    motor = make_motor()
+    motor.current_position = 123.0
+    motor.position_min = -1.0
+    motor.position_max = 1.0
+    with patch.object(motor_actions, "send_message", return_value=True) as send:
+        assert motor_actions.hold_current_position(motor) is True
+
+    send.assert_called_once_with(
+        motor,
+        "Set_Input_Pos",
+        {"Input_Pos": 123.0, "Vel_FF": 0.0, "Torque_FF": 0.0},
+    )
+
+
+def test_hold_current_position_requires_encoder_feedback() -> None:
+    motor = make_motor()
+    motor.current_position = None
+    with patch.object(motor_actions, "send_message") as send:
+        assert motor_actions.hold_current_position(motor) is False
+
+    send.assert_not_called()
 
 
 def test_feedback_handlers_retain_timestamps_and_detailed_errors() -> None:

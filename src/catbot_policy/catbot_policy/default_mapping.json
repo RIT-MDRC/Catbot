@@ -1,0 +1,7 @@
+{
+  "actuator_names": ["fla", "flf", "flk", "fra", "frf", "frk", "bla", "blf", "blk", "bra", "brf", "brk"],
+  "signs": [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+  "offsets_degrees": [0, 0, 90, 0, 0, 90, 0, 0, 90, 0, 0, 90],
+  "minimum_degrees": [-40, -40, -55, -40, -40, -55, -40, -40, -55, -40, -40, -55],
+  "maximum_degrees": [40, 40, 55, 40, 40, 55, 40, 40, 55, 40, 40, 55]
+}

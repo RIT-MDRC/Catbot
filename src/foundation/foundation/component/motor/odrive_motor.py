@@ -314,6 +314,28 @@ def set_target_position(
 
 
 @device_action(ctx)
+def hold_current_position(motor: ODriveMotor) -> bool:
+    """Command the measured position as a no-motion hold before arming.
+
+    The measured encoder position may be outside logical command bounds before
+    hardware zeroing. This action intentionally bypasses those target bounds,
+    but it never accepts a caller-provided position.
+    """
+    if motor.current_position is None:
+        logger.error("Cannot hold motor %s without encoder feedback", motor.axisID)
+        return False
+    return send_message(
+        motor,
+        "Set_Input_Pos",
+        {
+            "Input_Pos": motor.current_position,
+            "Vel_FF": 0.0,
+            "Torque_FF": 0.0,
+        },
+    )
+
+
+@device_action(ctx)
 def set_position_control_velocity(
     motor: ODriveMotor,
     velocity_FF: float = 0.0,

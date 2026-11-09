@@ -16,6 +16,7 @@ dependencies = [
 ]
 
 [dependency-groups]
+policy = ["torch==2.14.0"]
 dev = [
     "black>=24.10,<27",
     "pytest>=8,<10",
@@ -29,6 +30,14 @@ ros-intellisense = [
 
 [tool.uv]
 package = false
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
 
 [tool.ty]
 baseline = "ty-baseline.json"

@@ -49,9 +49,53 @@ Build the packages:
 To run the UI package:
 * `ros2 run ui ui`
 
+The UI publishes body-velocity commands to the policy. Its live ROS parameters
+control command magnitude without changing the foundation motor-safety profile:
+
+```bash
+ros2 param set /ui_node speed_gain 0.5
+ros2 param set /ui_node forward_speed_mps 0.2
+ros2 param set /ui_node lateral_speed_mps 0.2
+ros2 param set /ui_node command_acceleration_mps2 1.0
+ros2 param set /ui_node fast_speed_multiplier 3.0
+```
+
+All values must be finite and positive. `speed_gain` scales both axes;
+the forward and lateral parameters set their base speeds in meters per second.
+`command_acceleration_mps2` limits the rate at which the two-dimensional body
+velocity changes; stop commands remain immediate for safety. Changes apply to
+the next UI command. These four primary motion values can also be edited in the
+running UI's Motion settings panel.
+
 The main foundation node exposes sparse body position control and all-motor
 maintenance topics. See the [foundation body-control documentation](src/foundation/foundation/README.md#body-control-topics)
 for message formats and publish examples.
+
+The [policy node](src/catbot_policy/README.md) loads exported trained actors,
+accepts named feedback on `/policy/feedback`, and publishes actuator targets.
+Its documentation covers policy export, optional runtime dependencies, building,
+topic remapping, and the provisional joint mapping.
+
+To start foundation and policy together, build and source the workspace as
+described in the policy documentation, then run:
+
+```bash
+ros2 launch catbot_policy catbot.launch.py
+```
+
+To download and prepare the latest W&B training checkpoint automatically:
+
+```bash
+cd src/catbot_policy
+uv run pull_policy.py
+```
+
+The launcher uses the last successfully prepared bundle by default. You can
+set `POLICY_BUNDLE` in
+[`catbot.launch.py`](src/catbot_policy/launch/catbot.launch.py) to choose a fixed
+bundle instead. See the
+[policy setup instructions](src/catbot_policy/README.md#pull-the-latest-training-policy)
+for W&B login, run selection, and ROS setup.
 
 ### Install dependencies
 * install [uv](https://docs.astral.sh/uv/)

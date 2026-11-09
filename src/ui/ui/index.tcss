@@ -27,11 +27,47 @@ Button {
 
 #controller {
   display: none;
-  width: 70%;
+  width: 45%;
   grid-size: 3 3;
   grid-rows: 1fr;
   grid-columns: 1fr;
   grid-gutter: 1;
+}
+
+#motion-settings {
+  display: none;
+  width: 25%;
+  min-width: 24;
+  padding: 1;
+  border-left: heavy white;
+}
+
+#motion-settings-title {
+  height: 2;
+  text-style: bold;
+}
+
+.motion-label {
+  height: 1;
+  margin-top: 1;
+}
+
+#motion-settings Input {
+  height: 3;
+}
+
+#apply-motion-settings {
+  height: 3;
+  margin-top: 1;
+}
+
+#motion-settings-status {
+  height: 2;
+  color: green;
+}
+
+#motion-settings-status.error {
+  color: red;
 }
 
 #log {

@@ -1,17 +1,20 @@
-#!/usr/bin/env /workspace/.venv/bin/python
-
-from dataclasses import dataclass, field
 import logging
+import math
 import threading
 from asyncio import sleep
-from logging import LogRecord
+from time import monotonic
+from typing import ClassVar
+
 import rclpy
+from geometry_msgs.msg import Twist
 from rclpy.node import Node
-from std_msgs.msg import Empty, Float64
+from rclpy.parameter import Parameter
 from textual import events, on
 from textual.app import App, ComposeResult
 from textual.containers import Center, Grid, Horizontal, Vertical
 from textual.widgets import Footer, Header, LoadingIndicator, RichLog, Static
+from watchdog.observers import Observer, ObserverType
+
 from .asset import (
     CAT,
     DOWN_ARROW,
@@ -20,12 +23,7 @@ from .asset import (
     RIGHT_ARROW,
     UP_ARROW,
 )
-import rclpy
-from watchdog.observers import Observer, ObserverType
-from .utils.logger import (
-    LogHandler,
-    set_log_event_function,
-)
+from .component.motionsettings import MotionSettings
 from .component.reactivebutton import ReactiveButton
 from .utils.interval import (
     clear_all,
@@ -35,152 +33,200 @@ from .utils.interval import (
     set_timeout,
 )
 
-MUSCLE = "left_muscle"
-LATERAL_MOTOR = "odrive_1"
-MEDIAL_MOTOR = "odrive_2"
+logger = logging.getLogger(__name__)
+from .utils.logger import (
+    LogHandler,
+)
 
-MUSCLE_LIST = [MUSCLE]
-MOTOR_LIST = [LATERAL_MOTOR, MEDIAL_MOTOR]
-
-LEFT_DISTANCE = 8.0
-RIGHT_DISTANCE = -8.0
-MULTIPLIER = 3
-
-EVENT_TOPICS = [
-    {
-        "path": "motor/set_target_position",
-        "devices": MOTOR_LIST,
-        "paramType": Float64,
-    },
-    {"path": "muscle/contract", "devices": MUSCLE_LIST},
-    {"path": "muscle/relax", "devices": MUSCLE_LIST},
-]
+COMMAND_TOPIC = "/policy/cmd_vel"
+DEFAULT_FORWARD_SPEED_MPS = 0.2
+DEFAULT_LATERAL_SPEED_MPS = 0.2
+DEFAULT_SPEED_GAIN = 1.0
+DEFAULT_FAST_SPEED_MULTIPLIER = 3.0
+DEFAULT_COMMAND_ACCELERATION_MPS2 = 1.0
 
 pub_node: "PublishInput" = None
 rosThread: threading.Thread = None
 
 
-@dataclass
-class DevicePublisherTopic:
-    path: str
-    devices: list[str]
-    paramType: object = field(default=Empty)
-
-
 class PublishInput(Node):
-    publishersObjs = dict()
+    """Publish policy velocity commands from UI input."""
 
-    def __init__(
-        self,
-        node_name="ui_node",
-        topics=EVENT_TOPICS,
-    ):
+    def __init__(self, node_name="ui_node"):
         super().__init__(node_name)
-        publishers = [DevicePublisherTopic(**topic) for topic in topics]
+        self.declare_parameter("forward_speed_mps", DEFAULT_FORWARD_SPEED_MPS)
+        self.declare_parameter("lateral_speed_mps", DEFAULT_LATERAL_SPEED_MPS)
+        self.declare_parameter("speed_gain", DEFAULT_SPEED_GAIN)
+        self.declare_parameter(
+            "command_acceleration_mps2", DEFAULT_COMMAND_ACCELERATION_MPS2
+        )
+        self.declare_parameter(
+            "fast_speed_multiplier", DEFAULT_FAST_SPEED_MULTIPLIER
+        )
+        self.command_publisher = self.create_publisher(Twist, COMMAND_TOPIC, 10)
+        self.last_velocity = (0.0, 0.0)
+        self.last_velocity_time = monotonic()
 
-        for publisher in publishers:
-            for device in publisher.devices:
-                topic_path = f"{publisher.path}/{device}"
-                self.publishersObjs[topic_path] = self.create_publisher(
-                    publisher.paramType,
-                    topic_path,
-                    10,
-                )
+    def _positive_parameter(self, name: str) -> float:
+        value = float(self.get_parameter(name).value)
+        if not math.isfinite(value) or value <= 0:
+            raise ValueError(f"{name} must be finite and positive")
+        return value
 
-    def publish(self, topic: str, device: str, msg: object = Empty()):
-        self.publishersObjs[f"{topic}/{device}"].publish(msg)
+    def publish_command(
+        self,
+        forward_direction: float = 0.0,
+        left_direction: float = 0.0,
+        *,
+        fast: bool = False,
+    ) -> None:
+        """Publish normalized directions using the current velocity parameters."""
+        gain = self._positive_parameter("speed_gain")
+        multiplier = (
+            self._positive_parameter("fast_speed_multiplier") if fast else 1.0
+        )
+        target = (
+            forward_direction
+            * self._positive_parameter("forward_speed_mps")
+            * gain
+            * multiplier,
+            left_direction
+            * self._positive_parameter("lateral_speed_mps")
+            * gain
+            * multiplier,
+        )
+        now = monotonic()
+        max_change = self._positive_parameter("command_acceleration_mps2") * max(
+            now - self.last_velocity_time, 0.0
+        )
+        delta = tuple(
+            desired - current
+            for current, desired in zip(self.last_velocity, target)
+        )
+        delta_magnitude = math.hypot(*delta)
+        scale = min(1.0, max_change / delta_magnitude) if delta_magnitude else 1.0
+        limited = tuple(
+            current + change * scale
+            for current, change in zip(self.last_velocity, delta)
+        )
+        self.last_velocity = limited
+        self.last_velocity_time = now
+        self.publish_direction(*limited)
 
+    def stop(self) -> None:
+        """Publish an immediate zero command and reset acceleration limiting."""
+        self.last_velocity = (0.0, 0.0)
+        self.last_velocity_time = monotonic()
+        self.publish_direction()
 
-def makeFloat64(data: float) -> Float64:
-    msg = Float64()
-    msg.data = data
-    return msg
+    def update_motion_settings(
+        self,
+        forward_speed_mps: float,
+        lateral_speed_mps: float,
+        speed_gain: float,
+        command_acceleration_mps2: float,
+    ) -> None:
+        """Apply validated UI values to the node's live ROS parameters."""
+        values = {
+            "forward_speed_mps": forward_speed_mps,
+            "lateral_speed_mps": lateral_speed_mps,
+            "speed_gain": speed_gain,
+            "command_acceleration_mps2": command_acceleration_mps2,
+        }
+        for name, value in values.items():
+            if not math.isfinite(value) or value <= 0:
+                raise ValueError(f"{name} must be finite and positive")
+        results = self.set_parameters(
+            [Parameter(name, value=value) for name, value in values.items()]
+        )
+        if not all(result.successful for result in results):
+            reasons = [result.reason for result in results if not result.successful]
+            raise ValueError("; ".join(reasons) or "ROS rejected motion settings")
+
+    def publish_direction(
+        self,
+        forward_mps: float = 0.0,
+        left_mps: float = 0.0,
+        yaw_radps: float = 0.0,
+    ) -> None:
+        message = Twist()
+        message.linear.x = forward_mps
+        message.linear.y = left_mps
+        message.angular.z = yaw_radps
+        self.command_publisher.publish(message)
 
 
 class DirectionController:
     @staticmethod
+    def _publish(
+        forward_direction: float = 0.0,
+        left_direction: float = 0.0,
+        *,
+        fast: bool = False,
+    ) -> None:
+        if pub_node is None:
+            raise RuntimeError("UI ROS publisher is not initialized")
+        try:
+            pub_node.publish_command(
+                forward_direction, left_direction, fast=fast
+            )
+        except ValueError as error:
+            logger.error("Rejected UI speed configuration: %s", error)
+
+    @staticmethod
     def left():
-        logging.info("Left")
-        pub_node.publish(
-            "motor/set_target_position", LATERAL_MOTOR, makeFloat64(LEFT_DISTANCE)
-        )
-        # raw_motor_action.step_n(LATERAL_MOTOR, LEFT_DISTANCE)
+        logger.info("Left")
+        DirectionController._publish(left_direction=1.0)
 
     @staticmethod
     def bigLeft():
-        logging.info("Left")
-        pub_node.publish(
-            "motor/set_target_position",
-            LATERAL_MOTOR,
-            makeFloat64(LEFT_DISTANCE * MULTIPLIER),
-        )
-        # raw_motor_action.step_n(LATERAL_MOTOR, LEFT_DISTANCE * MULTIPLIER)
+        logger.info("Left")
+        DirectionController._publish(left_direction=1.0, fast=True)
 
     @staticmethod
     def right():
-        logging.info("Right")
-        pub_node.publish(
-            "motor/set_target_position", LATERAL_MOTOR, makeFloat64(RIGHT_DISTANCE)
-        )
-        # raw_motor_action.step_n(LATERAL_MOTOR, RIGHT_DISTANCE)
+        logger.info("Right")
+        DirectionController._publish(left_direction=-1.0)
 
     @staticmethod
     def bigRight():
-        logging.info("Right")
-        pub_node.publish(
-            "motor/set_target_position",
-            LATERAL_MOTOR,
-            makeFloat64(RIGHT_DISTANCE * MULTIPLIER),
-        )
-        # raw_motor_action.step_n(LATERAL_MOTOR, RIGHT_DISTANCE * MULTIPLIER)
+        logger.info("Right")
+        DirectionController._publish(left_direction=-1.0, fast=True)
 
     @staticmethod
     def up():
-        logging.info("Up")
-        pub_node.publish(
-            "motor/set_target_position", MEDIAL_MOTOR, makeFloat64(LEFT_DISTANCE)
-        )
-        # raw_motor_action.step_n(MEDIAL_MOTOR, LEFT_DISTANCE)
+        logger.info("Up")
+        DirectionController._publish(forward_direction=1.0)
 
     @staticmethod
     def bigUp():
-        logging.info("Up")
-        pub_node.publish(
-            "motor/set_target_position",
-            MEDIAL_MOTOR,
-            makeFloat64(LEFT_DISTANCE * MULTIPLIER),
-        )
-        # raw_motor_action.step_n(MEDIAL_MOTOR, LEFT_DISTANCE * MULTIPLIER)
+        logger.info("Up")
+        DirectionController._publish(forward_direction=1.0, fast=True)
 
     @staticmethod
     def down():
-        logging.info("Down")
-        pub_node.publish(
-            "motor/set_target_position", MEDIAL_MOTOR, makeFloat64(RIGHT_DISTANCE)
-        )
-        # raw_motor_action.step_n(MEDIAL_MOTOR, RIGHT_DISTANCE)
+        logger.info("Down")
+        DirectionController._publish(forward_direction=-1.0)
 
     @staticmethod
     def bigDown():
-        logging.info("Down")
-        pub_node.publish(
-            "motor/set_target_position",
-            MEDIAL_MOTOR,
-            makeFloat64(RIGHT_DISTANCE * MULTIPLIER),
-        )
-        # raw_motor_action.step_n(MEDIAL_MOTOR, RIGHT_DISTANCE * MULTIPLIER)
+        logger.info("Down")
+        DirectionController._publish(forward_direction=-1.0, fast=True)
 
     @staticmethod
     def space():
-        logging.info("Space")
-        pub_node.publish("muscle/contract", MUSCLE)
-        # muscle_actions.contract(MUSCLE, lambda _: True)
+        DirectionController.stop()
 
     @staticmethod
     def end_space():
-        logging.info("End Space")
-        pub_node.publish("muscle/relax", MUSCLE)
-        # muscle_actions.relax(MUSCLE, lambda _: True)
+        DirectionController.stop()
+
+    @staticmethod
+    def stop():
+        logger.info("Stop")
+        if pub_node is None:
+            raise RuntimeError("UI ROS publisher is not initialized")
+        pub_node.stop()
 
 
 class Main_UI(App):
@@ -188,7 +234,10 @@ class Main_UI(App):
     file_observer: ObserverType
 
     CSS_PATH = "index.tcss"
-    BINDINGS = [("h", "toggle_dark", "Toggle dark mode"), ("q", "quit", "Quit")]
+    BINDINGS: ClassVar = [
+        ("h", "toggle_dark", "Toggle dark mode"),
+        ("q", "quit", "Quit"),
+    ]
 
     last_key = None
 
@@ -235,6 +284,14 @@ class Main_UI(App):
                     id="down",
                 )
                 yield Static(id="rb")
+            if pub_node is None:
+                raise RuntimeError("UI ROS publisher is not initialized")
+            yield MotionSettings(
+                pub_node._positive_parameter("forward_speed_mps"),
+                pub_node._positive_parameter("lateral_speed_mps"),
+                pub_node._positive_parameter("speed_gain"),
+                pub_node._positive_parameter("command_acceleration_mps2"),
+            )
             yield RichLog(id="log", highlight=True)
         yield Footer()
 
@@ -242,6 +299,7 @@ class Main_UI(App):
         self.dark = not self.dark
 
     def action_quit(self):
+        DirectionController.stop()
         rclpy.shutdown()
         clear_all()
         self.exit()
@@ -257,106 +315,109 @@ class Main_UI(App):
         sleep(0.8)
         self.query_one("#mdrc").styles.display = "none"
         self.query_one("#controller").styles.display = "block"
+        self.query_one("#motion-settings").styles.display = "block"
 
     def clean_up(self):
         self.file_observer.stop()
         self.file_observer.join()
 
+    @on(MotionSettings.Changed)
+    def update_motion_settings(self, event: MotionSettings.Changed) -> None:
+        if pub_node is None:
+            raise RuntimeError("UI ROS publisher is not initialized")
+        try:
+            pub_node.update_motion_settings(
+                event.forward_speed_mps,
+                event.lateral_speed_mps,
+                event.speed_gain,
+                event.command_acceleration_mps2,
+            )
+        except ValueError as error:
+            logger.error("Unable to apply motion settings: %s", error)
+            return
+        logger.info(
+            "Applied motion settings: forward=%g m/s lateral=%g m/s "
+            "gain=%g acceleration=%g m/s²",
+            event.forward_speed_mps,
+            event.lateral_speed_mps,
+            event.speed_gain,
+            event.command_acceleration_mps2,
+        )
+
     @on(ReactiveButton.Active, "#up")
     async def action_up(self):
-        logging.debug("Button up")
+        logger.debug("Button up")
         DirectionController.up()
         self.upInterval = set_interval(DirectionController.up, 0.02)
 
     @on(ReactiveButton.Active, "#left")
     def action_left(self):
-        logging.debug("Button left")
+        logger.debug("Button left")
         DirectionController.left()
         self.leftInterval = set_interval(DirectionController.left, 0.02)
 
     @on(ReactiveButton.Active, "#middle")
     def action_middle(self):
-        logging.debug("Button middle")
+        logger.debug("Button middle")
         DirectionController.space()
 
     @on(ReactiveButton.Active, "#right")
     def action_right(self):
-        logging.debug("Button right")
+        logger.debug("Button right")
         DirectionController.right()
         self.rightInterval = set_interval(DirectionController.right, 0.02)
 
     @on(ReactiveButton.Active, "#down")
     def action_down(self):
-        logging.debug("Button down")
+        logger.debug("Button down")
         DirectionController.down()
         self.downInterval = set_interval(DirectionController.down, 0.02)
 
     @on(ReactiveButton.Released, "#up")
     def action_up_end(self):
-        logging.debug("Button up released")
+        logger.debug("Button up released")
         clear_intervals()
+        DirectionController.stop()
 
     @on(ReactiveButton.Released, "#left")
     def action_left_end(self):
-        logging.debug("Button left released")
+        logger.debug("Button left released")
         clear_intervals()
+        DirectionController.stop()
 
     @on(ReactiveButton.Released, "#middle")
     def action_middle_end(self):
-        logging.debug("Button middle released")
+        logger.debug("Button middle released")
         DirectionController.end_space()
 
     @on(ReactiveButton.Released, "#right")
     def action_right_end(self):
-        logging.debug("Button right released")
+        logger.debug("Button right released")
         clear_intervals()
+        DirectionController.stop()
 
     @on(ReactiveButton.Released, "#down")
     def action_down_end(self):
-        logging.debug("Button down released")
+        logger.debug("Button down released")
         clear_intervals()
+        DirectionController.stop()
 
     def on_key(self, event: events.Key) -> None:
-        if self.last_key != event.key:
-            match event.key:
-                case "up" | "w":
-                    DirectionController.bigUp()
-                case "left" | "a":
-                    DirectionController.bigLeft()
-                case "right" | "d":
-                    DirectionController.bigRight()
-                case "down" | "s":
-                    DirectionController.bigDown()
-                case "space":
-                    DirectionController.space()
-                case _:
-                    pass
-            self.last_key = event.key
-            return
         match event.key:
             case "up" | "w":
                 DirectionController.up()
             case "left" | "a":
                 DirectionController.left()
             case "space":
-
-                def end_space_callback():
-                    self.debouncedMiddle = None
-                    DirectionController.end_space()
-
-                if self.debouncedMiddle:
-                    clear_timeouts()
-                    self.debouncedMiddle = set_timeout(end_space_callback, 0.5)
-                    pass
-
                 DirectionController.space()
-                self.debouncedMiddle = set_timeout(end_space_callback, 0.5)
             case "right" | "d":
                 DirectionController.right()
             case "down" | "s":
                 DirectionController.down()
             case _:
-                pass
+                return
+        clear_timeouts()
+        self.debouncedMiddle = set_timeout(DirectionController.stop, 0.15)
 
 
 def main(args=None):
@@ -370,7 +431,7 @@ def main(args=None):
     try:
         rosThread.start()
         app.run()
-    except Exception as e:
+    except Exception:
         clear_all()
         app.clean_up()
         raise
