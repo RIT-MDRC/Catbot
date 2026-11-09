@@ -1,23 +1,19 @@
-#!/usr/bin/env /workspace/.venv/bin/python
-
 """Catbot ROS node for sparse, position-controlled body actuation."""
 
-import logging
 import os
 import time
 from dataclasses import dataclass, field
 
 import rclpy
-from body_control import motors_by_axis_id, prepare_position_targets
+from body_control import actuator_names_by_axis_id, prepare_position_targets
 from body_state import flag_messages, heartbeat_available, kinematic_values
+from component.actuator import actuator_actions
 from component.can import can_actions
 from component.motor import motor_actions
 from component.motor.odrive_enums import (
     AxisError,
     ControllerError,
-    ControlMode,
     EncoderError,
-    InputMode,
     MotorError,
     MotorState,
     SensorlessError,
@@ -38,8 +34,6 @@ from catbot_interfaces.msg import (
 HEARTBEAT_TIMEOUT_SECONDS = 3.0
 OPERATION_TIMEOUT_SECONDS = 30.0
 CONTROL_TIMER_PERIOD_SECONDS = 0.05
-TRAJECTORY_VELOCITY_TURNS_PER_SECOND = 1.0
-TRAJECTORY_ACCEL_TURNS_PER_SECOND_SQUARED = 1.0
 POSITION_STATE_PERIOD_SECONDS = 0.02
 STATE_CHECK_PERIOD_SECONDS = 0.05
 HEARTBEAT_STALE_SECONDS = 0.5
@@ -69,8 +63,8 @@ class BodyControlNode(Node):
         configure_device(config_path)
         super().__init__("foundation_node")
 
-        self.motors = motor_actions.ctx.store
-        self.ordered_motors = motors_by_axis_id(self.motors)
+        self.actuator_names = actuator_actions.get_names()
+        self.ordered_motor_names = actuator_names_by_axis_id(self.actuator_names)
         self.ready_motor_names: set[str] = set()
         self.sequence: MotorSequence | None = None
         self.startup_deadline = time.monotonic() + HEARTBEAT_TIMEOUT_SECONDS
@@ -142,7 +136,7 @@ class BodyControlNode(Node):
         self.create_timer(POSITION_STATE_PERIOD_SECONDS, self._publish_position_state)
         self.create_timer(STATE_CHECK_PERIOD_SECONDS, self._update_error_state)
 
-        for name, _ in self.ordered_motors:
+        for name in self.ordered_motor_names:
             if not motor_actions.clear_error_message(name):
                 self.get_logger().error(f"Failed to send startup error clear to {name}")
         self.get_logger().warning(
@@ -152,21 +146,21 @@ class BodyControlNode(Node):
     def _responsive_motor_names(self) -> list[str]:
         return [
             name
-            for name, motor in self.ordered_motors
-            if motor.current_state != MotorState.UNDEFINED
+            for name in self.ordered_motor_names
+            if motor_actions.get_state_snapshot(name).current_state
+            != MotorState.UNDEFINED
         ]
 
     def _publish_position_state(self) -> None:
         now = time.monotonic()
         message = BodyKinematicState()
         message.stamp = self.get_clock().now().to_msg()
-        for name, motor in self.ordered_motors:
-            valid, position, velocity = kinematic_values(
-                motor, now, ENCODER_STALE_SECONDS
-            )
+        for name in self.ordered_motor_names:
+            motor = motor_actions.get_state_snapshot(name)
+            valid, position, velocity = kinematic_values(name, now, ENCODER_STALE_SECONDS)
             actuator = ActuatorKinematicState()
             actuator.actuator_name = name
-            actuator.axis_id = motor.axisID
+            actuator.axis_id = motor.axis_id
             actuator.valid = valid
             actuator.position_degrees = position
             actuator.velocity_degrees_per_second = velocity
@@ -178,7 +172,8 @@ class BodyControlNode(Node):
         message = BodyErrorState()
         message.stamp = self.get_clock().now().to_msg()
         snapshot = []
-        for name, motor in self.ordered_motors:
+        for name in self.ordered_motor_names:
+            motor = motor_actions.get_state_snapshot(name)
             heartbeat_ok = heartbeat_available(motor, now, HEARTBEAT_STALE_SECONDS)
             ready = (
                 heartbeat_ok
@@ -193,7 +188,7 @@ class BodyControlNode(Node):
 
             actuator = ActuatorErrorState()
             actuator.actuator_name = name
-            actuator.axis_id = motor.axisID
+            actuator.axis_id = motor.axis_id
             actuator.heartbeat_available = heartbeat_ok
             actuator.ready = ready
             actuator.axis_state = int(motor.current_state)
@@ -212,7 +207,7 @@ class BodyControlNode(Node):
             snapshot.append(
                 (
                     name,
-                    motor.axisID,
+                    motor.axis_id,
                     heartbeat_ok,
                     ready,
                     int(motor.current_state),
@@ -258,11 +253,11 @@ class BodyControlNode(Node):
             targets = prepare_position_targets(
                 list(message.actuator_names),
                 list(message.positions_degrees),
-                self.motors,
+                self.actuator_names,
                 self.ready_motor_names,
             )
             for name, _ in targets:
-                motor = self.motors[name]
+                motor = motor_actions.get_state_snapshot(name)
                 if motor.current_state != MotorState.CLOSED_LOOP_CONTROL:
                     self.ready_motor_names.discard(name)
                     raise ValueError(
@@ -273,8 +268,8 @@ class BodyControlNode(Node):
             return
 
         failed = []
-        for name, target_turns in targets:
-            if not motor_actions.set_target_position(name, target_turns):
+        for name, target_degrees in targets:
+            if not actuator_actions.set_target_position(name, target_degrees):
                 failed.append(name)
         if failed:
             self.get_logger().error(
@@ -313,14 +308,16 @@ class BodyControlNode(Node):
         if not self.startup_sequence_queued:
             if now < self.startup_deadline and any(
                 motor.current_state == MotorState.UNDEFINED
-                for _, motor in self.ordered_motors
+                for name in self.ordered_motor_names
+                for motor in (motor_actions.get_state_snapshot(name),)
             ):
                 return
             responsive = self._responsive_motor_names()
             missing = [
                 name
-                for name, motor in self.ordered_motors
-                if motor.current_state == MotorState.UNDEFINED
+                for name in self.ordered_motor_names
+                if motor_actions.get_state_snapshot(name).current_state
+                == MotorState.UNDEFINED
             ]
             if missing:
                 self.get_logger().error(
@@ -346,7 +343,8 @@ class BodyControlNode(Node):
                 name
                 for name in sequence.motor_names
                 if name not in sequence.failures
-                and self.motors[name].current_state != MotorState.IDLE
+                and motor_actions.get_state_snapshot(name).current_state
+                != MotorState.IDLE
             ]
             if waiting and now < sequence.deadline:
                 return
@@ -370,7 +368,8 @@ class BodyControlNode(Node):
             waiting = [
                 name
                 for name in sequence.motor_names
-                if name not in sequence.failures and self.motors[name].axis_error
+                if name not in sequence.failures
+                and motor_actions.get_state_snapshot(name).axis_error
             ]
             if waiting and now < sequence.deadline:
                 return
@@ -395,7 +394,10 @@ class BodyControlNode(Node):
                 return
             name = sequence.motor_names[sequence.index]
             sequence.current_name = name
-            if not motor_actions.set_axis_state(name, sequence.requested_state):
+            requested_state = sequence.requested_state
+            if requested_state is None:
+                raise RuntimeError("motor operation sequence is missing a state")
+            if not motor_actions.set_axis_state(name, requested_state):
                 sequence.failures.add(name)
                 sequence.index += 1
                 return
@@ -405,7 +407,9 @@ class BodyControlNode(Node):
 
         if sequence.phase == "waiting_for_operation_start":
             name = sequence.current_name
-            if self.motors[name].current_state == sequence.requested_state:
+            if name is None:
+                raise RuntimeError("motor operation sequence is missing a motor")
+            if motor_actions.get_state_snapshot(name).current_state == sequence.requested_state:
                 sequence.phase = "waiting_for_operation_finish"
                 sequence.deadline = now + OPERATION_TIMEOUT_SECONDS
             elif now >= sequence.deadline:
@@ -417,7 +421,9 @@ class BodyControlNode(Node):
 
         if sequence.phase == "waiting_for_operation_finish":
             name = sequence.current_name
-            motor = self.motors[name]
+            if name is None:
+                raise RuntimeError("motor operation sequence is missing a motor")
+            motor = motor_actions.get_state_snapshot(name)
             if motor.current_state == MotorState.IDLE:
                 if motor.axis_error:
                     sequence.failures.add(name)
@@ -441,22 +447,14 @@ class BodyControlNode(Node):
                 self._finish_sequence(sequence)
                 return
             name = sequence.motor_names[sequence.index]
-            motor = self.motors[name]
+            motor = motor_actions.get_state_snapshot(name)
             sequence.current_name = name
             if motor.axis_error or motor.current_position is None:
                 sequence.failures.add(name)
                 sequence.index += 1
                 return
             commands_sent = (
-                motor_actions.set_controller_mode(
-                    name, ControlMode.POSITION_CONTROL, InputMode.TRAP_TRAJ
-                )
-                and motor_actions.set_trajectory_velocity(
-                    name, TRAJECTORY_VELOCITY_TURNS_PER_SECOND
-                )
-                and motor_actions.set_trajectory_accel(
-                    name, TRAJECTORY_ACCEL_TURNS_PER_SECOND_SQUARED
-                )
+                actuator_actions.configure_trajectory(name)
                 and motor_actions.set_target_position(name, motor.current_position)
                 and motor_actions.set_axis_state(name, MotorState.CLOSED_LOOP_CONTROL)
             )
@@ -470,7 +468,9 @@ class BodyControlNode(Node):
 
         if sequence.phase == "waiting_for_closed_loop":
             name = sequence.current_name
-            motor = self.motors[name]
+            if name is None:
+                raise RuntimeError("motor operation sequence is missing a motor")
+            motor = motor_actions.get_state_snapshot(name)
             if motor.current_state == MotorState.CLOSED_LOOP_CONTROL:
                 self.ready_motor_names.add(name)
                 sequence.index += 1
@@ -494,14 +494,16 @@ class BodyControlNode(Node):
 
     def shutdown_hardware(self) -> None:
         """Disarm motors and close CAN resources during every normal shutdown."""
-        for name, _ in self.ordered_motors:
+        for name in self.ordered_motor_names:
             motor_actions.set_axis_state(name, MotorState.IDLE)
         self.ready_motor_names.clear()
-        for bus_name in list(can_actions.ctx.store):
+        for bus_name in can_actions.get_names():
             try:
                 can_actions.close(bus_name)
             except (OSError, ValueError) as error:
-                logger.error("Unable to close CAN bus %s: %s", bus_name, error)
+                self.get_logger().error(
+                    "Unable to close CAN bus %s: %s", bus_name, error
+                )
 
 
 def main(args=None):

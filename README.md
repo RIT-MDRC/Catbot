@@ -23,6 +23,26 @@ catbot setup
 For development from the current checkout, use `catbot setup -D` and pass `-D`
 to later commands.
 
+### Local macOS ROS IntelliSense
+
+For editor completion and basic type checking without opening the ROS dev
+container, install the optional IntelliSense-only dependency group:
+
+```bash
+uv sync --group ros-intellisense
+uv run ty check
+```
+
+`rclpy-intellisense` and `common-interfaces-intellisense` are non-runtime
+approximations of `rclpy` and common messages such as `std_msgs`. Do not execute
+the ROS node against them; use the Jazzy devcontainer for `colcon build`, custom
+generated interfaces, integration tests, and runtime validation. In VS Code,
+select this checkout's `.venv/bin/python` interpreter after syncing the group.
+Install the workspace-recommended `ty` and Ruff extensions when prompted. This
+workspace disables Pylance and uses ty for completion, navigation, and type
+diagnostics; the Microsoft Python extension remains enabled for interpreter and
+debugger integration.
+
 ### Run script
 Build the packages:
 * `colcon build`

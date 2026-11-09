@@ -14,9 +14,12 @@
 			"settings": {
 				"terminal.integrated.shell.linux": "/bin/bash",
 				"python.terminal.activateEnvInCurrentTerminal": true,
-				"python.defaultInterpreterPath": ".venv/bin/python"
+				"python.defaultInterpreterPath": ".venv/bin/python",
+				"python.languageServer": "None"
 			},
 			"extensions": [
+				"astral-sh.ty",
+				"charliermarsh.ruff",
 				"textualize.textual-syntax-highlighter",
 				"ms-python.black-formatter",
 				"ms-azuretools.vscode-docker",
@@ -25,11 +28,9 @@
 				"ms-vscode-remote.remote-containers",
 				"donjayamanne.githistory",
 				"donjayamanne.python-environment-manager",
-				"njqdev.vscode-python-typehint",
 				"ms-vscode.cpptools",
 				"ms-vscode.cpptools-themes",
 				"twxs.cmake",
-				"donjayamanne.python-extension-pack",
 				"eamodio.gitlens",
 				"ms-iot.vscode-ros",
 				"emeraldwalk.RunOnSave"
@@ -41,5 +42,5 @@
 		"ROS_DOMAIN_ID": "42",
 		"ENV": "dev"
 	},
-	"postCreateCommand": "python3 -m venv .venv && sudo rosdep update && sudo rosdep install --from-paths src --ignore-src -y"
+	"postCreateCommand": "python3 -m venv --system-site-packages .venv && sudo rosdep update && sudo rosdep install --from-paths src --ignore-src -y"
 }

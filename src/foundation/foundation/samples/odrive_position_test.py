@@ -3,29 +3,21 @@
 import argparse
 import math
 import os
-import readline
+import queue
 import sys
+import threading
 import time
 from pathlib import Path
+from typing import ClassVar
 
-MOTOR_TURNS_PER_ACTUATOR_TURN = 64.0
-MIN_ANGLE_DEGREES = -40.0
-MAX_ANGLE_DEGREES = 40.0
+from rich.text import Text
+from textual import events, on
+from textual.app import App, ComposeResult
+from textual.binding import BindingType
+from textual.containers import Horizontal, Vertical
+from textual.widgets import Input, RichLog, Static
+
 HEARTBEAT_TIMEOUT_SECONDS = 3.0
-TRAJECTORY_VELOCITY_TURNS_PER_SECOND = 1.0
-TRAJECTORY_ACCEL_TURNS_PER_SECOND_SQUARED = 1.0
-
-readline.set_history_length(100)
-
-
-def degrees_to_motor_turns(degrees: float) -> float:
-    """Convert homed joint degrees to ODrive motor turns."""
-    return degrees * MOTOR_TURNS_PER_ACTUATOR_TURN / 360.0
-
-
-def motor_turns_to_degrees(turns: float) -> float:
-    """Convert ODrive motor turns to homed joint degrees."""
-    return turns * 360.0 / MOTOR_TURNS_PER_ACTUATOR_TURN
 
 
 def parse_speed_degrees_per_second(value: str) -> float:
@@ -41,12 +33,20 @@ def parse_angle_degrees(value: str) -> float:
     angle_degrees = float(value)
     if not math.isfinite(angle_degrees):
         raise ValueError("angle must be finite")
-    if not MIN_ANGLE_DEGREES <= angle_degrees <= MAX_ANGLE_DEGREES:
-        raise ValueError(
-            f"angle must be between {MIN_ANGLE_DEGREES:g} and "
-            f"{MAX_ANGLE_DEGREES:g} degrees"
-        )
     return angle_degrees
+
+
+def position_target_degrees(
+    command: str, angle_degrees: float, current_degrees: float | None = None
+) -> float:
+    """Resolve an absolute or relative command to an absolute logical target."""
+    if command == "mp":
+        return angle_degrees
+    if command == "mr":
+        if current_degrees is None:
+            raise ValueError("relative motion requires a current position")
+        return current_degrees + angle_degrees
+    raise ValueError(f'unknown position command "{command}"')
 
 
 def parse_args() -> argparse.Namespace:
@@ -148,7 +148,7 @@ def is_multi_motor_selector(selector: str | None) -> bool:
     return selector == "*" or (selector is not None and "," in selector)
 
 
-def report_bus_errors(motors) -> bool:
+def report_bus_errors(motors, emit=print) -> bool:
     """Print every currently reported ODrive error on the configured CAN bus."""
     errors = [
         f"{name} (axis {motor.axisID}): 0x{motor.axis_error:x} "
@@ -158,45 +158,58 @@ def report_bus_errors(motors) -> bool:
     ]
     if not errors:
         return False
-    print("ODrive error(s) detected on the CAN bus:")
+    emit("ODrive error(s) detected on the CAN bus:")
     for error in errors:
-        print(f"  {error}")
+        emit(f"  {error}")
     return True
 
 
-def wait_for(motor, predicate, timeout: float) -> bool:
+def wait_for(motor_name, predicate, timeout: float, should_stop=None) -> bool:
     """Wait for asynchronous CAN feedback to satisfy a predicate."""
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        if predicate(motor):
+        if should_stop is not None and should_stop():
+            return False
+        from component.motor import motor_actions
+
+        if predicate(motor_actions.get_state_snapshot(motor_name)):
             return True
         time.sleep(0.05)
     return False
 
 
-def main() -> int:
-    """Configure ODrives and run the interactive angle prompt."""
-    args = parse_args()
+def run_motor_test(
+    args: argparse.Namespace,
+    read_command=input,
+    emit=print,
+    on_motors_configured=None,
+    on_ready=None,
+    should_stop=None,
+) -> int:
+    """Configure ODrives and run the command loop through injectable I/O."""
+    print = emit
     foundation_root = Path(__file__).resolve().parent.parent
     sys.path.insert(0, os.fspath(foundation_root))
 
+    from component.actuator import actuator_actions
     from component.can import can_actions
     from component.motor import motor_actions
-    from component.motor.odrive_enums import ControlMode, InputMode, MotorState
+    from component.motor.odrive_enums import MotorState
     from state_management import configure_device
 
     configured = False
     selected_motors = []
     active_motor_names = set()
-    trajectory_velocities = {}
     can_actions.USE = True
     try:
         configure_device(os.fspath(args.config))
         configured = True
-        motors = motor_actions.ctx.store
-        trajectory_velocities = {
-            name: TRAJECTORY_VELOCITY_TURNS_PER_SECOND for name in motors
+        motor_names = motor_actions.get_names()
+        motors = {
+            name: motor_actions.get_state_snapshot(name) for name in motor_names
         }
+        if on_motors_configured is not None:
+            on_motors_configured(motors)
         default_motor_name = None
         if args.motor:
             matches = find_motors(motors, args.motor)
@@ -221,13 +234,18 @@ def main() -> int:
             )
             print(f"Configured motors: {describe_motors(motors)}")
 
-        for selected_motor_name, selected_motor in selected_motors:
+        for selected_motor_name, _ in selected_motors:
+            if should_stop is not None and should_stop():
+                return 0
             print(f"Waiting for an ODrive heartbeat from {selected_motor_name}...")
             if not wait_for(
-                selected_motor,
+                selected_motor_name,
                 lambda motor: motor.current_state != MotorState.UNDEFINED,
                 HEARTBEAT_TIMEOUT_SECONDS,
+                should_stop,
             ):
+                if should_stop is not None and should_stop():
+                    return 0
                 print(f"No heartbeat received from {selected_motor_name}.")
                 print(
                     "Confirm can0 is up, the 250000 bitrate matches the ODrive, "
@@ -235,7 +253,7 @@ def main() -> int:
                 )
                 return 3
         if selected_motors:
-            report_bus_errors(motors)
+            report_bus_errors(motors, emit)
             selected_names = ", ".join(name for name, _ in selected_motors)
             print(f"{selected_names} disarmed; type 'arm' to enable the selection.")
 
@@ -244,14 +262,20 @@ def main() -> int:
             "r/read [motor[,motor...]] = read angle, "
             "speed <deg/s> [motor[,motor...]], "
             "rs/read-speed [motor[,motor...]], "
-            "angle [motor[,motor...]], "
+            "mp <angle> [motor[,motor...]] = absolute position, "
+            "mr <angle> [motor[,motor...]] = relative motion, "
             "c [motor] = motor calibration, "
             "f [motor] = full calibration, h [motor] = home, "
             "e [motor] = clear errors, q = stop."
         )
+        if on_ready is not None:
+            on_ready()
         while True:
+            motors = {
+                name: motor_actions.get_state_snapshot(name) for name in motor_names
+            }
             try:
-                raw_value = input("angle> ").strip()
+                raw_value = read_command("angle> ").strip()
             except EOFError:
                 break
             parts = raw_value.split(maxsplit=1)
@@ -259,7 +283,7 @@ def main() -> int:
             command_matches = []
             if not parts:
                 print(
-                    "Invalid command. Enter an angle from -41 to 41 degrees, "
+                    "Invalid command. Use mp or mr with a finite angle, "
                     "a shortcut command, or q."
                 )
                 continue
@@ -289,12 +313,15 @@ def main() -> int:
                     )
                     print(f"Configured motors: {describe_motors(motors)}")
                     continue
-                speed_turns = degrees_to_motor_turns(speed_degrees)
                 for speed_motor_name, _ in speed_matches:
-                    if motor_actions.set_trajectory_velocity(
-                        speed_motor_name, speed_turns
+                    if actuator_actions.set_trajectory_speed(
+                        speed_motor_name, speed_degrees
                     ):
-                        trajectory_velocities[speed_motor_name] = speed_turns
+                        speed_turns = (
+                            actuator_actions.get_trajectory_velocity_motor_turns(
+                                speed_motor_name
+                            )
+                        )
                         print(
                             f"Set {speed_motor_name} trajectory speed to "
                             f"{speed_degrees:g} degrees/second "
@@ -350,8 +377,8 @@ def main() -> int:
                             f"No encoder position received from {command_motor_name}."
                         )
                         continue
-                    angle_degrees = motor_turns_to_degrees(
-                        command_motor.current_position
+                    angle_degrees = actuator_actions.get_current_position(
+                        command_motor_name
                     )
                     print(
                         f"{command_motor_name}: {angle_degrees:.2f} degrees "
@@ -363,8 +390,8 @@ def main() -> int:
                     if command_motor.current_velocity is None:
                         print(f"No encoder speed received from {command_motor_name}.")
                         continue
-                    speed_degrees = motor_turns_to_degrees(
-                        command_motor.current_velocity
+                    speed_degrees = actuator_actions.get_current_velocity(
+                        command_motor_name
                     )
                     print(
                         f"{command_motor_name}: {speed_degrees:.2f} degrees/second "
@@ -388,46 +415,34 @@ def main() -> int:
                         f"WARNING: arming {command_motor_name} enables motor torque; "
                         "keep the mechanism clear."
                     )
-                    setup_commands_sent = (
-                        motor_actions.set_controller_mode(
-                            command_motor_name,
-                            ControlMode.POSITION_CONTROL,
-                            InputMode.TRAP_TRAJ,
-                        )
-                        and motor_actions.set_trajectory_velocity(
-                            command_motor_name,
-                            trajectory_velocities[command_motor_name],
-                        )
-                        and motor_actions.set_trajectory_accel(
-                            command_motor_name,
-                            TRAJECTORY_ACCEL_TURNS_PER_SECOND_SQUARED,
-                        )
-                        and motor_actions.set_target_position(
-                            command_motor_name, command_motor.current_position
-                        )
+                    setup_commands_sent = actuator_actions.configure_trajectory(
+                        command_motor_name
+                    ) and motor_actions.set_target_position(
+                        command_motor_name,
+                        command_motor.current_position,
                     )
                     if not setup_commands_sent or not motor_actions.set_axis_state(
-                        command_motor_name, MotorState.CLOSED_LOOP_CONTROL
+                        command_motor_name,
+                        MotorState.CLOSED_LOOP_CONTROL,
                     ):
                         print(
                             f"Failed to send the arm command sequence to {command_motor_name}."
                         )
                         continue
                     if not wait_for(
-                        command_motor,
+                        command_motor_name,
                         lambda motor: (
                             motor.current_state == MotorState.CLOSED_LOOP_CONTROL
                         ),
                         HEARTBEAT_TIMEOUT_SECONDS,
+                        should_stop,
                     ):
                         print(f"{command_motor_name} did not confirm that it is armed.")
-                        motor_actions.set_axis_state(
-                            command_motor_name, MotorState.IDLE
-                        )
+                        motor_actions.set_axis_state(command_motor_name, MotorState.IDLE)
                         continue
                     active_motor_names.add(command_motor_name)
                     print(f"Armed {command_motor_name} in position control.")
-                report_bus_errors(motors)
+                report_bus_errors(motors, emit)
                 continue
             if command in {"disarm", "d"}:
                 for command_motor_name, command_motor in command_matches:
@@ -439,9 +454,10 @@ def main() -> int:
                         )
                         continue
                     if not wait_for(
-                        command_motor,
+                        command_motor_name,
                         lambda motor: motor.current_state == MotorState.IDLE,
                         HEARTBEAT_TIMEOUT_SECONDS,
+                        should_stop,
                     ):
                         print(
                             f"{command_motor_name} did not confirm that it is disarmed."
@@ -457,7 +473,7 @@ def main() -> int:
                     else:
                         print(f"Failed to clear errors for {command_motor_name}.")
                 time.sleep(0.2)
-                report_bus_errors(motors)
+                report_bus_errors(motors, emit)
                 continue
             if command in shortcut_states:
                 action_name, requested_state = shortcut_states[command]
@@ -472,28 +488,36 @@ def main() -> int:
                     else:
                         print(f"Failed to send {action_name} to {command_motor_name}.")
                 continue
-            try:
-                angle_degrees = parse_angle_degrees(parts[0])
-            except ValueError:
+            if command not in {"mp", "mr"}:
                 print(
-                    "Invalid command. Enter an angle from -41 to 41 degrees, "
-                    "a shortcut command, or q."
+                    "Invalid command. Use mp <angle> [motor] for an absolute "
+                    "position or mr <angle> [motor] for relative motion."
                 )
                 continue
-            angle_selector = parts[1] if len(parts) == 2 else default_motor_name
+            angle_parts = parts[1].split(maxsplit=1) if len(parts) == 2 else []
+            try:
+                angle_degrees = parse_angle_degrees(angle_parts[0])
+            except (IndexError, ValueError):
+                print(
+                    f"Invalid command. Use {command} <finite angle> "
+                    "[motor[,motor...]]."
+                )
+                continue
+            angle_selector = (
+                angle_parts[1] if len(angle_parts) == 2 else default_motor_name
+            )
             angle_matches = find_motors(motors, angle_selector)
             if not angle_matches or (
                 len(angle_matches) != 1 and not is_multi_motor_selector(angle_selector)
             ):
                 print(
                     "Invalid command: supply valid motor names or axis IDs after "
-                    "the angle (comma-separated for multiple motors), or start "
+                    f"'{command} <angle>' (comma-separated for multiple motors), or start "
                     "motor-test with --motor."
                 )
                 print(f"Configured motors: {describe_motors(motors)}")
                 continue
-            report_bus_errors(motors)
-            target_turns = degrees_to_motor_turns(angle_degrees)
+            report_bus_errors(motors, emit)
             for angle_motor_name, angle_motor in angle_matches:
                 if angle_motor.axis_error:
                     print(
@@ -509,10 +533,47 @@ def main() -> int:
                         f"{angle_motor_name} is disarmed; run 'arm {angle_motor_name}'."
                     )
                     continue
-                if motor_actions.set_target_position(angle_motor_name, target_turns):
-                    print(
-                        f"Commanded {angle_motor_name} to {angle_degrees:g} degrees ({target_turns:.4f} motor turns)."
+                current_degrees = None
+                if command == "mr":
+                    if angle_motor.current_position is None:
+                        print(
+                            f"No encoder position received from {angle_motor_name}; "
+                            "relative motion requires a current position."
+                        )
+                        continue
+                    current_degrees = actuator_actions.get_current_position(
+                        angle_motor_name
                     )
+                    if current_degrees is None:
+                        print(
+                            f"No encoder position received from {angle_motor_name}; "
+                            "relative motion requires a current position."
+                        )
+                        continue
+                target_degrees = position_target_degrees(
+                    command, angle_degrees, current_degrees
+                )
+                try:
+                    target_turns = actuator_actions.validate_target_position(
+                        angle_motor_name, target_degrees
+                    )
+                except ValueError as error:
+                    print(f"Command rejected for {angle_motor_name}: {error}.")
+                    continue
+                if actuator_actions.set_target_position(
+                    angle_motor_name, target_degrees
+                ):
+                    if command == "mr":
+                        print(
+                            f"Commanded {angle_motor_name} by {angle_degrees:g} "
+                            f"degrees to {target_degrees:g} degrees "
+                            f"({target_turns:.4f} motor turns)."
+                        )
+                    else:
+                        print(
+                            f"Commanded {angle_motor_name} to {target_degrees:g} "
+                            f"degrees ({target_turns:.4f} motor turns)."
+                        )
                 else:
                     print(
                         f"Command rejected for {angle_motor_name}; check its position bounds."
@@ -526,12 +587,327 @@ def main() -> int:
         for motor_name in active_motor_names:
             motor_actions.set_axis_state(motor_name, MotorState.IDLE)
         if configured and can_actions is not None:
-            for bus_name in list(can_actions.ctx.store):
+            for bus_name in can_actions.get_names():
                 try:
                     can_actions.close(bus_name)
                 except (OSError, ValueError):
                     pass
     return 0
+
+
+class CommandInput(Input):
+    """Single-line command input with current-session history."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.command_history: list[str] = []
+        self.history_index = 0
+        self.pending_value = ""
+
+    def remember(self, command: str) -> None:
+        """Record a submitted command while avoiding adjacent duplicates."""
+        if command and (
+            not self.command_history or self.command_history[-1] != command
+        ):
+            self.command_history.append(command)
+            del self.command_history[:-100]
+        self.history_index = len(self.command_history)
+        self.pending_value = ""
+
+    def on_key(self, event: events.Key) -> None:
+        """Navigate command history with Up and Down."""
+        if event.key not in {"up", "down"} or not self.command_history:
+            return
+        if event.key == "up":
+            if self.history_index == len(self.command_history):
+                self.pending_value = self.value
+            self.history_index = max(0, self.history_index - 1)
+            self.value = self.command_history[self.history_index]
+        else:
+            self.history_index = min(len(self.command_history), self.history_index + 1)
+            self.value = (
+                self.pending_value
+                if self.history_index == len(self.command_history)
+                else self.command_history[self.history_index]
+            )
+        self.cursor_position = len(self.value)
+        event.prevent_default()
+        event.stop()
+
+
+class MotorTestApp(App[int]):
+    """Textual front end for the safety-oriented ODrive command loop."""
+
+    CSS = """
+    Screen {
+        background: #111318;
+        color: #d7dae0;
+    }
+
+    #layout {
+        height: 100%;
+        padding: 1 2;
+    }
+
+    #log {
+        height: 1fr;
+        min-height: 8;
+        border: round #464b57;
+        background: #111318;
+        padding: 0 1;
+        scrollbar-color: #6f7787;
+        scrollbar-background: #20232a;
+    }
+
+    #command {
+        height: 3;
+        margin-top: 1;
+        border: round #6f7787;
+        background: #181b21;
+    }
+
+    #command:focus {
+        border: round #8ab4f8;
+    }
+
+    #status-row {
+        height: auto;
+        min-height: 1;
+        margin-top: 0;
+    }
+
+    #can-status {
+        width: auto;
+        min-width: 16;
+        margin-right: 2;
+    }
+
+    #command-list {
+        width: 1fr;
+        color: #8f96a3;
+    }
+    """
+
+    BINDINGS: ClassVar[list[BindingType]] = [
+        ("ctrl+c", "request_quit", "Stop"),
+        ("ctrl+d", "request_quit", "Stop"),
+    ]
+
+    STOP = object()
+    COMMAND_HINT = (
+        "mp abs  mr rel  arm  disarm  read  speed  c/f calibrate  "
+        "home  clear  q quit"
+    )
+
+    def __init__(self, args: argparse.Namespace):
+        super().__init__()
+        self.args = args
+        self.commands: queue.Queue[object] = queue.Queue()
+        self.stop_event = threading.Event()
+        self.session_thread: threading.Thread | None = None
+        self.motors = None
+        self.can_ready = False
+        self.last_faults: tuple[tuple[str, int, int], ...] | None = None
+        self.session_return_code = 0
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="layout"):
+            yield RichLog(
+                id="log",
+                wrap=True,
+                highlight=False,
+                markup=False,
+                max_lines=2000,
+            )
+            yield CommandInput(
+                placeholder="Enter a command, for example: mp 15 0",
+                id="command",
+                disabled=True,
+            )
+            with Horizontal(id="status-row"):
+                yield Static(
+                    Text("● CAN CHECKING", style="bold yellow"), id="can-status"
+                )
+                yield Static(self.COMMAND_HINT, id="command-list")
+
+    def on_mount(self) -> None:
+        log = self.query_one("#log", RichLog)
+        log.border_title = " Catbot motor test "
+        command = self.query_one("#command", CommandInput)
+        command.border_title = " Command "
+        self.set_interval(0.25, self.refresh_can_status)
+        self.write_log(
+            "Motor control starts disarmed. Keep the mechanism clear and an "
+            "emergency stop available.",
+            "bold yellow",
+        )
+        self.session_thread = threading.Thread(
+            target=self._run_session,
+            name="catbot-motor-test",
+            daemon=True,
+        )
+        self.session_thread.start()
+
+    def _call_from_session(self, callback, *args) -> None:
+        try:
+            self.call_from_thread(callback, *args)
+        except RuntimeError:
+            pass
+
+    def _run_session(self) -> None:
+        try:
+            result = run_motor_test(
+                self.args,
+                read_command=self.read_command,
+                emit=self.emit,
+                on_motors_configured=lambda motors: self._call_from_session(
+                    self.set_motors, motors
+                ),
+                on_ready=lambda: self._call_from_session(self.set_ready),
+                should_stop=self.stop_event.is_set,
+            )
+        except (OSError, RuntimeError, ValueError) as error:
+            self.emit(f"Motor-test interface failed: {error}")
+            result = 7
+        self._call_from_session(self.session_finished, result)
+
+    def read_command(self, _prompt: str) -> str:
+        """Wait for the Textual input to submit the next command."""
+        self._call_from_session(self.set_input_ready, True)
+        value = self.commands.get()
+        self._call_from_session(self.set_input_ready, False)
+        if value is self.STOP:
+            raise EOFError
+        return str(value)
+
+    def emit(self, *values, sep=" ", end="\n") -> None:
+        """Send command-loop output safely to the RichLog widget."""
+        message = sep.join(str(value) for value in values)
+        if end and end != "\n":
+            message += end
+        self._call_from_session(self.write_output, message.rstrip("\n"))
+
+    def set_motors(self, motors) -> None:
+        self.motors = motors
+
+    def set_ready(self) -> None:
+        self.can_ready = True
+        self.refresh_can_status()
+
+    def set_input_ready(self, ready: bool) -> None:
+        command = self.query_one("#command", CommandInput)
+        command.disabled = not ready
+        if ready:
+            command.focus()
+
+    def session_finished(self, result: int) -> None:
+        self.session_return_code = result
+        self.exit(result=result)
+
+    @on(Input.Submitted, "#command")
+    def submit_command(self, event: Input.Submitted) -> None:
+        command = self.query_one("#command", CommandInput)
+        if command.disabled:
+            return
+        value = event.value.strip()
+        command.remember(value)
+        command.value = ""
+        command.disabled = True
+        self.write_log(Text.assemble(("> ", "bold cyan"), value))
+        self.commands.put(value)
+
+    def action_request_quit(self) -> None:
+        if self.stop_event.is_set():
+            return
+        self.stop_event.set()
+        self.query_one("#command", CommandInput).disabled = True
+        self.query_one("#can-status", Static).update(
+            Text("● STOPPING", style="bold yellow")
+        )
+        self.commands.put(self.STOP)
+
+    def write_log(self, message, style: str | None = None) -> None:
+        content = Text(str(message), style=style) if style else message
+        self.query_one("#log", RichLog).write(content)
+
+    def write_output(self, message: str) -> None:
+        lower = message.lower()
+        if "error(s) detected" in lower or lower.startswith("  "):
+            style = "red"
+        elif any(
+            marker in lower
+            for marker in (
+                "invalid command",
+                "failed",
+                "unable",
+                "command rejected",
+                "clear the error",
+                "no heartbeat",
+            )
+        ):
+            style = "bold red"
+        elif "warning" in lower or "disarmed" in lower:
+            style = "yellow"
+        elif any(marker in lower for marker in ("armed ", "commanded ", "set ")):
+            style = "green"
+        else:
+            style = None
+        self.write_log(message, style)
+
+    def refresh_can_status(self) -> None:
+        status = self.query_one("#can-status", Static)
+        if self.stop_event.is_set():
+            return
+        if self.motors is None or not self.can_ready:
+            status.update(Text("● CAN CHECKING", style="bold yellow"))
+            return
+        faults = tuple(
+            (name, motor.axisID, motor.axis_error)
+            for name, motor in sorted(self.motors.items())
+            if motor.axis_error
+        )
+        if faults:
+            status.update(
+                Text(
+                    f"● CAN ERRORS ({len(faults)})",
+                    style="bold red",
+                )
+            )
+        else:
+            status.update(Text("● CAN OK", style="bold green"))
+
+        if self.last_faults is None:
+            self.last_faults = ()
+        if faults == self.last_faults:
+            return
+        if faults:
+            self.write_log(
+                f"CAN error status changed: {len(faults)} faulted axis"
+                f"{'es' if len(faults) != 1 else ''}.",
+                "bold red",
+            )
+            for name, axis_id, error in faults:
+                self.write_log(
+                    f"  {name} (axis {axis_id}): 0x{error:x} "
+                    f"{describe_axis_error(error)}",
+                    "red",
+                )
+        elif self.last_faults:
+            self.write_log("CAN errors cleared.", "bold green")
+        self.last_faults = faults
+
+    def on_unmount(self) -> None:
+        self.stop_event.set()
+        self.commands.put(self.STOP)
+
+
+def main() -> int:
+    """Parse arguments and launch the Textual motor-test interface."""
+    app = MotorTestApp(parse_args())
+    result = app.run()
+    if app.session_thread is not None:
+        app.session_thread.join(timeout=HEARTBEAT_TIMEOUT_SECONDS + 1)
+    return app.session_return_code if result is None else result
 
 
 if __name__ == "__main__":

@@ -19,7 +19,19 @@ dependencies = [
 dev = [
     "black>=24.10,<27",
     "pytest>=8,<10",
+    "ruff>=0.17.4",
+    "ty>=0.0.99",
+]
+ros-intellisense = [
+    "common-interfaces-intellisense>=0.1.0",
+    "rclpy-intellisense>=1.2.0",
 ]
 
 [tool.uv]
 package = false
+
+[tool.ty]
+baseline = "ty-baseline.json"
+
+[tool.ty.environment]
+extra-paths = ["./typings"]

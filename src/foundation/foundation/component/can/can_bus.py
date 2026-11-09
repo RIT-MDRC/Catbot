@@ -17,25 +17,24 @@ DEFAULT_BUS_CONFIG = {
     "config_context": None,
     "ignore_config": False,
 }
-USE = False
+USE: bool = False
 
 
 @device
 @dataclass
 class CanBus:
     silence: bool = field(default=False)  # silence received message log
-    busConfig: dict = field(default_factory=dict)
-    bus: can.Bus = None
-    notifier: can.Notifier = None
+    busConfig: dict[str, typing.Any] = field(default_factory=dict)
+    bus: can.BusABC = field(init=False)
+    notifier: can.Notifier = field(init=False)
     listeners: dict = field(default_factory=dict)
 
     def __post_init__(self):
         self.busConfig = {**DEFAULT_BUS_CONFIG, **self.busConfig}
-        self.bus = self.bus if self.bus else can.Bus(**self.busConfig)
-        self.notifier = (
-            self.notifier
-            if self.notifier
-            else can.Notifier(self.bus, [lambda msg: read_message(self, msg)])
+        bus_factory = typing.cast(typing.Callable[..., can.BusABC], can.Bus)
+        self.bus = bus_factory(**self.busConfig)
+        self.notifier = can.Notifier(
+            self.bus, [lambda msg: read_message(self, msg)]
         )
 
 
@@ -55,6 +54,11 @@ ctx = create_generic_context("can_bus", [CanBus])
 @device_parser(ctx)
 def parse_can_bus(data: dict) -> CanBus:
     return CanBus(**data)
+
+
+def get_names() -> tuple[str, ...]:
+    """Return configured CAN bus component names."""
+    return tuple(ctx.store)
 
 
 @device_action(ctx)

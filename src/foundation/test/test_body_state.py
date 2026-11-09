@@ -13,14 +13,17 @@ from body_state import (
     flag_messages,
     heartbeat_available,
     kinematic_values,
-    motor_turns_to_degrees,
 )
+from component.actuator import motion_profile_actions
+from component.actuator.actuator import Actuator
+from component.actuator.motion_profile import ActuatorMotionProfile, MotionQuantity
 from component.can import can_actions
 from component.can.can_bus import CanBus
+from component.motor import motor_actions
 from component.motor.odrive_enums import AxisError
 
 
-def make_motor(**overrides):
+def make_motor(*, inverted=False, **overrides):
     """Create the telemetry attributes used by the state helpers."""
     values = {
         "current_position": 64 / 12,
@@ -29,12 +32,23 @@ def make_motor(**overrides):
         "last_heartbeat_time": 9.8,
     }
     values.update(overrides)
-    return SimpleNamespace(**values)
-
-
-def test_motor_turns_convert_back_to_joint_degrees() -> None:
-    assert motor_turns_to_degrees(64 / 12) == 30.0
-    assert motor_turns_to_degrees(-64 / 24) == -15.0
+    motor = SimpleNamespace(**values)
+    name = "state_motor"
+    profile_name = "state_profile"
+    motor_actions.ctx.store[name] = motor
+    motor_actions.ctx.stored_keys.add(name)
+    motion_profile_actions.ctx.store[profile_name] = ActuatorMotionProfile(
+        motor_turns_per_actuator_turn=64,
+        position_min=MotionQuantity(-40, "degrees"),
+        position_max=MotionQuantity(40, "degrees"),
+        trajectory_velocity=MotionQuantity(1, "motor_turns_per_second"),
+        trajectory_acceleration=MotionQuantity(1, "motor_turns_per_second_squared"),
+        inverted=inverted,
+    )
+    motion_profile_actions.ctx.stored_keys.add(profile_name)
+    motor.position_min = None
+    motor.position_max = None
+    return Actuator(motor=name, profile=profile_name)
 
 
 def test_fresh_kinematics_include_position_and_velocity() -> None:
@@ -42,6 +56,13 @@ def test_fresh_kinematics_include_position_and_velocity() -> None:
     assert valid is True
     assert position == 30.0
     assert velocity == 15.0
+
+
+def test_inverted_profile_reports_logical_telemetry_direction() -> None:
+    valid, position, velocity = kinematic_values(make_motor(inverted=True), 10.0, 0.25)
+    assert valid is True
+    assert position == -30.0
+    assert velocity == -15.0
 
 
 def test_missing_or_stale_kinematics_are_invalid_nan() -> None:

@@ -1,108 +1,65 @@
 {
-	"smbus2": {
-		"smbus": 1
-	},
-	"can_bus": {
-		"can_bus_1": {
-			"silence": true
-		}
-	},
-	"odrive_motor": {
-		"bra": {
-			"bus": "can_bus_1",
-			"axisID": 0,
-			"control_mode": 2,
-			"input_mode": 1,
-			"position_min": -7.288888888888889,
-			"position_max": 7.288888888888889
-		},
-		"bla": {
-			"bus": "can_bus_1",
-			"axisID": 1,
-			"control_mode": 2,
-			"input_mode": 1,
-			"position_min": -7.288888888888889,
-			"position_max": 7.288888888888889
-		},
-		"brf": {
-			"bus": "can_bus_1",
-			"axisID": 2,
-			"control_mode": 2,
-			"input_mode": 1,
-			"position_min": -7.288888888888889,
-			"position_max": 7.288888888888889
-		},
-		"blf": {
-			"bus": "can_bus_1",
-			"axisID": 3,
-			"control_mode": 2,
-			"input_mode": 1,
-			"position_min": -7.288888888888889,
-			"position_max": 7.288888888888889
-		},
-		"brk": {
-			"bus": "can_bus_1",
-			"axisID": 4,
-			"control_mode": 2,
-			"input_mode": 1,
-			"position_min": -7.288888888888889,
-			"position_max": 7.288888888888889
-		},
-		"blk": {
-			"bus": "can_bus_1",
-			"axisID": 5,
-			"control_mode": 2,
-			"input_mode": 1,
-			"position_min": -7.288888888888889,
-			"position_max": 7.288888888888889
-		},
-		"fla": {
-			"bus": "can_bus_1",
-			"axisID": 6,
-			"control_mode": 2,
-			"input_mode": 1,
-			"position_min": -7.288888888888889,
-			"position_max": 7.288888888888889
-		},
-		"fra": {
-			"bus": "can_bus_1",
-			"axisID": 7,
-			"control_mode": 2,
-			"input_mode": 1,
-			"position_min": -7.288888888888889,
-			"position_max": 7.288888888888889
-		},
-		"flf": {
-			"bus": "can_bus_1",
-			"axisID": 8,
-			"control_mode": 2,
-			"input_mode": 1,
-			"position_min": -7.288888888888889,
-			"position_max": 7.288888888888889
-		},
-		"frf": {
-			"bus": "can_bus_1",
-			"axisID": 9,
-			"control_mode": 2,
-			"input_mode": 1,
-			"position_min": -7.288888888888889,
-			"position_max": 7.288888888888889
-		},
-		"flk": {
-			"bus": "can_bus_1",
-			"axisID": 10,
-			"control_mode": 2,
-			"input_mode": 1,
-			"position_min": -7.288888888888889,
-			"position_max": 7.288888888888889
-		},
-		"frk": {
-			"bus": "can_bus_1",
-			"axisID": 11,
-			"control_mode": 2,
-			"input_mode": 1,
-			"position_min": -7.288888888888889,
-			"position_max": 7.288888888888889
-		}
-	}
+  "smbus2": {"smbus": 1},
+  "can_bus": {"can_bus_1": {"silence": true}},
+  "actuator_motion_profile": {
+    "standard_64_to_1": {
+      "motor_turns_per_actuator_turn": 64,
+      "inverted": false,
+      "position_min": {"value": -40, "unit": "degrees"},
+      "position_max": {"value": 40, "unit": "degrees"},
+      "trajectory_velocity": {"value": 1, "unit": "motor_turns_per_second"},
+      "trajectory_acceleration": {"value": 1, "unit": "motor_turns_per_second_squared"}
+    },
+    "standard_64_to_1_inverted": {
+      "motor_turns_per_actuator_turn": 64,
+      "inverted": true,
+      "position_min": {"value": -40, "unit": "degrees"},
+      "position_max": {"value": 40, "unit": "degrees"},
+      "trajectory_velocity": {"value": 1, "unit": "motor_turns_per_second"},
+      "trajectory_acceleration": {"value": 1, "unit": "motor_turns_per_second_squared"}
+    },
+    "knee_ballscrew": {
+      "inverted": false,
+      "position_min": {"value": -55, "unit": "degrees"},
+      "position_max": {"value": 55, "unit": "degrees"},
+      "trajectory_velocity": {"value": 1, "unit": "motor_turns_per_second"},
+      "trajectory_acceleration": {"value": 1, "unit": "motor_turns_per_second_squared"},
+      "ballscrew_linkage": {
+        "L1": 7.235,
+        "L2": 18.6452,
+        "A": 11.869,
+        "B": 7.95,
+        "ballscrew_travel_per_motor_turn": {"value": 10, "unit": "millimeters"},
+        "x_offset": {"value": 0, "unit": "centimeters"}
+      }
+    }
+  },
+  "odrive_motor": {
+    "bra": {"bus": "can_bus_1", "axisID": 0, "control_mode": 2, "input_mode": 1},
+    "bla": {"bus": "can_bus_1", "axisID": 1, "control_mode": 2, "input_mode": 1},
+    "brf": {"bus": "can_bus_1", "axisID": 2, "control_mode": 2, "input_mode": 1},
+    "blf": {"bus": "can_bus_1", "axisID": 3, "control_mode": 2, "input_mode": 1},
+    "brk": {"bus": "can_bus_1", "axisID": 4, "control_mode": 2, "input_mode": 1},
+    "blk": {"bus": "can_bus_1", "axisID": 5, "control_mode": 2, "input_mode": 1},
+    "fra": {"bus": "can_bus_1", "axisID": 6, "control_mode": 2, "input_mode": 1},
+    "fla": {"bus": "can_bus_1", "axisID": 7, "control_mode": 2, "input_mode": 1},
+    "frf": {"bus": "can_bus_1", "axisID": 8, "control_mode": 2, "input_mode": 1},
+    "flf": {"bus": "can_bus_1", "axisID": 9, "control_mode": 2, "input_mode": 1},
+    "frk": {"bus": "can_bus_1", "axisID": 10, "control_mode": 2, "input_mode": 1},
+    "flk": {"bus": "can_bus_1", "axisID": 11, "control_mode": 2, "input_mode": 1}
+  },
+  "actuator": {
+    "bra": {"motor": "bra", "profile": "standard_64_to_1"},
+    "bla": {"motor": "bla", "profile": "standard_64_to_1"},
+    "brf": {"motor": "brf", "profile": "standard_64_to_1"},
+    "blf": {"motor": "blf", "profile": "standard_64_to_1"},
+    "brk": {"motor": "brk", "profile": "knee_ballscrew"},
+    "blk": {"motor": "blk", "profile": "knee_ballscrew"},
+    "fra": {"motor": "fra", "profile": "standard_64_to_1"},
+    "fla": {"motor": "fla", "profile": "standard_64_to_1"},
+    "frf": {"motor": "frf", "profile": "standard_64_to_1"},
+    "flf": {"motor": "flf", "profile": "standard_64_to_1"},
+    "frk": {"motor": "frk", "profile": "knee_ballscrew"},
+    "flk": {"motor": "flk", "profile": "knee_ballscrew"}
+  }
 }

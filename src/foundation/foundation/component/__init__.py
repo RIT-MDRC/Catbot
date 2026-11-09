@@ -9,3 +9,4 @@ import logging
 
 logging.info("Importing latch by default from component package.")
 from . import latch
+from . import actuator

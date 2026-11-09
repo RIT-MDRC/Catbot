@@ -57,20 +57,39 @@ configured CAN axis:
 catbot sample motor-test --motor "*"
 ```
 
-The wildcard also works per command, such as `arm *`, `15 *`, and `disarm *`.
+The wildcard also works per command, such as `arm *`, `mp 15 *`, and `disarm *`.
 Comma-separated motor names or axis IDs select a specific group, such as
-`h 1,2,3`, `arm front_left,front_right`, or `15 1,3`. Spaces after commas are
-optional.
+`h 1,2,3`, `arm front_left,front_right`, or `mr -5 1,3`. Spaces after commas
+are optional.
 
-The test starts with the motor disarmed. At its prompt, explicitly arm it before
-commanding an angle, and disarm it when finished:
+The test opens a full-screen terminal interface. Its scrollable command log is
+above a focused input box. A status row below the input shows `CAN CHECKING`
+while the interface starts, `CAN OK` when no configured axis reports an error,
+or `CAN ERRORS (N)` when `N` configured axes report errors. Error transitions
+write decoded per-axis details to the log. A compact command reference remains
+visible next to the indicator.
+
+The test starts with the motor disarmed. Enter commands in the bottom input,
+use Up and Down to revisit commands from the current session, and explicitly
+disarm when finished:
 
 ```text
-angle> arm
-angle> 15
-angle> read
-angle> disarm
+> arm
+> mp 15 0
+> mr -5 0
+> read
+> disarm
 ```
+
+The log and status continue updating during heartbeat waits. `q`, Ctrl-C, and
+Ctrl-D stop the interface and request `IDLE` for every motor armed by the test.
+
+`mp <angle> [motor]` commands an absolute logical joint angle. `mr <angle>
+[motor]` adds a relative angle to the latest measured logical joint position.
+For example, `mp 15 0` commands CAN axis 0 to 15 degrees, while `mr -5 0`
+commands it 5 degrees back from its current position. Both commands reject a
+final target outside the actuator's configured position bounds. The motor
+selector may be omitted when the test was started with `--motor`.
 
 `read [motor]` (or `r [motor]`) prints the latest encoder position as a homed
 joint angle and raw motor turns. It is read-only and works while the motor is

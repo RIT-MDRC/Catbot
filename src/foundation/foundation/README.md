@@ -92,9 +92,13 @@ ros2 topic pub --once /body/control/position \
   "{actuator_names: [bra, brf], positions_degrees: [10.0, -5.0]}"
 ```
 
-The actuator gearbox reduction is 64:1, so one actuator rotation is 64 motor turns.
-Every named actuator must be configured, heartbeat-responsive, error-free,
-within its configured motor-turn bounds, and confirmed in closed-loop control.
+Every named actuator must reference an `odrive_motor` and an
+`actuator_motion_profile`, be heartbeat-responsive, error-free, within its
+logical profile bounds, and confirmed in closed-loop control. Profiles contain
+the gear ratio, direction, logical bounds, and default trajectory settings;
+the checked-in profiles use 64:1, -40 to +40 degrees, and positive limits of
+1 motor turn/s and 1 motor turn/s². The actuator layer converts raw telemetry
+back to logical degrees and applies `inverted` only at the motor boundary.
 A rejected message sends no targets. An error on an omitted actuator does not
 block the named subset. CAN frames cannot be sent atomically, so a transport
 failure after validation is logged for the affected actuator.
@@ -147,5 +151,71 @@ flags indicate a component error, the node requests the corresponding detailed
 error frame at most once per second until the flag clears. Upgrading the ODrive
 firmware to a CANSimple version with a different error layout requires updating
 the checked-in DBC and this mapping together.
+
+## Actuator motion configuration
+
+Motion quantities use an explicit `value` and `unit`. Position units are
+`degrees`, `actuator_turns`, or `motor_turns`; velocity and acceleration use
+the corresponding `_per_second` and `_per_second_squared` names. A normal and
+inverted profile can share every value except direction:
+
+```json
+"actuator_motion_profile": {
+  "normal": {
+    "motor_turns_per_actuator_turn": 64,
+    "inverted": false,
+    "position_min": {"value": -40, "unit": "degrees"},
+    "position_max": {"value": 40, "unit": "degrees"},
+    "trajectory_velocity": {"value": 1, "unit": "motor_turns_per_second"},
+    "trajectory_acceleration": {"value": 1, "unit": "motor_turns_per_second_squared"}
+  },
+  "inverted": {
+    "motor_turns_per_actuator_turn": 64,
+    "inverted": true,
+    "position_min": {"value": -40, "unit": "degrees"},
+    "position_max": {"value": 40, "unit": "degrees"},
+    "trajectory_velocity": {"value": 1, "unit": "motor_turns_per_second"},
+    "trajectory_acceleration": {"value": 1, "unit": "motor_turns_per_second_squared"}
+  }
+},
+"actuator": {
+  "right_knee": {"motor": "odrive_4", "profile": "normal"},
+  "left_knee": {"motor": "odrive_5", "profile": "inverted"}
+}
+```
+
+Do not add `position_min` or `position_max` to an ODrive referenced by an
+actuator. Its raw bounds are derived from the logical profile endpoints and
+sorted after direction inversion. Raw-only ODrive configurations remain
+supported when no actuator references them. Runtime `speed` commands affect
+only the selected actuator and do not mutate a shared profile.
+
+The four `k` actuators use the `knee_ballscrew` nonlinear profile. It evaluates
+the linkage equations directly with `L1=7.235 cm`, `L2=18.6452 cm`,
+`A=11.869 cm`, and `B=7.95 cm`; the `above_ground` variant is not used. The
+ballscrew advances 10 mm per motor revolution. `x_offset` defines the physical
+linkage displacement at motor position zero. With the checked-in value of 0 cm,
+the configured -55° to +55° range maps to approximately 12.3114 to 0.4583 motor
+turns. Changing it to 2.5 cm, for example, makes encoder position zero represent
+`x=2.5 cm` and subtracts 2.5 turns from every target at the 10 mm pitch. Raw
+endpoints are sorted before being installed as ODrive limits, and velocity
+conversion uses the linkage's local slope.
+
+```json
+"knee_ballscrew": {
+  "position_min": {"value": -55, "unit": "degrees"},
+  "position_max": {"value": 55, "unit": "degrees"},
+  "trajectory_velocity": {"value": 1, "unit": "motor_turns_per_second"},
+  "trajectory_acceleration": {"value": 1, "unit": "motor_turns_per_second_squared"},
+  "ballscrew_linkage": {
+    "L1": 7.235,
+    "L2": 18.6452,
+    "A": 11.869,
+    "B": 7.95,
+    "ballscrew_travel_per_motor_turn": {"value": 10, "unit": "millimeters"},
+    "x_offset": {"value": 0, "unit": "centimeters"}
+  }
+}
+```
 
 ##

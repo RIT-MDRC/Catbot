@@ -1,0 +1,685 @@
+{
+  "version": 0,
+  "files": {
+    "src/foundation/foundation/component/adc/adc.py": [
+      {
+        "rule": "invalid-argument-type",
+        "startColumn": 44,
+        "endColumn": 54,
+        "lineCount": 1
+      },
+      {
+        "rule": "invalid-return-type",
+        "startColumn": 15,
+        "endColumn": 60,
+        "lineCount": 1
+      }
+    ],
+    "src/foundation/foundation/component/io_expander/io_expander.py": [
+      {
+        "rule": "invalid-type-form",
+        "startColumn": 20,
+        "endColumn": 28,
+        "lineCount": 1
+      },
+      {
+        "rule": "invalid-type-form",
+        "startColumn": 22,
+        "endColumn": 30,
+        "lineCount": 1
+      },
+      {
+        "rule": "invalid-assignment",
+        "startColumn": 4,
+        "endColumn": 26,
+        "lineCount": 1
+      },
+      {
+        "rule": "invalid-assignment",
+        "startColumn": 24,
+        "endColumn": 39,
+        "lineCount": 1
+      },
+      {
+        "rule": "invalid-assignment",
+        "startColumn": 19,
+        "endColumn": 26,
+        "lineCount": 1
+      }
+    ],
+    "src/foundation/foundation/component/io_expander/pin/interrupt_pin.py": [
+      {
+        "rule": "invalid-type-form",
+        "startColumn": 62,
+        "endColumn": 70,
+        "lineCount": 1
+      },
+      {
+        "rule": "invalid-type-form",
+        "startColumn": 64,
+        "endColumn": 72,
+        "lineCount": 1
+      }
+    ],
+    "src/foundation/foundation/component/limit_switch/__init__.py": [
+      {
+        "rule": "import-not-found",
+        "startColumn": 6,
+        "endColumn": 17,
+        "lineCount": 1
+      }
+    ],
+    "src/foundation/foundation/component/limit_switch/switch.py": [
+      {
+        "rule": "invalid-type-form",
+        "startColumn": 66,
+        "endColumn": 74,
+        "lineCount": 1
+      },
+      {
+        "rule": "invalid-type-form",
+        "startColumn": 68,
+        "endColumn": 76,
+        "lineCount": 1
+      }
+    ],
+    "src/foundation/foundation/component/muscle/muscle.py": [
+      {
+        "rule": "invalid-assignment",
+        "startColumn": 30,
+        "endColumn": 33,
+        "lineCount": 1
+      }
+    ],
+    "src/foundation/foundation/component/muscle/pneumatics/pressure/pressure.py": [
+      {
+        "rule": "invalid-parameter-default",
+        "startColumn": 34,
+        "endColumn": 50,
+        "lineCount": 1
+      },
+      {
+        "rule": "invalid-parameter-default",
+        "startColumn": 34,
+        "endColumn": 50,
+        "lineCount": 1
+      }
+    ],
+    "src/foundation/foundation/component/potentiometer/potentiometer.py": [
+      {
+        "rule": "invalid-assignment",
+        "startColumn": 23,
+        "endColumn": 27,
+        "lineCount": 1
+      },
+      {
+        "rule": "invalid-argument-type",
+        "startColumn": 40,
+        "endColumn": 66,
+        "lineCount": 1
+      }
+    ],
+    "src/foundation/foundation/component/smbus/smbus.py": [
+      {
+        "rule": "invalid-return-type",
+        "startColumn": 65,
+        "endColumn": 69,
+        "lineCount": 1
+      },
+      {
+        "rule": "invalid-return-type",
+        "startColumn": 15,
+        "endColumn": 58,
+        "lineCount": 1
+      }
+    ],
+    "src/foundation/foundation/samples/demo.py": [
+      {
+        "rule": "invalid-assignment",
+        "startColumn": 0,
+        "endColumn": 15,
+        "lineCount": 1
+      }
+    ],
+    "src/foundation/foundation/samples/io_expander/io_expander.py": [
+      {
+        "rule": "invalid-assignment",
+        "startColumn": 0,
+        "endColumn": 23,
+        "lineCount": 1
+      }
+    ],
+    "src/foundation/foundation/samples/io_expander/io_expander_simple.py": [
+      {
+        "rule": "import-not-found",
+        "startColumn": 5,
+        "endColumn": 8,
+        "lineCount": 1
+      },
+      {
+        "rule": "invalid-assignment",
+        "startColumn": 20,
+        "endColumn": 35,
+        "lineCount": 1
+      },
+      {
+        "rule": "invalid-assignment",
+        "startColumn": 15,
+        "endColumn": 22,
+        "lineCount": 1
+      }
+    ],
+    "src/foundation/foundation/samples/pneumatics/read_pgood.py": [
+      {
+        "rule": "unresolved-attribute",
+        "startColumn": 10,
+        "endColumn": 41,
+        "lineCount": 1
+      }
+    ],
+    "src/foundation/foundation/samples/pot_test/read_singl_pot.py": [
+      {
+        "rule": "unresolved-attribute",
+        "startColumn": 10,
+        "endColumn": 52,
+        "lineCount": 1
+      }
+    ],
+    "src/foundation/foundation/samples/rawmotor/motor_left_right_loop.py": [
+      {
+        "rule": "import-not-found",
+        "startColumn": 28,
+        "endColumn": 44,
+        "lineCount": 1
+      }
+    ],
+    "src/foundation/foundation/samples/rawmotor/motor_step_loop.py": [
+      {
+        "rule": "import-not-found",
+        "startColumn": 28,
+        "endColumn": 44,
+        "lineCount": 1
+      },
+      {
+        "rule": "invalid-assignment",
+        "startColumn": 0,
+        "endColumn": 17,
+        "lineCount": 1
+      }
+    ],
+    "src/foundation/foundation/samples/rawmotor/motor_varying_step.py": [
+      {
+        "rule": "import-not-found",
+        "startColumn": 28,
+        "endColumn": 44,
+        "lineCount": 1
+      }
+    ],
+    "src/foundation/foundation/samples/stop_motor.py": [
+      {
+        "rule": "import-not-found",
+        "startColumn": 28,
+        "endColumn": 44,
+        "lineCount": 1
+      }
+    ],
+    "src/foundation/foundation/state_management/_device.py": [
+      {
+        "rule": "invalid-assignment",
+        "startColumn": 12,
+        "endColumn": 21,
+        "lineCount": 1
+      },
+      {
+        "rule": "invalid-assignment",
+        "startColumn": 12,
+        "endColumn": 27,
+        "lineCount": 1
+      },
+      {
+        "rule": "unresolved-attribute",
+        "startColumn": 53,
+        "endColumn": 66,
+        "lineCount": 1
+      },
+      {
+        "rule": "invalid-argument-type",
+        "startColumn": 24,
+        "endColumn": 29,
+        "lineCount": 1
+      },
+      {
+        "rule": "invalid-assignment",
+        "startColumn": 12,
+        "endColumn": 21,
+        "lineCount": 1
+      },
+      {
+        "rule": "invalid-assignment",
+        "startColumn": 12,
+        "endColumn": 27,
+        "lineCount": 1
+      },
+      {
+        "rule": "unresolved-attribute",
+        "startColumn": 52,
+        "endColumn": 65,
+        "lineCount": 1
+      },
+      {
+        "rule": "invalid-argument-type",
+        "startColumn": 24,
+        "endColumn": 29,
+        "lineCount": 1
+      }
+    ],
+    "src/foundation/foundation/state_management/utils/deviceMock.py": [
+      {
+        "rule": "invalid-type-form",
+        "startColumn": 23,
+        "endColumn": 31,
+        "lineCount": 1
+      },
+      {
+        "rule": "invalid-type-form",
+        "startColumn": 36,
+        "endColumn": 44,
+        "lineCount": 1
+      }
+    ],
+    "src/foundation/foundation/state_management/utils/logger.py": [
+      {
+        "rule": "invalid-type-form",
+        "startColumn": 37,
+        "endColumn": 45,
+        "lineCount": 1
+      }
+    ],
+    "src/foundation/foundation/state_management/utils/util.py": [
+      {
+        "rule": "invalid-type-form",
+        "startColumn": 41,
+        "endColumn": 49,
+        "lineCount": 1
+      },
+      {
+        "rule": "invalid-type-form",
+        "startColumn": 42,
+        "endColumn": 50,
+        "lineCount": 1
+      },
+      {
+        "rule": "invalid-assignment",
+        "startColumn": 8,
+        "endColumn": 20,
+        "lineCount": 1
+      },
+      {
+        "rule": "invalid-type-form",
+        "startColumn": 39,
+        "endColumn": 47,
+        "lineCount": 1
+      }
+    ],
+    "src/foundation/test/test_actuator.py": [
+      {
+        "rule": "import-not-found",
+        "startColumn": 5,
+        "endColumn": 23,
+        "lineCount": 1
+      },
+      {
+        "rule": "import-not-found",
+        "startColumn": 5,
+        "endColumn": 32,
+        "lineCount": 1
+      },
+      {
+        "rule": "import-not-found",
+        "startColumn": 5,
+        "endColumn": 38,
+        "lineCount": 1
+      },
+      {
+        "rule": "import-not-found",
+        "startColumn": 5,
+        "endColumn": 20,
+        "lineCount": 1
+      },
+      {
+        "rule": "import-not-found",
+        "startColumn": 5,
+        "endColumn": 33,
+        "lineCount": 1
+      }
+    ],
+    "src/foundation/test/test_body_control.py": [
+      {
+        "rule": "import-not-found",
+        "startColumn": 5,
+        "endColumn": 17,
+        "lineCount": 1
+      },
+      {
+        "rule": "import-not-found",
+        "startColumn": 5,
+        "endColumn": 23,
+        "lineCount": 1
+      },
+      {
+        "rule": "import-not-found",
+        "startColumn": 5,
+        "endColumn": 32,
+        "lineCount": 1
+      },
+      {
+        "rule": "import-not-found",
+        "startColumn": 5,
+        "endColumn": 38,
+        "lineCount": 1
+      },
+      {
+        "rule": "import-not-found",
+        "startColumn": 5,
+        "endColumn": 20,
+        "lineCount": 1
+      }
+    ],
+    "src/foundation/test/test_body_state.py": [
+      {
+        "rule": "import-not-found",
+        "startColumn": 5,
+        "endColumn": 15,
+        "lineCount": 1
+      },
+      {
+        "rule": "import-not-found",
+        "startColumn": 5,
+        "endColumn": 23,
+        "lineCount": 1
+      },
+      {
+        "rule": "import-not-found",
+        "startColumn": 5,
+        "endColumn": 32,
+        "lineCount": 1
+      },
+      {
+        "rule": "import-not-found",
+        "startColumn": 5,
+        "endColumn": 38,
+        "lineCount": 1
+      },
+      {
+        "rule": "import-not-found",
+        "startColumn": 5,
+        "endColumn": 18,
+        "lineCount": 1
+      },
+      {
+        "rule": "import-not-found",
+        "startColumn": 5,
+        "endColumn": 26,
+        "lineCount": 1
+      },
+      {
+        "rule": "import-not-found",
+        "startColumn": 5,
+        "endColumn": 20,
+        "lineCount": 1
+      },
+      {
+        "rule": "import-not-found",
+        "startColumn": 5,
+        "endColumn": 33,
+        "lineCount": 1
+      }
+    ],
+    "src/foundation/test/test_copyright.py": [
+      {
+        "rule": "import-not-found",
+        "startColumn": 5,
+        "endColumn": 25,
+        "lineCount": 1
+      }
+    ],
+    "src/foundation/test/test_flake8.py": [
+      {
+        "rule": "import-not-found",
+        "startColumn": 5,
+        "endColumn": 22,
+        "lineCount": 1
+      }
+    ],
+    "src/foundation/test/test_odrive_position.py": [
+      {
+        "rule": "import-not-found",
+        "startColumn": 7,
+        "endColumn": 48,
+        "lineCount": 1
+      },
+      {
+        "rule": "import-not-found",
+        "startColumn": 5,
+        "endColumn": 20,
+        "lineCount": 1
+      },
+      {
+        "rule": "import-not-found",
+        "startColumn": 5,
+        "endColumn": 33,
+        "lineCount": 1
+      },
+      {
+        "rule": "import-not-found",
+        "startColumn": 5,
+        "endColumn": 33,
+        "lineCount": 1
+      },
+      {
+        "rule": "import-not-found",
+        "startColumn": 5,
+        "endColumn": 25,
+        "lineCount": 1
+      }
+    ],
+    "src/foundation/test/test_pep257.py": [
+      {
+        "rule": "import-not-found",
+        "startColumn": 5,
+        "endColumn": 22,
+        "lineCount": 1
+      }
+    ],
+    "src/ui/test/test_copyright.py": [
+      {
+        "rule": "import-not-found",
+        "startColumn": 5,
+        "endColumn": 25,
+        "lineCount": 1
+      }
+    ],
+    "src/ui/test/test_flake8.py": [
+      {
+        "rule": "import-not-found",
+        "startColumn": 5,
+        "endColumn": 22,
+        "lineCount": 1
+      }
+    ],
+    "src/ui/test/test_pep257.py": [
+      {
+        "rule": "import-not-found",
+        "startColumn": 5,
+        "endColumn": 22,
+        "lineCount": 1
+      }
+    ],
+    "src/ui/ui/component/reactivebutton.py": [
+      {
+        "rule": "invalid-type-form",
+        "startColumn": 17,
+        "endColumn": 25,
+        "lineCount": 1
+      }
+    ],
+    "src/ui/ui/main.py": [
+      {
+        "rule": "invalid-assignment",
+        "startColumn": 27,
+        "endColumn": 31,
+        "lineCount": 1
+      },
+      {
+        "rule": "invalid-assignment",
+        "startColumn": 30,
+        "endColumn": 34,
+        "lineCount": 1
+      },
+      {
+        "rule": "invalid-argument-type",
+        "startColumn": 43,
+        "endColumn": 50,
+        "lineCount": 1
+      },
+      {
+        "rule": "invalid-argument-type",
+        "startColumn": 43,
+        "endColumn": 50,
+        "lineCount": 1
+      },
+      {
+        "rule": "invalid-assignment",
+        "startColumn": 36,
+        "endColumn": 40,
+        "lineCount": 1
+      },
+      {
+        "rule": "invalid-assignment",
+        "startColumn": 37,
+        "endColumn": 41,
+        "lineCount": 1
+      },
+      {
+        "rule": "invalid-assignment",
+        "startColumn": 34,
+        "endColumn": 38,
+        "lineCount": 1
+      },
+      {
+        "rule": "invalid-assignment",
+        "startColumn": 36,
+        "endColumn": 40,
+        "lineCount": 1
+      },
+      {
+        "rule": "invalid-type-form",
+        "startColumn": 21,
+        "endColumn": 29,
+        "lineCount": 1
+      },
+      {
+        "rule": "invalid-assignment",
+        "startColumn": 8,
+        "endColumn": 26,
+        "lineCount": 1
+      },
+      {
+        "rule": "unresolved-attribute",
+        "startColumn": 8,
+        "endColumn": 35,
+        "lineCount": 1
+      },
+      {
+        "rule": "unresolved-attribute",
+        "startColumn": 8,
+        "endColumn": 32,
+        "lineCount": 1
+      },
+      {
+        "rule": "unused-awaitable",
+        "startColumn": 8,
+        "endColumn": 18,
+        "lineCount": 1
+      },
+      {
+        "rule": "unresolved-attribute",
+        "startColumn": 8,
+        "endColumn": 31,
+        "lineCount": 1
+      },
+      {
+        "rule": "unresolved-attribute",
+        "startColumn": 8,
+        "endColumn": 31,
+        "lineCount": 1
+      }
+    ],
+    "src/ui/ui/utils/cpu.py": [
+      {
+        "rule": "import-not-found",
+        "startColumn": 5,
+        "endColumn": 13,
+        "lineCount": 1
+      },
+      {
+        "rule": "invalid-type-form",
+        "startColumn": 27,
+        "endColumn": 35,
+        "lineCount": 1
+      }
+    ],
+    "src/ui/ui/utils/interval.py": [
+      {
+        "rule": "unresolved-attribute",
+        "startColumn": 8,
+        "endColumn": 26,
+        "lineCount": 1
+      },
+      {
+        "rule": "unresolved-attribute",
+        "startColumn": 8,
+        "endColumn": 26,
+        "lineCount": 1
+      }
+    ],
+    "src/ui/ui/utils/logger.py": [
+      {
+        "rule": "invalid-type-form",
+        "startColumn": 37,
+        "endColumn": 45,
+        "lineCount": 1
+      },
+      {
+        "rule": "no-matching-overload",
+        "startColumn": 18,
+        "endColumn": 50,
+        "lineCount": 1
+      },
+      {
+        "rule": "invalid-argument-type",
+        "startColumn": 38,
+        "endColumn": 41,
+        "lineCount": 1
+      },
+      {
+        "rule": "invalid-argument-type",
+        "startColumn": 47,
+        "endColumn": 51,
+        "lineCount": 1
+      },
+      {
+        "rule": "no-matching-overload",
+        "startColumn": 18,
+        "endColumn": 50,
+        "lineCount": 1
+      },
+      {
+        "rule": "invalid-argument-type",
+        "startColumn": 38,
+        "endColumn": 41,
+        "lineCount": 1
+      }
+    ]
+  }
+}

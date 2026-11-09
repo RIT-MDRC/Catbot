@@ -1,16 +1,21 @@
 """Hardware-free tests for the ODrive position sample and controller helpers."""
 
-from pathlib import Path
+import asyncio
 import sys
+from argparse import Namespace
+from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import pytest
+from textual.widgets import RichLog, Static
 
 FOUNDATION_ROOT = Path(__file__).resolve().parents[1] / "foundation"
 SAMPLES_ROOT = FOUNDATION_ROOT / "samples"
 sys.path.insert(0, str(FOUNDATION_ROOT))
 sys.path.insert(0, str(SAMPLES_ROOT))
 
+import odrive_position_test as motor_test_sample
 from component.motor import motor_actions
 from component.motor.odrive_enums import ControlMode, InputMode, MotorState
 from component.motor.odrive_motor import (
@@ -23,13 +28,14 @@ from component.motor.odrive_motor import (
     update_estimates,
 )
 from odrive_position_test import (
-    degrees_to_motor_turns,
+    CommandInput,
+    MotorTestApp,
     describe_axis_error,
     describe_motors,
     find_motors,
-    motor_turns_to_degrees,
     parse_angle_degrees,
     parse_speed_degrees_per_second,
+    position_target_degrees,
     report_bus_errors,
 )
 
@@ -60,18 +66,6 @@ def make_motor() -> ODriveMotor:
     return motor
 
 
-def test_degrees_to_motor_turns() -> None:
-    assert degrees_to_motor_turns(0) == 0
-    assert degrees_to_motor_turns(30) == pytest.approx(64 / 12)
-    assert degrees_to_motor_turns(-15) == pytest.approx(-64 / 24)
-
-
-def test_motor_turns_to_degrees() -> None:
-    assert motor_turns_to_degrees(0) == 0
-    assert motor_turns_to_degrees(64 / 12) == pytest.approx(30)
-    assert motor_turns_to_degrees(-64 / 24) == pytest.approx(-15)
-
-
 def test_parse_speed_degrees_per_second() -> None:
     assert parse_speed_degrees_per_second("5.625") == 5.625
     for invalid_value in ("", "not-a-speed", "0", "-1", "nan", "inf", "-inf"):
@@ -91,8 +85,6 @@ def test_parse_angle_degrees_rejects_empty_invalid_and_non_finite_values() -> No
         "nan",
         "inf",
         "-inf",
-        "-41.0001",
-        "41.0001",
     ):
         try:
             parse_angle_degrees(invalid_value)
@@ -100,6 +92,116 @@ def test_parse_angle_degrees_rejects_empty_invalid_and_non_finite_values() -> No
             pass
         else:
             raise AssertionError(f"invalid angle was accepted: {invalid_value}")
+
+
+def test_position_target_degrees_supports_absolute_and_relative_commands() -> None:
+    assert position_target_degrees("mp", 15, -20) == 15
+    assert position_target_degrees("mr", 15, -20) == -5
+    assert position_target_degrees("mr", -5, 15) == 10
+
+    with pytest.raises(ValueError, match="current position"):
+        position_target_degrees("mr", 5)
+    with pytest.raises(ValueError, match="unknown position command"):
+        position_target_degrees("move", 5, 0)
+
+
+def test_motor_test_tui_submits_commands_and_retains_history() -> None:
+    commands = []
+
+    def fake_run_motor_test(
+        _args,
+        read_command,
+        emit,
+        on_motors_configured,
+        on_ready,
+        should_stop,
+    ) -> int:
+        on_motors_configured({})
+        on_ready()
+        try:
+            while not should_stop():
+                command = read_command("angle> ")
+                commands.append(command)
+                emit(f"received {command}")
+                if command == "q":
+                    return 0
+        except EOFError:
+            return 0
+        return 0
+
+    async def exercise() -> None:
+        app = MotorTestApp(Namespace(motor=None, config=Path("unused.json")))
+        with patch.object(
+            motor_test_sample, "run_motor_test", side_effect=fake_run_motor_test
+        ):
+            async with app.run_test() as pilot:
+                await pilot.pause(0.1)
+                command_input = app.query_one("#command", CommandInput)
+                assert command_input.has_focus
+                assert command_input.disabled is False
+
+                await pilot.press("m", "p", "space", "1", "5", "space", "0", "enter")
+                await pilot.pause(0.1)
+                assert commands == ["mp 15 0"]
+
+                command_input.value = ""
+                await pilot.press("up")
+                assert command_input.value == "mp 15 0"
+
+                command_input.value = "q"
+                await pilot.press("enter")
+                await pilot.pause(0.1)
+
+    asyncio.run(exercise())
+
+
+def test_motor_test_tui_reports_can_error_changes() -> None:
+    motor = SimpleNamespace(axisID=3, axis_error=0)
+
+    def fake_run_motor_test(
+        _args,
+        read_command,
+        emit,
+        on_motors_configured,
+        on_ready,
+        should_stop,
+    ) -> int:
+        del emit, should_stop
+        on_motors_configured({"front": motor})
+        on_ready()
+        try:
+            read_command("angle> ")
+        except EOFError:
+            pass
+        return 0
+
+    async def exercise() -> None:
+        app = MotorTestApp(Namespace(motor=None, config=Path("unused.json")))
+        with patch.object(
+            motor_test_sample, "run_motor_test", side_effect=fake_run_motor_test
+        ):
+            async with app.run_test() as pilot:
+                await pilot.pause(0.1)
+                status = app.query_one("#can-status", Static)
+                assert "CAN OK" in str(status.render())
+
+                motor.axis_error = 0x300
+                app.refresh_can_status()
+                assert "CAN ERRORS (1)" in str(status.render())
+                log = app.query_one("#log", RichLog)
+                rendered_log = "\n".join(line.text for line in log.lines)
+                assert "front (axis 3): 0x300" in rendered_log
+                assert "ENCODER_FAILED" in rendered_log
+                assert "CONTROLLER_FAILED" in rendered_log
+
+                motor.axis_error = 0
+                app.refresh_can_status()
+                rendered_log = "\n".join(line.text for line in log.lines)
+                assert "CAN errors cleared" in rendered_log
+                app.action_request_quit()
+                await pilot.pause(0.1)
+
+    asyncio.run(exercise())
 
 
 def test_describe_motors_includes_names_and_axis_ids() -> None:

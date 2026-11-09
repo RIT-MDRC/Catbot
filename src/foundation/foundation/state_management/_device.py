@@ -131,7 +131,7 @@ def create_generic_context(
 
 def create_context(
     generic_device_name: str,
-    device_classes: list,
+    device_classes,
     parser_func=None,
     on_exit=None,
 ):

@@ -2,8 +2,10 @@ import logging
 import os
 import time
 from dataclasses import dataclass
+from typing import cast
 
 import cantools
+from cantools.database.can import Database
 from state_management import (
     create_generic_context,
     device,
@@ -16,8 +18,11 @@ from ..can import can_actions
 from .odrive_enums import AxisError, ControlMode, InputMode, MotorState
 
 logger = logging.getLogger(__name__)
-ODRIVE_CAN_DB = cantools.database.load_file(
-    os.path.dirname(__file__) + "/odrive-cansimple.dbc"
+ODRIVE_CAN_DB = cast(
+    Database,
+    cantools.database.load_file(
+        os.path.dirname(__file__) + "/odrive-cansimple.dbc"
+    ),
 )
 
 
@@ -27,7 +32,7 @@ class ODriveMotor:
     axisID: int
     control_mode: ControlMode
     input_mode: InputMode
-    bus: can_actions.CanBus = identifier(can_actions.ctx)
+    bus: can_actions.CanBus = identifier(can_actions.ctx)  # noqa: RUF009
     position_min: float | None = None
     position_max: float | None = None
 
@@ -53,6 +58,32 @@ class ODriveMotor:
         can_actions.add_listener(
             self.bus, self.axisID, lambda msg: read_message(self, msg)
         )
+
+
+@dataclass(frozen=True)
+class ODriveMotorState:
+    """Read-only snapshot of state exposed to framework consumers."""
+
+    axis_id: int
+    current_state: MotorState
+    axis_error: int
+    current_position: float | None
+    current_velocity: float | None
+    last_heartbeat_time: float | None
+    last_encoder_estimate_time: float | None
+    motor_error: int
+    encoder_error: int
+    sensorless_error: int
+    controller_error: int
+    motor_error_flag: bool
+    encoder_error_flag: bool
+    sensorless_error_flag: bool
+    controller_error_flag: bool
+
+    @property
+    def axisID(self) -> int:
+        """Preserve the configured ODrive axis field spelling for consumers."""
+        return self.axis_id
 
 
 # region Message Handling
@@ -198,6 +229,47 @@ ctx = create_generic_context("odrive_motor", [ODriveMotor])
 @device_parser(ctx)
 def parse_odrive(data: dict) -> ODriveMotor:
     return ODriveMotor(**data)
+
+
+def get_names() -> tuple[str, ...]:
+    """Return configured motor component names."""
+    return tuple(ctx.store)
+
+
+@device_action(ctx)
+def get_state_snapshot(motor: ODriveMotor) -> ODriveMotorState:
+    """Return a stable read-only snapshot of one motor's observable state."""
+    return ODriveMotorState(
+        axis_id=getattr(motor, "axisID", 0),
+        current_state=getattr(motor, "current_state", MotorState.UNDEFINED),
+        axis_error=getattr(motor, "axis_error", 0),
+        current_position=getattr(motor, "current_position", None),
+        current_velocity=getattr(motor, "current_velocity", None),
+        last_heartbeat_time=getattr(motor, "last_heartbeat_time", None),
+        last_encoder_estimate_time=getattr(
+            motor, "last_encoder_estimate_time", None
+        ),
+        motor_error=getattr(motor, "motor_error", 0),
+        encoder_error=getattr(motor, "encoder_error", 0),
+        sensorless_error=getattr(motor, "sensorless_error", 0),
+        controller_error=getattr(motor, "controller_error", 0),
+        motor_error_flag=getattr(motor, "motor_error_flag", False),
+        encoder_error_flag=getattr(motor, "encoder_error_flag", False),
+        sensorless_error_flag=getattr(motor, "sensorless_error_flag", False),
+        controller_error_flag=getattr(motor, "controller_error_flag", False),
+    )
+
+
+@device_action(ctx)
+def set_position_bounds(
+    motor: ODriveMotor, minimum: float, maximum: float
+) -> None:
+    """Set validated raw position bounds for an actuator-owned motor."""
+    if motor.position_min is not None or motor.position_max is not None:
+        raise ValueError(
+            "actuator-referenced ODrive motors may not define raw position bounds"
+        )
+    motor.position_min, motor.position_max = sorted((minimum, maximum))
 
 
 @device_action(ctx)
@@ -420,8 +492,8 @@ def get_input_mode(motor: ODriveMotor) -> InputMode:
 def send_message(motor: ODriveMotor, msg_name: str, data: dict) -> bool:
     msg = ODRIVE_CAN_DB.get_message_by_name(msg_name)
     msg_id = msg.frame_id | motor.axisID << 5
-    data = msg.encode(data)
-    return can_actions.send_message(motor.bus, msg_id, data)
+    encoded_data = msg.encode(data)
+    return can_actions.send_message(motor.bus, msg_id, encoded_data)
 
 
 @device_action(ctx)

@@ -3,16 +3,14 @@
 import math
 from enum import IntFlag
 
-from body_control import MOTOR_TURNS_PER_ACTUATOR_TURN
+from component.actuator import actuator_actions
+from component.motor import motor_actions
 
 
-def motor_turns_to_degrees(turns: float) -> float:
-    """Convert the current ODrive motor-turn scale to joint degrees."""
-    return turns * 360.0 / MOTOR_TURNS_PER_ACTUATOR_TURN
-
-
-def kinematic_values(motor, now: float, stale_seconds: float) -> tuple:
-    """Return validity, position, and velocity for one motor estimate."""
+def kinematic_values(actuator, now: float, stale_seconds: float) -> tuple:
+    """Return logical validity, position, and velocity for one actuator."""
+    motor_name = actuator.motor if hasattr(actuator, "motor") else actuator
+    motor = motor_actions.get_state_snapshot(motor_name)
     valid = (
         motor.current_position is not None
         and motor.current_velocity is not None
@@ -23,13 +21,21 @@ def kinematic_values(motor, now: float, stale_seconds: float) -> tuple:
         return False, math.nan, math.nan
     return (
         True,
-        motor_turns_to_degrees(motor.current_position),
-        motor_turns_to_degrees(motor.current_velocity),
+        actuator_actions.motor_turns_to_position(actuator, motor.current_position),
+        actuator_actions.motor_turns_to_velocity(
+            actuator,
+            motor.current_velocity,
+            position_motor_turns=motor.current_position,
+        ),
     )
 
 
 def heartbeat_available(motor, now: float, stale_seconds: float) -> bool:
     """Return whether a recent heartbeat has been received."""
+    if hasattr(motor, "profile"):
+        motor = motor_actions.get_state_snapshot(motor.motor)
+    elif isinstance(motor, str):
+        motor = motor_actions.get_state_snapshot(motor)
     return (
         motor.last_heartbeat_time is not None
         and now - motor.last_heartbeat_time <= stale_seconds
