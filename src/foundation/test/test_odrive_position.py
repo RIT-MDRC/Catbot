@@ -1,6 +1,7 @@
 """Hardware-free tests for the ODrive position sample and controller helpers."""
 
 import asyncio
+import json
 import subprocess
 import sys
 import textwrap
@@ -19,7 +20,8 @@ sys.path.insert(0, str(FOUNDATION_ROOT))
 sys.path.insert(0, str(SAMPLES_ROOT))
 
 import odrive_position_test as motor_test_sample
-from component.actuator import actuator_actions
+from component.actuator import actuator_actions, motion_profile_actions
+from component.actuator.actuator import Actuator
 from component.can import can_actions
 from component.motor import motor_actions
 from component.motor.odrive_enums import ControlMode, InputMode, MotorState
@@ -609,6 +611,69 @@ def test_command_session_dispatches_aliases_and_position_commands(command_runtim
     ]
     assert all(m.current_state == MotorState.IDLE for m in runtime.motors.values())
     runtime.actions.close.assert_called_once_with("can0")
+
+
+@pytest.mark.parametrize("command", ["r", "read", "rs", "read-speed"])
+@pytest.mark.parametrize("motor_turns", [100.0, -16.189464569091797])
+def test_read_keeps_session_open_when_knee_feedback_cannot_convert(
+    command_runtime, command, motor_turns
+):
+    runtime = command_runtime
+    config = json.loads(motor_test_sample.DEFAULT_CONFIG.read_text())
+    actuator = object.__new__(Actuator)
+    actuator.profile = motion_profile_actions.parse_motion_profile(
+        config["actuator_motion_profile"]["knee_ballscrew"], "test_knee_profile"
+    )
+    runtime.motors["front"].current_position = motor_turns
+
+    def position(name):
+        if name == "front":
+            return actuator_actions.motor_turns_to_position(actuator, motor_turns)
+        return 10.0
+
+    def velocity(name):
+        if name == "front":
+            return actuator_actions.motor_turns_to_velocity(
+                actuator, 1.0, position_motor_turns=motor_turns
+            )
+        return 5.0
+
+    runtime.actions.position.side_effect = position
+    runtime.actions.velocity.side_effect = velocity
+
+    assert runtime.run([f"{command} *", "read rear", "q"]) == 0
+
+    assert any("unreachable linkage configuration" in line for line in runtime.output)
+    assert any("rear: 10.00 degrees" in line for line in runtime.output)
+    if command in ("rs", "read-speed"):
+        assert any(
+            "front: joint speed unavailable" in line and "motor turns/second" in line
+            for line in runtime.output
+        )
+        assert any("rear: 5.00 degrees/second" in line for line in runtime.output)
+    else:
+        assert any(
+            "front:" in line and f"{motor_turns:.4f} motor turns" in line
+            for line in runtime.output
+        )
+        assert sum("rear: 10.00 degrees" in line for line in runtime.output) == 2
+    runtime.actions.set_state.assert_not_called()
+    runtime.actions.target.assert_not_called()
+
+
+@pytest.mark.parametrize("command", ["read", "read-speed"])
+def test_read_handles_unavailable_logical_feedback(command_runtime, command):
+    runtime = command_runtime
+    runtime.actions.position.side_effect = (
+        [None, 10.0, 10.0] if command == "read" else [10.0]
+    )
+    runtime.actions.velocity.side_effect = [None, 5.0]
+
+    assert runtime.run([f"{command} *", "read rear", "q"]) == 0
+
+    assert any("No encoder" in line and "front" in line for line in runtime.output)
+    assert any("rear: 10.00 degrees" in line for line in runtime.output)
+    runtime.actions.set_state.assert_not_called()
 
 
 def test_command_session_checks_each_selected_motor_before_motion(command_runtime):

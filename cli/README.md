@@ -94,6 +94,9 @@ selector may be omitted when the test was started with `--motor`.
 `read [motor]` (or `r [motor]`) prints the latest encoder position as a homed
 joint angle and raw motor turns. It is read-only and works while the motor is
 disarmed. Use `read *` to read every configured motor.
+If feedback cannot be converted to a joint angle (for example, a knee encoder
+position outside the linkage geometry), the log shows the raw motor turns and
+conversion error, and the session remains open.
 
 `speed <degrees-per-second> [motor]` changes the trapezoidal trajectory speed
 limit for later angle commands. For example, `speed 10 odrive_1` sets axis
@@ -103,6 +106,7 @@ configured motor. The setting is retained if that motor is subsequently armed.
 `read-speed [motor]` (or `rs [motor]`) prints the latest measured encoder speed
 in joint degrees per second and raw motor turns per second. It is read-only and
 works while the motor is disarmed.
+Conversion errors show the raw motor speed and keep the session open.
 
 `arm [motor]` enters ODrive closed-loop position control only after checking for
 reported errors. `disarm [motor]`, quitting, Ctrl-C, and EOF request the ODrive

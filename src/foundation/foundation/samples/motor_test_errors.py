@@ -21,6 +21,8 @@ class MotorTestErrors:
     INVALID_POSITION_SELECTION = "Invalid command: supply valid motor names or axis IDs after '{position_command} <angle>' (comma-separated for multiple motors), or start motor-test with --motor."
     NO_ENCODER_POSITION = "No encoder position received from {name}."
     NO_ENCODER_SPEED = "No encoder speed received from {name}."
+    POSITION_READ_FAILED = "{name}: joint angle unavailable ({error}); raw position: {turns:.4f} motor turns."
+    SPEED_READ_FAILED = "{name}: joint speed unavailable ({error}); raw speed: {turns:.4f} motor turns/second."
     FAULT_BEFORE_ARM = "Clear the ODrive error on {name} before arming."
     NO_HOLD_POSITION = "No encoder position received from {name}; refusing to arm without a safe initial hold position."
     ARM_WARNING = (

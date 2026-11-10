@@ -395,7 +395,18 @@ class MotorTestSession:
             if motor.current_position is None:
                 self.emit(Errors.NO_ENCODER_POSITION.format(name=name))
                 continue
-            angle_degrees = actuator_actions.get_current_position(name)
+            try:
+                angle_degrees = actuator_actions.get_current_position(name)
+            except ValueError as error:
+                self.emit(
+                    Errors.POSITION_READ_FAILED.format(
+                        name=name, error=error, turns=motor.current_position
+                    )
+                )
+                continue
+            if angle_degrees is None:
+                self.emit(Errors.NO_ENCODER_POSITION.format(name=name))
+                continue
             self.emit(
                 f"{name}: {angle_degrees:.2f} degrees "
                 f"({motor.current_position:.4f} motor turns)."
@@ -408,7 +419,18 @@ class MotorTestSession:
             if motor.current_velocity is None:
                 self.emit(Errors.NO_ENCODER_SPEED.format(name=name))
                 continue
-            speed_degrees = actuator_actions.get_current_velocity(name)
+            try:
+                speed_degrees = actuator_actions.get_current_velocity(name)
+            except ValueError as error:
+                self.emit(
+                    Errors.SPEED_READ_FAILED.format(
+                        name=name, error=error, turns=motor.current_velocity
+                    )
+                )
+                continue
+            if speed_degrees is None:
+                self.emit(Errors.NO_ENCODER_SPEED.format(name=name))
+                continue
             self.emit(
                 f"{name}: {speed_degrees:.2f} degrees/second "
                 f"({motor.current_velocity:.4f} motor turns/second)."
