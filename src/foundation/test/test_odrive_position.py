@@ -159,6 +159,11 @@ def test_motor_test_tui_submits_commands_and_retains_history() -> None:
 
 def test_motor_test_tui_reports_can_error_changes() -> None:
     motor = SimpleNamespace(axisID=3, axis_error=0)
+    motors = {
+        "front": motor,
+        "flf": SimpleNamespace(axisID=8, axis_error=0),
+        "frf": SimpleNamespace(axisID=9, axis_error=0),
+    }
 
     def fake_run_motor_test(
         _args,
@@ -169,7 +174,9 @@ def test_motor_test_tui_reports_can_error_changes() -> None:
         should_stop,
     ) -> int:
         del emit, should_stop
-        on_motors_configured({"front": motor})
+        on_motors_configured(
+            {name: SimpleNamespace(**vars(state)) for name, state in motors.items()}
+        )
         on_ready()
         try:
             read_command("angle> ")
@@ -181,7 +188,13 @@ def test_motor_test_tui_reports_can_error_changes() -> None:
         app = MotorTestApp(Namespace(motor=None, config=Path("unused.json")))
         with patch.object(
             motor_test_sample, "run_motor_test", side_effect=fake_run_motor_test
-        ):
+        ), patch.object(
+            motor_actions,
+            "get_state_snapshot",
+            side_effect=lambda name: SimpleNamespace(**vars(motors[name])),
+        ), patch.object(
+            motor_actions, "request_error_details", return_value=True
+        ) as request_details:
             async with app.run_test() as pilot:
                 await pilot.pause(0.1)
                 status = app.query_one("#can-status", Static)
@@ -201,11 +214,33 @@ def test_motor_test_tui_reports_can_error_changes() -> None:
                 app.refresh_can_status()
                 assert "CAN ERRORS (1)" in str(status.render())
                 assert "motor=flagged" in log.text
+                request_details.assert_called_once_with("front")
+                app.refresh_can_status()
+                request_details.assert_called_once_with("front")
+
+                motor.motor_error = 8
+                app.refresh_can_status()
+                assert "motor=0x8" in log.text
 
                 motor.motor_error_flag = False
+                motor.motor_error = 0
                 app.refresh_can_status()
                 rendered_log = log.text
                 assert "CAN errors cleared" in rendered_log
+
+                motors["flf"].axis_error = 0x1000
+                motors["frf"].axis_error = 0x2000
+                app.refresh_can_status()
+                assert "CAN ERRORS (2)" in str(status.render())
+                assert "flf (axis 8): axis=0x1000 [MIN_ENDSTOP_PRESSED]" in log.text
+                assert "frf (axis 9): axis=0x2000 [MAX_ENDSTOP_PRESSED]" in log.text
+
+                motors["flf"].axis_error = 0
+                app.refresh_can_status()
+                assert "CAN ERRORS (1)" in str(status.render())
+                motors["frf"].axis_error = 0
+                app.refresh_can_status()
+                assert "CAN OK" in str(status.render())
 
                 log.focus()
                 log.selection = Selection((0, 0), (0, 5))

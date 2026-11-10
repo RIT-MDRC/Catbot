@@ -285,7 +285,10 @@ def run_motor_test(
                 )
                 return 3
         if selected_motors:
-            report_bus_errors(motors, emit)
+            report_bus_errors(
+                {name: motor_actions.get_state_snapshot(name) for name in motor_names},
+                emit,
+            )
             selected_names = ", ".join(name for name, _ in selected_motors)
             print(f"{selected_names} disarmed; type 'arm' to enable the selection.")
 
@@ -303,13 +306,13 @@ def run_motor_test(
         if on_ready is not None:
             on_ready()
         while True:
-            motors = {
-                name: motor_actions.get_state_snapshot(name) for name in motor_names
-            }
             try:
                 raw_value = read_command("angle> ").strip()
             except EOFError:
                 break
+            motors = {
+                name: motor_actions.get_state_snapshot(name) for name in motor_names
+            }
             parts = raw_value.split(maxsplit=1)
             command = parts[0].lower() if parts else ""
             command_matches = []
@@ -748,6 +751,7 @@ class MotorTestApp(App[int]):
         self.motors = None
         self.can_ready = False
         self.last_faults: tuple[tuple[str, int, tuple[int, ...]], ...] | None = None
+        self.last_error_detail_requests: dict[str, float] = {}
         self.session_return_code = 0
 
     def compose(self) -> ComposeResult:
@@ -910,6 +914,18 @@ class MotorTestApp(App[int]):
         if self.motors is None or not self.can_ready:
             status.update(Text("● CAN CHECKING", style="bold yellow"))
             return
+        from component.motor import motor_actions
+
+        self.motors = {
+            name: motor_actions.get_state_snapshot(name) for name in self.motors
+        }
+        now = time.monotonic()
+        for name, motor in self.motors.items():
+            if any(motor_fault_values(motor)) and (
+                now - self.last_error_detail_requests.get(name, -math.inf) >= 1.0
+            ):
+                motor_actions.request_error_details(name)
+                self.last_error_detail_requests[name] = now
         faults = tuple(
             (name, motor.axisID, motor_fault_values(motor))
             for name, motor in sorted(self.motors.items())
