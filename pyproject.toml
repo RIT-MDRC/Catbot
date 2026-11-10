@@ -44,3 +44,13 @@ baseline = "ty-baseline.json"
 
 [tool.ty.environment]
 extra-paths = ["./typings"]
+# ROS packages have their own source roots; Foundation also runs scripts directly.
+root = [
+    "./src/foundation",
+    "./src/foundation/foundation",
+    "./src/foundation/foundation/samples",
+    "./src/catbot_policy",
+    "./src/ui",
+    "./src",
+    ".",
+]

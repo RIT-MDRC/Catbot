@@ -43,6 +43,10 @@ workspace disables Pylance and uses ty for completion, navigation, and type
 diagnostics; the Microsoft Python extension remains enabled for interpreter and
 debugger integration.
 
+The ty source roots in `pyproject.toml` cover the ROS package directories and
+Foundation's directly executed samples. The editor and CLI use these shared
+paths without `PYTHONPATH` or `--extra-search-path` overrides.
+
 ### Run script
 Build the packages:
 * `colcon build`

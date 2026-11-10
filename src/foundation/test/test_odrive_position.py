@@ -1,7 +1,9 @@
 """Hardware-free tests for the ODrive position sample and controller helpers."""
 
 import asyncio
+import subprocess
 import sys
+import textwrap
 from argparse import Namespace
 from pathlib import Path
 from types import SimpleNamespace
@@ -17,6 +19,8 @@ sys.path.insert(0, str(FOUNDATION_ROOT))
 sys.path.insert(0, str(SAMPLES_ROOT))
 
 import odrive_position_test as motor_test_sample
+from component.actuator import actuator_actions
+from component.can import can_actions
 from component.motor import motor_actions
 from component.motor.odrive_enums import ControlMode, InputMode, MotorState
 from component.motor.odrive_motor import (
@@ -66,6 +70,39 @@ def make_motor() -> ODriveMotor:
     motor.sensorless_error_flag = False
     motor.controller_error_flag = False
     return motor
+
+
+def test_sample_import_registers_parsers_without_opening_can(tmp_path) -> None:
+    """Check registration in a fresh process, before configuration or commands."""
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            textwrap.dedent("""
+                import sys
+                from unittest.mock import patch
+
+                sys.path.insert(0, sys.argv[1])
+                with patch("can.Bus", side_effect=AssertionError("CAN opened during import")):
+                    import odrive_position_test
+
+                from state_management import get_context
+
+                for name in ("can_bus", "odrive_motor", "actuator_motion_profile", "actuator"):
+                    context = get_context(name)
+                    assert context is not None, name
+                    assert context.parse_device is not None, name
+                    assert not context.store, name
+                """),
+            str(SAMPLES_ROOT),
+        ],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 def test_parse_speed_degrees_per_second() -> None:
@@ -186,15 +223,19 @@ def test_motor_test_tui_reports_can_error_changes() -> None:
 
     async def exercise() -> None:
         app = MotorTestApp(Namespace(motor=None, config=Path("unused.json")))
-        with patch.object(
-            motor_test_sample, "run_motor_test", side_effect=fake_run_motor_test
-        ), patch.object(
-            motor_actions,
-            "get_state_snapshot",
-            side_effect=lambda name: SimpleNamespace(**vars(motors[name])),
-        ), patch.object(
-            motor_actions, "request_error_details", return_value=True
-        ) as request_details:
+        with (
+            patch.object(
+                motor_test_sample, "run_motor_test", side_effect=fake_run_motor_test
+            ),
+            patch.object(
+                motor_actions,
+                "get_state_snapshot",
+                side_effect=lambda name: SimpleNamespace(**vars(motors[name])),
+            ),
+            patch.object(
+                motor_actions, "request_error_details", return_value=True
+            ) as request_details,
+        ):
             async with app.run_test() as pilot:
                 await pilot.pause(0.1)
                 status = app.query_one("#can-status", Static)
@@ -470,3 +511,220 @@ def test_clear_errors_resets_cached_detailed_errors_after_success() -> None:
         motor.sensorless_error,
         motor.controller_error,
     ) == (0, 0, 0, 0)
+
+
+@pytest.fixture
+def command_runtime(monkeypatch):
+    """Exercise real command dispatch with simulated CAN and actuator actions."""
+    front = make_motor()
+    rear = make_motor()
+    rear.axisID = 1
+    for motor in (front, rear):
+        motor.current_state = MotorState.IDLE
+        motor.current_position = 0.0
+        motor.current_velocity = 0.5
+    motors = {"front": front, "rear": rear}
+    output = []
+
+    def set_state(name, state):
+        motors[name].current_state = state
+        return True
+
+    actions = SimpleNamespace(
+        configure=Mock(return_value=True),
+        hold=Mock(return_value=True),
+        set_state=Mock(side_effect=set_state),
+        clear=Mock(return_value=True),
+        set_speed=Mock(return_value=True),
+        position=Mock(return_value=10.0),
+        velocity=Mock(return_value=5.0),
+        validate=Mock(side_effect=lambda _name, degrees: degrees * 64 / 360),
+        target=Mock(return_value=True),
+        close=Mock(),
+    )
+    monkeypatch.setattr(motor_test_sample, "configure_device", Mock())
+    monkeypatch.setattr(can_actions, "get_names", lambda: ["can0"])
+    monkeypatch.setattr(can_actions, "close", actions.close)
+    monkeypatch.setattr(motor_actions, "get_names", lambda: list(motors))
+    monkeypatch.setattr(motor_actions, "get_state_snapshot", motors.__getitem__)
+    monkeypatch.setattr(motor_actions, "hold_current_position", actions.hold)
+    monkeypatch.setattr(motor_actions, "set_axis_state", actions.set_state)
+    monkeypatch.setattr(motor_actions, "clear_error_message", actions.clear)
+    monkeypatch.setattr(actuator_actions, "configure_trajectory", actions.configure)
+    monkeypatch.setattr(actuator_actions, "set_trajectory_speed", actions.set_speed)
+    monkeypatch.setattr(actuator_actions, "get_current_position", actions.position)
+    monkeypatch.setattr(actuator_actions, "get_current_velocity", actions.velocity)
+    monkeypatch.setattr(actuator_actions, "validate_target_position", actions.validate)
+    monkeypatch.setattr(actuator_actions, "set_target_position", actions.target)
+    monkeypatch.setattr(
+        actuator_actions, "get_trajectory_velocity_motor_turns", lambda _name: 2.0
+    )
+    monkeypatch.setattr(
+        motor_test_sample,
+        "wait_for",
+        lambda name, predicate, _timeout, _stop: predicate(motors[name]),
+    )
+    # Patch only this sample's clock so UI timing in other tests stays intact.
+    monkeypatch.setattr(
+        motor_test_sample, "time", SimpleNamespace(sleep=lambda _: None)
+    )
+
+    def run(commands, selector="*"):
+        commands = iter(commands)
+
+        def read_command(_prompt):
+            command = next(commands, EOFError())
+            if isinstance(command, BaseException):
+                raise command
+            return command
+
+        return motor_test_sample.run_motor_test(
+            Namespace(motor=selector, config=Path("unused.json")),
+            read_command=read_command,
+            emit=output.append,
+        )
+
+    return SimpleNamespace(motors=motors, actions=actions, output=output, run=run)
+
+
+def test_command_session_dispatches_aliases_and_position_commands(command_runtime):
+    runtime = command_runtime
+
+    assert (
+        runtime.run(
+            ["R 0", "rs rear", "speed 12 0,1", "a", "mp 15 front", "mr -5 1", "d", "q"]
+        )
+        == 0
+    )
+
+    runtime.actions.position.assert_any_call("front")
+    runtime.actions.velocity.assert_called_once_with("rear")
+    assert runtime.actions.set_speed.call_args_list == [
+        (("front", 12.0),),
+        (("rear", 12.0),),
+    ]
+    assert runtime.actions.target.call_args_list == [
+        (("front", 15.0),),
+        (("rear", 5.0),),
+    ]
+    assert all(m.current_state == MotorState.IDLE for m in runtime.motors.values())
+    runtime.actions.close.assert_called_once_with("can0")
+
+
+def test_command_session_checks_each_selected_motor_before_motion(command_runtime):
+    runtime = command_runtime
+    runtime.motors["rear"].axis_error = 0x100
+
+    assert runtime.run(["mp 5", "arm", "mp 5", "q"]) == 0
+
+    runtime.actions.hold.assert_called_once_with("front")
+    runtime.actions.target.assert_called_once_with("front", 5.0)
+    assert "rear" not in [
+        call.args[0] for call in runtime.actions.set_state.call_args_list
+    ]
+    assert "front is disarmed; run 'arm front'." in runtime.output
+    assert runtime.motors["front"].current_state == MotorState.IDLE
+
+
+def test_command_session_rejects_invalid_values_and_atomic_selections(command_runtime):
+    runtime = command_runtime
+
+    assert (
+        runtime.run(
+            [
+                "",
+                "15",
+                "speed nan",
+                "mp inf",
+                "mr",
+                "arm front,missing",
+                "speed 5 7",
+                "q",
+            ],
+            selector=None,
+        )
+        == 0
+    )
+
+    runtime.actions.set_state.assert_not_called()
+    runtime.actions.target.assert_not_called()
+    runtime.actions.set_speed.assert_not_called()
+    assert any("Configured motors:" in line for line in runtime.output)
+
+
+def test_command_session_rejects_relative_motion_without_feedback(command_runtime):
+    runtime = command_runtime
+    runtime.actions.position.return_value = None
+
+    assert runtime.run(["arm front", "mr 5 front", "q"]) == 0
+
+    runtime.actions.target.assert_not_called()
+    assert any(
+        "relative motion requires a current position" in line for line in runtime.output
+    )
+
+
+def test_command_session_rejects_out_of_bounds_targets(command_runtime):
+    runtime = command_runtime
+    runtime.actions.validate.side_effect = ValueError("outside configured bounds")
+
+    assert runtime.run(["arm front", "mp 90 front", "q"]) == 0
+
+    runtime.actions.target.assert_not_called()
+    assert "Command rejected for front: outside configured bounds." in runtime.output
+
+
+def test_command_session_returns_idle_after_unconfirmed_arm(
+    command_runtime, monkeypatch
+):
+    runtime = command_runtime
+    monkeypatch.setattr(
+        motor_test_sample,
+        "wait_for",
+        lambda _name, _predicate, _timeout, _stop: False,
+    )
+
+    assert runtime.run(["arm front", "mp 5 front", "q"], selector=None) == 0
+
+    runtime.actions.target.assert_not_called()
+    assert runtime.motors["front"].current_state == MotorState.IDLE
+    assert "front did not confirm that it is armed." in runtime.output
+
+
+@pytest.mark.parametrize(
+    "ending, expected_code",
+    [("q", 0), (EOFError(), 0), (KeyboardInterrupt(), 0), (OSError("disconnected"), 7)],
+)
+def test_command_session_cleans_up_on_every_exit(
+    command_runtime, ending, expected_code
+):
+    runtime = command_runtime
+
+    assert runtime.run(["arm front", ending]) == expected_code
+
+    assert runtime.actions.set_state.call_args_list[-1].args == (
+        "front",
+        MotorState.IDLE,
+    )
+    runtime.actions.close.assert_called_once_with("can0")
+
+
+@pytest.mark.parametrize(
+    "command, state",
+    [
+        ("c", MotorState.MOTOR_CALIBRATION),
+        ("calibrate", MotorState.MOTOR_CALIBRATION),
+        ("f", MotorState.FULL_CALIBRATION_SEQUENCE),
+        ("full", MotorState.FULL_CALIBRATION_SEQUENCE),
+        ("full-calibration", MotorState.FULL_CALIBRATION_SEQUENCE),
+        ("h", MotorState.HOMING),
+        ("home", MotorState.HOMING),
+    ],
+)
+def test_command_session_dispatches_state_shortcuts(command_runtime, command, state):
+    runtime = command_runtime
+
+    assert runtime.run([f"{command} rear", "e rear", "q"]) == 0
+
+    runtime.actions.set_state.assert_called_once_with("rear", state)
+    runtime.actions.clear.assert_called_once_with("rear")
