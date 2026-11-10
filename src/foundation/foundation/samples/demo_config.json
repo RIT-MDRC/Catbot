@@ -42,7 +42,7 @@
 					"value": 5,
 					"unit": "millimeters"
 				},
-				"x_offset": { "value": 10.461, "unit": "centimeters" }
+				"x_offset": { "value": 3.565, "unit": "centimeters" }
 			}
 		}
 	},
