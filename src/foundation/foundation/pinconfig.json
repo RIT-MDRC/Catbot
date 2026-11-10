@@ -31,7 +31,7 @@
 			}
 		},
 		"knee_ballscrew": {
-			"inverted": false,
+			"inverted": true,
 			"position_min": { "value": -55, "unit": "degrees" },
 			"position_max": { "value": 55, "unit": "degrees" },
 			"trajectory_velocity": { "value": 1, "unit": "motor_turns_per_second" },
@@ -45,10 +45,10 @@
 				"A": 11.869,
 				"B": 7.95,
 				"ballscrew_travel_per_motor_turn": {
-					"value": 10,
+					"value": 5,
 					"unit": "millimeters"
 				},
-				"x_offset": { "value": 6.7624856638, "unit": "centimeters" }
+				"x_offset": { "value": 10.461, "unit": "centimeters" }
 			}
 		}
 	},
