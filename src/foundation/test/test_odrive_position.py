@@ -34,6 +34,7 @@ from odrive_position_test import (
     describe_axis_error,
     describe_motors,
     find_motors,
+    motor_fault_values,
     parse_angle_degrees,
     parse_speed_degrees_per_second,
     position_target_degrees,
@@ -191,11 +192,17 @@ def test_motor_test_tui_reports_can_error_changes() -> None:
                 assert "CAN ERRORS (1)" in str(status.render())
                 log = app.query_one("#log", TextArea)
                 rendered_log = log.text
-                assert "front (axis 3): 0x300" in rendered_log
+                assert "front (axis 3): axis=0x300" in rendered_log
                 assert "ENCODER_FAILED" in rendered_log
                 assert "CONTROLLER_FAILED" in rendered_log
 
                 motor.axis_error = 0
+                motor.motor_error_flag = True
+                app.refresh_can_status()
+                assert "CAN ERRORS (1)" in str(status.render())
+                assert "motor=flagged" in log.text
+
+                motor.motor_error_flag = False
                 app.refresh_can_status()
                 rendered_log = log.text
                 assert "CAN errors cleared" in rendered_log
@@ -209,6 +216,17 @@ def test_motor_test_tui_reports_can_error_changes() -> None:
                 await pilot.pause(0.1)
 
     asyncio.run(exercise())
+
+
+def test_motor_fault_values_include_detail_errors_and_heartbeat_flags() -> None:
+    motor = make_motor()
+    motor.controller_error = 0x20
+    motor.encoder_error_flag = True
+
+    values = motor_fault_values(motor)
+
+    assert values[4] == 0x20
+    assert values[6] == 1
 
 
 def test_describe_motors_includes_names_and_axis_ids() -> None:

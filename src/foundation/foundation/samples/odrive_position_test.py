@@ -20,6 +20,38 @@ from textual.widgets import Input, Static, TextArea
 HEARTBEAT_TIMEOUT_SECONDS = 3.0
 
 
+def motor_fault_values(motor) -> tuple[int, ...]:
+    """Return all fault indicators exposed by heartbeat and detail messages."""
+    return (
+        getattr(motor, "axis_error", 0),
+        getattr(motor, "motor_error", 0),
+        getattr(motor, "encoder_error", 0),
+        getattr(motor, "sensorless_error", 0),
+        getattr(motor, "controller_error", 0),
+        int(getattr(motor, "motor_error_flag", False)),
+        int(getattr(motor, "encoder_error_flag", False)),
+        int(getattr(motor, "sensorless_error_flag", False)),
+        int(getattr(motor, "controller_error_flag", False)),
+    )
+
+
+def describe_motor_fault(values: tuple[int, ...]) -> str:
+    """Format a compact summary of axis, detailed, and pending errors."""
+    axis, motor, encoder, sensorless, controller, *flags = values
+    parts = []
+    if axis:
+        parts.append(f"axis=0x{axis:x} {describe_axis_error(axis)}")
+    details = (motor, encoder, sensorless, controller)
+    for name, detail, flagged in zip(
+        ("motor", "encoder", "sensorless", "controller"), details, flags
+    ):
+        if detail:
+            parts.append(f"{name}=0x{detail:x}")
+        elif flagged:
+            parts.append(f"{name}=flagged")
+    return ", ".join(parts)
+
+
 def parse_speed_degrees_per_second(value: str) -> float:
     """Parse a finite, positive joint-speed limit."""
     speed = float(value)
@@ -669,13 +701,13 @@ class MotorTestApp(App[int]):
         height: 3;
         margin-top: 1;
         border: none;
-        background: #24272e;
+        background: #262626;
         padding: 0 1;
     }
 
     #command:focus {
         border: none;
-        background: #2d313a;
+        background: #333333;
     }
 
     #status-row {
@@ -715,7 +747,7 @@ class MotorTestApp(App[int]):
         self.session_thread: threading.Thread | None = None
         self.motors = None
         self.can_ready = False
-        self.last_faults: tuple[tuple[str, int, int], ...] | None = None
+        self.last_faults: tuple[tuple[str, int, tuple[int, ...]], ...] | None = None
         self.session_return_code = 0
 
     def compose(self) -> ComposeResult:
@@ -845,9 +877,7 @@ class MotorTestApp(App[int]):
         if log.document.line_count > 2000:
             excess_lines = log.document.line_count - 2000
             log.delete((0, 0), (excess_lines, 0), maintain_selection_offset=True)
-        if log.selection.is_empty:
-            log.move_cursor(log.document.end)
-            log.scroll_cursor_visible()
+        log.scroll_end(animate=False)
 
     def write_output(self, message: str) -> None:
         lower = message.lower()
@@ -881,9 +911,9 @@ class MotorTestApp(App[int]):
             status.update(Text("● CAN CHECKING", style="bold yellow"))
             return
         faults = tuple(
-            (name, motor.axisID, motor.axis_error)
+            (name, motor.axisID, motor_fault_values(motor))
             for name, motor in sorted(self.motors.items())
-            if motor.axis_error
+            if any(motor_fault_values(motor))
         )
         if faults:
             status.update(
@@ -905,10 +935,9 @@ class MotorTestApp(App[int]):
                 f"{'es' if len(faults) != 1 else ''}.",
                 "bold red",
             )
-            for name, axis_id, error in faults:
+            for name, axis_id, values in faults:
                 self.write_log(
-                    f"  {name} (axis {axis_id}): 0x{error:x} "
-                    f"{describe_axis_error(error)}",
+                    f"  {name} (axis {axis_id}): {describe_motor_fault(values)}",
                     "red",
                 )
         elif self.last_faults:
