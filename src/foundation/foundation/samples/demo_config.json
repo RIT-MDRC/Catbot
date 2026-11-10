@@ -39,10 +39,10 @@
 				"A": 11.869,
 				"B": 7.95,
 				"ballscrew_travel_per_motor_turn": {
-					"value": 10,
+					"value": 5,
 					"unit": "millimeters"
 				},
-				"x_offset": { "value": 6.7624856638, "unit": "centimeters" }
+				"x_offset": { "value": 10.461, "unit": "centimeters" }
 			}
 		}
 	},
