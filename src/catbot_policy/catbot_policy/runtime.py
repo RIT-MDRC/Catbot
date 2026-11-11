@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import time
 from pathlib import Path
 
 import torch
@@ -63,6 +64,7 @@ class ActuatorMapping:
     def __init__(self, path: Path | None = None):
         path = path or Path(__file__).with_name("default_mapping.json")
         data = json.loads(path.read_text())
+        self.metadata = data
         self.names = data["actuator_names"]
         if (
             not isinstance(self.names, list)
@@ -238,7 +240,10 @@ class PolicyRuntime:
         ):
             return False
         with torch.inference_mode():
-            raw_action = self.actor(self.observation())
+            observation = self.observation()
+            inference_started = time.perf_counter()
+            raw_action = self.actor(observation)
+            self.last_inference_seconds = time.perf_counter() - inference_started
             self._validate_action(raw_action)
             smoothing = self.settings["action_smoothing"]
             action = smoothing * self.previous_action + (1 - smoothing) * raw_action[

@@ -253,3 +253,19 @@ also runs a ROS smoke test. It publishes synthetic feedback and velocity command
 to isolated test topics, receives remapped actuator targets, and checks that
 publication stops on timeout. It never starts foundation or publishes to its
 control topic. Without ROS, that test is explicitly skipped.
+
+### Distributed simulation backend
+
+`ros2 launch catbot_policy catbot.launch.py backend:=simulation` selects
+foundation's hardware-free simulation transport. `mapping_file` is shared by both
+nodes. Hardware remains the default. The policy waits for a matching transient
+`/simulation/contract` before consuming `/policy/feedback`; the Orin bridge
+supplies model hash, policy contract, settings, and mapping. Foundation validates
+and forwards `/body/control/position` to `/simulation/control/position`.
+
+`/policy/metrics` publishes five-second JSON timing summaries (CPU actor and
+policy-step callback p50/p95/p99, successful command rate, missed timer intervals,
+callback overruns, local feedback age, process CPU use and Linux peak RSS).
+Restart the entire distributed launch to reset policy and simulator history.
+This exercises the inference runtime and simulation transport, not CAN hardware
+workload. See the catbot-orin repository's `docs/SIMULATION.md` for orchestration.

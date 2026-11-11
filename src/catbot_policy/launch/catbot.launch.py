@@ -6,8 +6,9 @@ from pathlib import Path
 
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, Shutdown
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import LaunchConfiguration, PythonExpression
 from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
 
 # pull_policy.py selects this link after a successful download/export/load.
 # Set this variable to another directory to choose a fixed policy instead.
@@ -34,9 +35,26 @@ def generate_launch_description():
                 default_value=POLICY_BUNDLE,
                 description="Exported policy directory containing policy.pt and policy.json",
             ),
+            DeclareLaunchArgument(
+                "backend", default_value="hardware", choices=["hardware", "simulation"]
+            ),
+            DeclareLaunchArgument(
+                "mapping_file",
+                default_value=str(
+                    Path(find_spec("catbot_policy").origin).parent
+                    / "default_mapping.json"
+                ),
+            ),
             Node(
                 package="foundation",
-                executable="main",
+                executable=PythonExpression(
+                    [
+                        "'simulation' if '",
+                        LaunchConfiguration("backend"),
+                        "' == 'simulation' else 'main'",
+                    ]
+                ),
+                parameters=[{"mapping_file": LaunchConfiguration("mapping_file")}],
                 output="screen",
                 additional_env={"PYTHONPATH": python_path},
                 on_exit=Shutdown(),
@@ -45,7 +63,22 @@ def generate_launch_description():
                 package="catbot_policy",
                 executable="policy",
                 output="screen",
-                parameters=[{"policy_bundle": LaunchConfiguration("policy_bundle")}],
+                parameters=[
+                    {
+                        "policy_bundle": LaunchConfiguration("policy_bundle"),
+                        "mapping_file": LaunchConfiguration("mapping_file"),
+                        "simulation_mode": ParameterValue(
+                            PythonExpression(
+                                [
+                                    "'",
+                                    LaunchConfiguration("backend"),
+                                    "' == 'simulation'",
+                                ]
+                            ),
+                            value_type=bool,
+                        ),
+                    }
+                ],
                 on_exit=Shutdown(),
             ),
         ]

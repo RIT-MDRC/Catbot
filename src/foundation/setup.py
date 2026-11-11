@@ -28,6 +28,9 @@ setup(
     license="My license",
     # tests_require=["pytest"],
     entry_points={
-        "console_scripts": ["main = foundation.main:main"],
+        "console_scripts": [
+            "main = foundation.main:main",
+            "simulation = foundation.simulation:main",
+        ],
     },
 )
