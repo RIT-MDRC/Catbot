@@ -187,7 +187,7 @@ inverted profile can share every value except direction:
 Do not add `position_min` or `position_max` to an ODrive referenced by an
 actuator. Its raw bounds are derived from the logical profile endpoints and
 sorted after direction inversion. Raw-only ODrive configurations remain
-supported when no actuator references them. Runtime `speed` commands affect
+supported when no actuator references them. Runtime `speed` and `accel` commands affect
 only the selected actuator and do not mutate a shared profile.
 
 The four `k` actuators use the `knee_ballscrew` nonlinear profile. It evaluates

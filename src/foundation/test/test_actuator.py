@@ -238,6 +238,47 @@ def test_trajectory_magnitudes_stay_positive_and_runtime_speeds_are_isolated():
     assert accel.call_args.args[1] == 1
 
 
+def test_runtime_motor_acceleration_is_isolated_and_retained_when_rearming():
+    first, _ = make_actuator("first", inverted=True)
+    second, _ = make_actuator("second")
+    knee, _ = make_knee_actuator()
+    with patch.object(motor_actions, "send_message", return_value=True) as send:
+        for actuator in (first, knee):
+            assert actuator_actions.set_trajectory_acceleration(actuator, 0.5)
+            assert send.call_args.args[1:] == (
+                "Set_Traj_Accel_Limits",
+                {"Traj_Accel_Limit": 0.5, "Traj_Decel_Limit": 0.5},
+            )
+            assert actuator.trajectory_acceleration_motor_turns == 0.5
+            assert actuator_actions.configure_trajectory(actuator)
+            assert send.call_args.args[1:] == (
+                "Set_Traj_Accel_Limits",
+                {"Traj_Accel_Limit": 0.5, "Traj_Decel_Limit": 0.5},
+            )
+        assert second.trajectory_acceleration_motor_turns == 1
+        assert actuator_actions.configure_trajectory(second)
+        assert send.call_args.args[2] == {
+            "Traj_Accel_Limit": 1,
+            "Traj_Decel_Limit": 1,
+        }
+    assert motion_profile_actions.get_profile(
+        first.profile
+    ).trajectory_acceleration == (quantity(1, "motor_turns_per_second_squared"))
+
+
+def test_failed_or_invalid_acceleration_does_not_replace_retained_setting():
+    actuator, _ = make_actuator("joint")
+    with patch.object(motor_actions, "send_message", return_value=False) as send:
+        assert not actuator_actions.set_trajectory_acceleration(actuator, 2)
+        assert actuator.trajectory_acceleration_motor_turns == 1
+        send.reset_mock()
+        for value in (0, -1, float("nan"), float("inf"), -float("inf")):
+            with pytest.raises(ValueError):
+                actuator_actions.set_trajectory_acceleration(actuator, value)
+        send.assert_not_called()
+        assert actuator.trajectory_acceleration_motor_turns == 1
+
+
 def test_profile_and_competing_raw_bounds_are_rejected():
     with pytest.raises(ValueError):
         ActuatorMotionProfile(

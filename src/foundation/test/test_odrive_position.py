@@ -538,6 +538,7 @@ def command_runtime(monkeypatch):
         set_state=Mock(side_effect=set_state),
         clear=Mock(return_value=True),
         set_speed=Mock(return_value=True),
+        set_acceleration=Mock(return_value=True),
         position=Mock(return_value=10.0),
         velocity=Mock(return_value=5.0),
         validate=Mock(side_effect=lambda _name, degrees: degrees * 64 / 360),
@@ -554,6 +555,9 @@ def command_runtime(monkeypatch):
     monkeypatch.setattr(motor_actions, "clear_error_message", actions.clear)
     monkeypatch.setattr(actuator_actions, "configure_trajectory", actions.configure)
     monkeypatch.setattr(actuator_actions, "set_trajectory_speed", actions.set_speed)
+    monkeypatch.setattr(
+        actuator_actions, "set_trajectory_acceleration", actions.set_acceleration
+    )
     monkeypatch.setattr(actuator_actions, "get_current_position", actions.position)
     monkeypatch.setattr(actuator_actions, "get_current_velocity", actions.velocity)
     monkeypatch.setattr(actuator_actions, "validate_target_position", actions.validate)
@@ -611,6 +615,43 @@ def test_command_session_dispatches_aliases_and_position_commands(command_runtim
     ]
     assert all(m.current_state == MotorState.IDLE for m in runtime.motors.values())
     runtime.actions.close.assert_called_once_with("can0")
+
+
+def test_acceleration_commands_support_selectors_without_starting_motion(
+    command_runtime,
+):
+    runtime = command_runtime
+    assert runtime.run(["accel 0.5 front", "acceleration 2 0,1", "accel 3", "q"]) == 0
+    assert runtime.actions.set_acceleration.call_args_list == [
+        (("front", 0.5),),
+        (("front", 2.0),),
+        (("rear", 2.0),),
+        (("front", 3.0),),
+        (("rear", 3.0),),
+    ]
+    runtime.actions.target.assert_not_called()
+    runtime.actions.set_state.assert_not_called()
+    assert any("0.5 motor turns/second²" in line for line in runtime.output)
+
+
+def test_acceleration_rejects_invalid_values_and_selections(command_runtime):
+    runtime = command_runtime
+    commands = [
+        "accel",
+        "accel nope",
+        "accel 0",
+        "accel -1",
+        "accel nan",
+        "accel inf",
+        "accel 0.5 front,missing",
+        "accel 0.5 7",
+        "accel 0.5",
+        "q",
+    ]
+    assert runtime.run(commands, selector=None) == 0
+    runtime.actions.set_acceleration.assert_not_called()
+    runtime.actions.target.assert_not_called()
+    runtime.actions.set_state.assert_not_called()
 
 
 @pytest.mark.parametrize("command", ["r", "read", "rs", "read-speed"])

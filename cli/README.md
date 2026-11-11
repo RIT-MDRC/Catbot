@@ -110,6 +110,14 @@ rearming until another `speed` command changes it. A fixed motor-turn trajectory
 gives an approximate joint speed that varies as the linkage angle changes,
 with acceleration and deceleration at the start and end of a move.
 
+`accel <motor-turns-per-second-squared> [motor]` (or `acceleration`) sets both
+trajectory acceleration and deceleration. For example, `accel 0.5 blk` limits
+both ramps to 0.5 motor turns/s² (180 motor degrees/s²). This uses raw motor
+units for every profile, including knees. It accepts the same motor names,
+axis IDs, comma lists, `*`, and launch default as `speed`. The setting applies
+to the next position command and is retained through rearming for the session;
+it does not change the shared profile or start motion.
+
 `read-speed [motor]` (or `rs [motor]`) prints the latest measured encoder speed
 in joint degrees per second and raw motor turns per second. It is read-only and
 works while the motor is disarmed.

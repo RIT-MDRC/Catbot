@@ -6,6 +6,7 @@ class MotorTestErrors:
 
     INVALID_MOTOR_SELECTION = "Invalid command: supply valid motor names or axis IDs (comma-separated for multiple motors), or start motor-test with --motor."
     POSITIVE_SPEED_REQUIRED = "speed must be finite and greater than zero"
+    POSITIVE_ACCELERATION_REQUIRED = "acceleration must be finite and greater than zero"
     FINITE_ANGLE_REQUIRED = "angle must be finite"
     CURRENT_POSITION_REQUIRED = "relative motion requires a current position"
     UNKNOWN_POSITION_COMMAND = 'unknown position command "{command}"'
@@ -43,6 +44,8 @@ class MotorTestErrors:
         "Invalid speed. Use: speed <positive degrees/second> [motor[,motor...]]."
     )
     SPEED_FAILED = "Failed to set speed for {name}."
+    INVALID_ACCELERATION = "Invalid acceleration. Use: accel <positive motor turns/second²> [motor[,motor...]]."
+    ACCELERATION_FAILED = "Failed to set acceleration/deceleration for {name}."
     INVALID_ANGLE = "Invalid command. Use {command} <finite angle> [motor[,motor...]]."
     FAULT_BEFORE_MOTION = "Clear the error on {name} before commanding motion."
     DISARMED = "{name} is disarmed; run 'arm {name}'."

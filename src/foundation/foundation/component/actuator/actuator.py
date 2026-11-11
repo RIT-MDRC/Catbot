@@ -26,6 +26,7 @@ class Actuator:
         profile_actions.ctx
     )
     trajectory_velocity_motor_turns: float = field(init=False)
+    trajectory_acceleration_motor_turns: float = field(init=False)
 
     def __post_init__(self):
         profile = profile_actions.get_profile(self.profile)
@@ -34,6 +35,11 @@ class Actuator:
         motor_actions.set_position_bounds(self.motor, minimum, maximum)
         self.trajectory_velocity_motor_turns = profile_actions.velocity_to_motor_turns(
             profile, profile.trajectory_velocity
+        )
+        self.trajectory_acceleration_motor_turns = (
+            profile_actions.acceleration_to_motor_turns(
+                profile, profile.trajectory_acceleration
+            )
         )
 
 
@@ -245,12 +251,19 @@ def set_trajectory_speed(
 
 
 @device_action(ctx)
+def set_trajectory_acceleration(actuator: Actuator, value: float) -> bool:
+    """Set positive motor turns/s² for both acceleration and deceleration."""
+    if not math.isfinite(value) or value <= 0:
+        raise ValueError("trajectory acceleration must be finite and positive")
+    if motor_actions.set_trajectory_accel(actuator.motor, value):
+        actuator.trajectory_acceleration_motor_turns = value
+        return True
+    return False
+
+
+@device_action(ctx)
 def configure_trajectory(actuator: Actuator) -> bool:
     """Configure position/trapezoidal control and positive trajectory magnitudes."""
-    profile = _profile(actuator)
-    acceleration = profile_actions.acceleration_to_motor_turns(
-        profile, profile.trajectory_acceleration
-    )
     return (
         motor_actions.set_controller_mode(
             actuator.motor, ControlMode.POSITION_CONTROL, InputMode.TRAP_TRAJ
@@ -258,7 +271,9 @@ def configure_trajectory(actuator: Actuator) -> bool:
         and motor_actions.set_trajectory_velocity(
             actuator.motor, actuator.trajectory_velocity_motor_turns
         )
-        and motor_actions.set_trajectory_accel(actuator.motor, acceleration)
+        and motor_actions.set_trajectory_accel(
+            actuator.motor, actuator.trajectory_acceleration_motor_turns
+        )
     )
 
 

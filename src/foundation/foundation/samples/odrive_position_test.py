@@ -87,6 +87,7 @@ COMMAND_HELP = (
     "Commands: arm [motor[,motor...]], disarm [motor[,motor...]], "
     "r/read [motor[,motor...]] = read angle, "
     "speed <deg/s> [motor[,motor...]], "
+    "accel <motor turns/s²> [motor[,motor...]], "
     "rs/read-speed [motor[,motor...]], "
     "mp <angle> [motor[,motor...]] = absolute position, "
     "mr <angle> [motor[,motor...]] = relative motion, "
@@ -132,6 +133,14 @@ def parse_speed_degrees_per_second(value: str) -> float:
     if not math.isfinite(speed) or speed <= 0:
         raise ValueError(Errors.POSITIVE_SPEED_REQUIRED)
     return speed
+
+
+def parse_acceleration(value: str) -> float:
+    """Parse a finite, positive motor acceleration limit in turns/s²."""
+    acceleration = float(value)
+    if not math.isfinite(acceleration) or acceleration <= 0:
+        raise ValueError(Errors.POSITIVE_ACCELERATION_REQUIRED)
+    return acceleration
 
 
 def parse_angle_degrees(value: str) -> float:
@@ -357,6 +366,9 @@ class MotorTestSession:
         if command == "speed":
             self._set_speed(arguments)
             return True
+        if command in ("accel", "acceleration"):
+            self._set_acceleration(arguments)
+            return True
         if command in POSITION_COMMANDS:
             self._move(command, arguments)
             return True
@@ -529,6 +541,25 @@ class MotorTestSession:
                 )
             else:
                 self.emit(Errors.SPEED_FAILED.format(name=name))
+
+    def _set_acceleration(self, arguments: str) -> None:
+        """Apply a motor acceleration/deceleration limit to selected motors."""
+        parts = arguments.split(maxsplit=1)
+        try:
+            acceleration = parse_acceleration(parts[0])
+        except (IndexError, ValueError):
+            self.emit(Errors.INVALID_ACCELERATION)
+            return
+        selector = parts[1] if len(parts) == 2 else self.default_motor_name
+        for name, _ in self._select_motors(selector):
+            if actuator_actions.set_trajectory_acceleration(name, acceleration):
+                self.emit(
+                    f"Set {name} trajectory acceleration/deceleration limit to "
+                    f"{acceleration:g} motor turns/second²; "
+                    "applies to the next position command."
+                )
+            else:
+                self.emit(Errors.ACCELERATION_FAILED.format(name=name))
 
     def _move(self, command: str, arguments: str) -> None:
         """Resolve a finite angle and apply motion checks separately to each motor."""
@@ -749,7 +780,7 @@ class MotorTestApp(App[int]):
 
     STOP = object()
     COMMAND_HINT = (
-        "mp abs  mr rel  arm  disarm  read  speed  c/f calibrate  "
+        "mp abs  mr rel  arm  disarm  read  speed  accel  c/f calibrate  "
         "home  clear  q quit  select log + Ctrl/Cmd-C copy"
     )
 
