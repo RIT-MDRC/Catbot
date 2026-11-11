@@ -102,6 +102,13 @@ conversion error, and the session remains open.
 limit for later angle commands. For example, `speed 10 odrive_1` sets axis
 `odrive_1` to 10 joint degrees per second, and `speed 10 *` applies it to every
 configured motor. The setting is retained if that motor is subsequently armed.
+It takes effect on the next `mp` or `mr` command; changing `speed` alone does not
+replan a move already in progress. The argument is joint degrees per second.
+For a nonlinear knee, it is converted using the current angle when `speed` is
+issued; the resulting motor-turn limit stays fixed for subsequent moves and
+rearming until another `speed` command changes it. A fixed motor-turn trajectory
+gives an approximate joint speed that varies as the linkage angle changes,
+with acceleration and deceleration at the start and end of a move.
 
 `read-speed [motor]` (or `rs [motor]`) prints the latest measured encoder speed
 in joint degrees per second and raw motor turns per second. It is read-only and

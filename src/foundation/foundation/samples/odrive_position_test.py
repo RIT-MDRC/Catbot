@@ -522,9 +522,10 @@ class MotorTestSession:
             if actuator_actions.set_trajectory_speed(name, speed_degrees):
                 speed_turns = actuator_actions.get_trajectory_velocity_motor_turns(name)
                 self.emit(
-                    f"Set {name} trajectory speed to "
+                    f"Set {name} trajectory speed limit to "
                     f"{speed_degrees:g} degrees/second "
-                    f"({speed_turns:.4f} motor turns/second)."
+                    f"({speed_turns:.4f} motor turns/second at the current angle); "
+                    "applies to the next position command."
                 )
             else:
                 self.emit(Errors.SPEED_FAILED.format(name=name))
