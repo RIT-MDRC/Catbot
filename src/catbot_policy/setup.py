@@ -11,8 +11,15 @@ setup(
         ("share/catbot_policy", ["package.xml"]),
         ("share/catbot_policy/launch", glob("launch/*.launch.py")),
     ],
-    package_data={"catbot_policy": ["default_mapping.json"]},
-    install_requires=["setuptools", "torch==2.14.0"],
+    package_data={
+        "catbot_policy": [
+            "default_mapping.json",
+            "inference/*.toml",
+            "inference/*.lock",
+            "inference/*.py",
+        ]
+    },
+    install_requires=["setuptools"],
     zip_safe=False,
     maintainer="Catbot",
     maintainer_email="hiroto125takeuchi@gmail.com",

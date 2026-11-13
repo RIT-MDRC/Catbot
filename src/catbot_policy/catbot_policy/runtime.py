@@ -10,41 +10,7 @@ from pathlib import Path
 
 import torch
 
-# Deliberately checked against the exported contract; changes require a new version.
-OBSERVATION_FIELDS = (
-    ("base_height_quaternion", 5),
-    ("heading_linear_velocity", 3),
-    ("base_angular_velocity", 3),
-    ("joint_positions", 12),
-    ("joint_velocities", 12),
-    ("command", 3),
-    ("previous_action", 12),
-    ("previous_action_delta", 12),
-    ("normalized_air_time", 4),
-    ("previous_contact", 4),
-    ("has_stance", 4),
-    ("gait_sin", 1),
-    ("gait_cos", 1),
-    ("gait_blend", 1),
-    ("motion_travel", 12),
-    ("motion_progress", 1),
-)
-ACTION_NAMES = [
-    f"{leg}_{joint}"
-    for leg in ("fl", "fr", "rl", "rr")
-    for joint in ("hip_abduction", "hip_flexion", "knee")
-]
-LOCAL_FIELDS = {
-    "command",
-    "previous_action",
-    "previous_action_delta",
-    "gait_sin",
-    "gait_cos",
-    "gait_blend",
-}
-FEEDBACK_FIELDS = tuple(
-    (name, size) for name, size in OBSERVATION_FIELDS if name not in LOCAL_FIELDS
-)
+from catbot_policy.protocol import ACTION_NAMES, FEEDBACK_FIELDS, OBSERVATION_FIELDS
 
 
 def finite_tensor(values, size: int, name: str) -> torch.Tensor:

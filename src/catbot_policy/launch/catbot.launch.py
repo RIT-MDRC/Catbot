@@ -45,6 +45,17 @@ def generate_launch_description():
                     / "default_mapping.json"
                 ),
             ),
+            DeclareLaunchArgument("policy_python", default_value="3.14"),
+            DeclareLaunchArgument(
+                "policy_worker_project",
+                default_value=str(
+                    Path(find_spec("catbot_policy").origin).parent / "inference"
+                ),
+            ),
+            DeclareLaunchArgument("policy_uv_executable", default_value="uv"),
+            DeclareLaunchArgument("feedback_timeout", default_value="0.25"),
+            DeclareLaunchArgument("policy_worker_timeout", default_value="2.0"),
+            DeclareLaunchArgument("policy_startup_timeout", default_value="120.0"),
             Node(
                 package="foundation",
                 executable=PythonExpression(
@@ -66,6 +77,26 @@ def generate_launch_description():
                 parameters=[
                     {
                         "policy_bundle": LaunchConfiguration("policy_bundle"),
+                        "policy_python": ParameterValue(
+                            LaunchConfiguration("policy_python"), value_type=str
+                        ),
+                        "policy_worker_project": LaunchConfiguration(
+                            "policy_worker_project"
+                        ),
+                        "policy_uv_executable": LaunchConfiguration(
+                            "policy_uv_executable"
+                        ),
+                        "feedback_timeout": ParameterValue(
+                            LaunchConfiguration("feedback_timeout"), value_type=float
+                        ),
+                        "policy_worker_timeout": ParameterValue(
+                            LaunchConfiguration("policy_worker_timeout"),
+                            value_type=float,
+                        ),
+                        "policy_startup_timeout": ParameterValue(
+                            LaunchConfiguration("policy_startup_timeout"),
+                            value_type=float,
+                        ),
                         "mapping_file": LaunchConfiguration("mapping_file"),
                         "simulation_mode": ParameterValue(
                             PythonExpression(

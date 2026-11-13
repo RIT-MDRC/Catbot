@@ -81,15 +81,15 @@ class RosSmokeTests(unittest.TestCase):
                 velocity.linear.x = 0.8
                 deadline = time.monotonic() + 5
                 while (
-                    not received or policy.runtime.command[0].item() < 0.7
+                    not received or policy.command[0] < 0.7
                 ) and time.monotonic() < deadline:
                     feedback_pub.publish(feedback)
                     velocity_pub.publish(velocity)
                     spin_for(0.03)
                 self.assertTrue(received, "No actuator command received")
-                self.assertAlmostEqual(policy.runtime.command[0].item(), 0.8, places=5)
+                self.assertAlmostEqual(policy.command[0], 0.8, places=5)
                 self.assertEqual(
-                    list(received[0].actuator_names), policy.runtime.mapping.names
+                    list(received[0].actuator_names), policy.mapping["actuator_names"]
                 )
                 self.assertEqual(len(received[0].positions_degrees), 12)
                 self.assertGreater(received[0].positions_degrees[0], 0)

@@ -1,6 +1,6 @@
 # Catbot policy node
 
-`catbot_policy` loads an exported actor on CPU, combines named feedback with
+`catbot_policy` runs an exported actor on CPU in an isolated Python 3.14 worker, combines named feedback with
 software-maintained observations, and publishes the existing
 `catbot_interfaces/ActuatorPositionCommand`. It does not access CAN, initialize
 foundation, or perform homing/calibration. A feedback provider is required;
@@ -85,7 +85,7 @@ requires a new output directory and produces:
   control timestep, smoothing, gait settings, air-time limit, original model
   SHA-256, exported actor SHA-256, and PyTorch version.
 
-Copy the entire bundle to the ROS machine. The runtime needs PyTorch 2.14.0,
+Copy the entire bundle to the policy host. The isolated worker needs PyTorch 2.14.0,
 but does not import the training checkout or simulator. TorchScript currently
 emits upstream deprecation/Python 3.14 warnings; export and numerical parity
 are covered by training tests. Only load bundles from trusted sources.
@@ -99,7 +99,8 @@ only if this checkout does not already have a suitable one:
 ```bash
 source /opt/ros/humble/setup.bash
 uv venv --python /usr/bin/python3 --system-site-packages .venv
-uv sync --locked --group policy
+uv sync --locked
+uv sync --locked --python 3.14 --project src/catbot_policy/catbot_policy/inference
 source .venv/bin/activate
 python "$(command -v colcon)" build \
   --packages-select catbot_interfaces foundation catbot_policy \
@@ -109,12 +110,12 @@ ros2 run catbot_policy policy --ros-args \
   -p policy_bundle:=/absolute/path/to/deployment/bundle
 ```
 
-Running colcon through the activated Python ensures the policy executable uses
-the environment containing PyTorch. Linux uv installs select CPU PyTorch wheels.
-The optional policy group is separate from `catbot setup`'s foundation runtime.
-Do not use the IntelliSense-only ROS packages as runtime bindings. The Jazzy
-devcontainer uses a different Python ABI; install this package's PyTorch
-dependency in its native Python environment rather than reusing a Humble venv.
+Running colcon through the activated ROS-compatible Python keeps the adapter
+compatible with ROS's binary bindings. PyTorch is installed only in the separate
+Python 3.14 inference project. The optional root `policy` dependency group remains
+available for offline runtime/export tooling, but the ROS adapter does not need
+it. Do not use IntelliSense-only ROS packages as runtime bindings. Jazzy's ROS
+adapter must use Jazzy's native Python ABI; its inference worker still uses 3.14.
 
 Parameters are `policy_bundle` (required), `mapping_file` (optional JSON), and
 `feedback_timeout` (positive seconds, default `0.25`). Topic remapping works
@@ -236,7 +237,8 @@ node adds no simulated backlash or randomized command delay.
 Hardware-free runtime tests (Python 3.10):
 
 ```bash
-uv sync --locked --group policy
+uv sync --locked
+uv sync --locked --python 3.14 --project src/catbot_policy/catbot_policy/inference
 .venv/bin/python -m unittest discover -s src/catbot_policy/test
 ```
 
@@ -263,9 +265,44 @@ nodes. Hardware remains the default. The policy waits for a matching transient
 supplies model hash, policy contract, settings, and mapping. Foundation validates
 and forwards `/body/control/position` to `/simulation/control/position`.
 
-`/policy/metrics` publishes five-second JSON timing summaries (CPU actor and
-policy-step callback p50/p95/p99, successful command rate, missed timer intervals,
-callback overruns, local feedback age, process CPU use and Linux peak RSS).
+`/policy/metrics` publishes five-second JSON summaries of actor/round-trip
+p50/p95/p99, successful command rate, missed timer intervals, busy ticks, discarded
+results, feedback age, and separate adapter/worker CPU and Linux peak RSS.
 Restart the entire distributed launch to reset policy and simulator history.
 This exercises the inference runtime and simulation transport, not CAN hardware
 workload. See the catbot-orin repository's `docs/SIMULATION.md` for orchestration.
+
+### Isolated Python 3.14 inference
+
+The `policy` ROS executable now runs only the ROS adapter on the ROS-compatible
+interpreter. PyTorch, actor execution, mapping and policy history run in a separate
+uv environment at `catbot_policy/inference`, requiring Python 3.14 and the locked
+PyTorch version. The ROS package no longer installs PyTorch as a dependency.
+
+```bash
+# From the Catbot workspace, on the policy host:
+uv sync --locked --python 3.14 --project src/catbot_policy/catbot_policy/inference
+ros2 launch catbot_policy catbot.launch.py policy_python:=3.14
+```
+
+`policy_python` accepts a uv Python version or interpreter path. Keep the ROS
+adapter on its ROS-compatible interpreter; pointing the adapter itself to Python
+3.14 does not make Humble's Python 3.10 bindings compatible. The Orin scenario
+launches expose `policy_ros_python` and `remote_policy_ros_python` independently.
+Other node/launch parameters are `policy_worker_project`, `policy_uv_executable`,
+`policy_worker_timeout` (2 seconds), `policy_startup_timeout` (120 seconds), and
+`feedback_timeout` (0.25 seconds).
+
+The stdlib-only JSON protocol permits one in-flight observation. The adapter
+checks sample freshness again before publishing the returned target, then
+acknowledges publication. Only an accepted result advances worker action history;
+discarded results preserve it. Worker failure or timeout stops the session instead
+of silently resetting history. Restart the whole session to reset all state.
+
+`/policy/metrics` now distinguishes actor inference from full IPC round-trip time,
+reports busy ticks and discarded results, and reports separate ROS adapter and
+worker CPU/memory. The existing runtime/export APIs remain available in Python
+environments with PyTorch for deployment tooling and offline checks.
+
+This change was checked statically only. No policy, ROS, hardware, downloads or
+performance benchmark were executed on the development machine.
