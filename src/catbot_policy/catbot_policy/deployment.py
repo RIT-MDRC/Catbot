@@ -30,10 +30,8 @@ SETTINGS = (
 
 
 def policy_directory() -> Path:
-    return (
-        Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share"))
-        / "catbot/policies"
-    )
+    """Keep the explicitly downloaded run beside the policy ROS package."""
+    return Path(__file__).resolve().parents[1] / "artifacts"
 
 
 def latest_checkpoint(files: dict) -> str | None:
@@ -205,10 +203,17 @@ def prepare_policy(
             destination.parent.mkdir(parents=True, exist_ok=True)
             staging.rename(destination)
 
-    # Replace the selection only after the entire download/export/load succeeds.
+    # A single selected-run link supplies both model files and the policy bundle.
+    # This is a fixed local selection, not a W&B query at launch time.
+    with tempfile.TemporaryDirectory(dir=directory, prefix=".select-run-") as temporary:
+        selected = Path(temporary) / "selected"
+        selected.symlink_to(destination, target_is_directory=True)
+        selected.replace(directory / "selected")
+
+    # Retain the existing bundle-only alias for older callers.
     with tempfile.TemporaryDirectory(dir=directory, prefix=".select-") as temporary:
         link = Path(temporary) / "latest"
-        link.symlink_to(bundle, target_is_directory=True)
+        link.symlink_to("selected/bundle", target_is_directory=True)
         link.replace(directory / "latest")
     return bundle
 
@@ -217,6 +222,11 @@ def main(argv=None) -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("run", nargs="?", help="Optional ENTITY/PROJECT/RUN_ID")
     parser.add_argument("checkpoint", nargs="?", help="Optional model_N.pt in that run")
+    parser.add_argument(
+        "--latest",
+        action="store_true",
+        help="Explicitly select the newest complete W&B run",
+    )
     parser.add_argument("--entity", default=os.environ.get("WANDB_ENTITY"))
     parser.add_argument("--project", default=os.environ.get("WANDB_PROJECT", "catbot"))
     parser.add_argument(
@@ -229,6 +239,12 @@ def main(argv=None) -> None:
         "--login", action="store_true", help="Log in to W&B before downloading"
     )
     args = parser.parse_args(argv)
+    if not args.run and not args.latest:
+        parser.error(
+            "Specify ENTITY/PROJECT/RUN_ID for a fixed run, or explicitly use --latest"
+        )
+    if args.run and args.latest:
+        parser.error("Choose an explicit run or --latest, not both")
     if args.run and (
         len(args.run.split("/")) != 3
         or not all(NAME_PATTERN.fullmatch(part) for part in args.run.split("/"))
@@ -264,6 +280,9 @@ def main(argv=None) -> None:
         wandb.Error,
     ) as error:
         parser.exit(1, f"Policy preparation failed: {error}\n")
+    print(f"run_directory: {bundle.parent}")
+    print(f"policy_bundle: {bundle}")
+    print(f"Selected local run: {args.directory.expanduser().resolve() / 'selected'}")
     print(f"Ready: {bundle}")
     print("Run in a built, sourced ROS workspace:")
     print(

@@ -13,8 +13,8 @@ from launch_ros.parameter_descriptions import ParameterValue
 # pull_policy.py selects this link after a successful download/export/load.
 # Set this variable to another directory to choose a fixed policy instead.
 POLICY_BUNDLE = str(
-    Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share"))
-    / "catbot/policies/latest"
+    Path(find_spec("catbot_policy").origin).resolve().parents[1]
+    / "artifacts/selected/bundle"
 )
 
 
@@ -46,6 +46,9 @@ def generate_launch_description():
                 ),
             ),
             DeclareLaunchArgument("policy_python", default_value="3.14"),
+            DeclareLaunchArgument("policy_device", default_value="cpu"),
+            DeclareLaunchArgument("policy_worker_environment", default_value=""),
+            DeclareLaunchArgument("policy_worker_sync", default_value="true"),
             DeclareLaunchArgument(
                 "policy_worker_project",
                 default_value=str(
@@ -77,6 +80,14 @@ def generate_launch_description():
                 parameters=[
                     {
                         "policy_bundle": LaunchConfiguration("policy_bundle"),
+                        "policy_device": LaunchConfiguration("policy_device"),
+                        "policy_worker_environment": ParameterValue(
+                            LaunchConfiguration("policy_worker_environment"),
+                            value_type=str,
+                        ),
+                        "policy_worker_sync": ParameterValue(
+                            LaunchConfiguration("policy_worker_sync"), value_type=bool
+                        ),
                         "policy_python": ParameterValue(
                             LaunchConfiguration("policy_python"), value_type=str
                         ),

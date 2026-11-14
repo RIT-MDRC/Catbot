@@ -1,18 +1,18 @@
 # Catbot policy node
 
-`catbot_policy` runs an exported actor on CPU in an isolated Python 3.14 worker, combines named feedback with
+`catbot_policy` runs an exported actor on CPU or CUDA in an isolated Python 3.14 worker, combines named feedback with
 software-maintained observations, and publishes the existing
 `catbot_interfaces/ActuatorPositionCommand`. It does not access CAN, initialize
 foundation, or perform homing/calibration. A feedback provider is required;
 hardware sensing and simulator feedback publishing are not implemented here.
 
-## Pull the latest training policy
+## Pull a fixed training policy
 
 From this package directory:
 
 ```bash
 cd src/catbot_policy  # from the hardware repository root
-uv run pull_policy.py
+uv run pull_policy.py ENTITY/PROJECT/RUN_ID
 ```
 
 The script uses your existing W&B login, `WANDB_ENTITY` (or your account's
@@ -20,13 +20,15 @@ default entity), and `WANDB_PROJECT` (default `catbot`). For first-time login or
 a team project, run:
 
 ```bash
-uv run pull_policy.py --login --entity YOUR_WANDB_ENTITY
+uv run pull_policy.py ENTITY/PROJECT/RUN_ID --login
 ```
 
-It selects the newest run containing `config.json`, `model.xml`,
-`manifest.json`, and a `model_N.pt` checkpoint, then downloads the highest
-numbered checkpoint. Runs still training are eligible once these files have
-been uploaded. To choose a specific run or checkpoint:
+The selected run must contain `config.json`, `model.xml`, `manifest.json` and a
+`model_N.pt` checkpoint. An explicit run is required by default. Omitting the
+checkpoint selects the highest checkpoint number in that run at download time;
+pass a filename to pin both run and checkpoint. `--latest --entity YOUR_ENTITY`
+explicitly opts into selecting the newest complete run.
+To choose a specific run or checkpoint:
 
 ```bash
 uv run pull_policy.py ENTITY/PROJECT/RUN_ID
@@ -42,13 +44,13 @@ loads the resulting bundle through `PolicyRuntime` and checks inference parity.
 Only use checkpoints from trusted W&B projects. Historical contracts, missing
 manifests, and unsupported actor types fail explicitly.
 
-Downloaded checkpoints and exported bundles are stored under
-`~/.local/share/catbot/policies/ENTITY/PROJECT/RUN_ID/` (or under
-`$XDG_DATA_HOME/catbot/policies`). Each successful preparation selects the bundle
-through `catbot/policies/latest`; failed preparation keeps the previous
-selection. Downloads refresh every time, and identical files reuse a validated
-bundle. `source.json` beside the exported actor records the run, checkpoint,
-and input checksums.
+Downloaded checkpoints, model/configuration and exported bundles live inside
+this ROS package's `artifacts/` directory (ignored by Git). The atomic `selected`
+symlink points to the chosen complete run; `selected/bundle` contains the exported
+policy. The compatibility alias `latest` points to `selected/bundle`. Launches use
+the fixed local selection; they never query W&B or switch runs by themselves.
+A failed export leaves the existing selection intact. `source.json` records the
+run/checkpoint and checksums. `--directory` remains available for a custom cache.
 
 The launch file defaults to that selected bundle. In your **built and sourced
 ROS workspace**, run:
@@ -306,3 +308,27 @@ environments with PyTorch for deployment tooling and offline checks.
 
 This change was checked statically only. No policy, ROS, hardware, downloads or
 performance benchmark were executed on the development machine.
+
+### CPU/CUDA device and environment selection
+
+`policy_device` defaults to `cpu` in the standalone Catbot launch. Orin's scenario
+launches select `cuda:0` by default and leave remote Pi inference on CPU. The actor,
+observations, history and actuator mapping all use the selected device. CUDA timing
+synchronizes the selected device around the actor call. `/policy/metrics` reports
+the selected device, and unavailable CUDA raises an error without a CPU fallback.
+
+The shipped inference lock is a **CPU** environment. A CUDA-enabled Jetson build
+must match JetPack, Python 3.14 and the exported bundle's exact PyTorch version.
+The runtime retains its strict version/contract checks, including rejection of
+incompatible prerelease builds. Until a compatible build is prepared, use CPU.
+
+To preserve a prepared CUDA environment, set `policy_worker_environment` to its
+absolute venv path and `policy_worker_sync:=false`. The adapter uses
+`UV_PROJECT_ENVIRONMENT` and `uv run --no-sync` to avoid replacing NVIDIA packages
+with the CPU lock. It checks that an interpreter exists before launch. With sync
+enabled, the normal locked CPU environment is prepared automatically.
+
+The Orin scenario helper resolves these choices automatically from the selected
+device: CUDA uses `<worker_project>/.venv-cuda` without syncing; CPU uses the normal
+locked project environment. Override these settings only for a prepared compatible
+environment. No CUDA installation or execution was verified on the development Mac.

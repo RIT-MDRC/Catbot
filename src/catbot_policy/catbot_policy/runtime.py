@@ -1,4 +1,4 @@
-"""CPU policy inference and state, independent of ROS and simulation packages."""
+"""CPU/CUDA policy inference and state, independent of ROS and simulation packages."""
 
 from __future__ import annotations
 
@@ -13,10 +13,10 @@ import torch
 from catbot_policy.protocol import ACTION_NAMES, FEEDBACK_FIELDS, OBSERVATION_FIELDS
 
 
-def finite_tensor(values, size: int, name: str) -> torch.Tensor:
+def finite_tensor(values, size: int, name: str, *, device="cpu") -> torch.Tensor:
     """Validate a flat numeric vector before it enters inference or mapping."""
     try:
-        result = torch.tensor(values, dtype=torch.float32)
+        result = torch.tensor(values, dtype=torch.float32, device=device)
     except (TypeError, ValueError, RuntimeError) as error:
         raise ValueError(f"Invalid {name}") from error
     if result.shape != (size,) or not torch.isfinite(result).all():
@@ -27,7 +27,7 @@ def finite_tensor(values, size: int, name: str) -> torch.Tensor:
 class ActuatorMapping:
     """Map model angles to provisional, bounded hardware logical degrees."""
 
-    def __init__(self, path: Path | None = None):
+    def __init__(self, path: Path | None = None, device="cpu"):
         path = path or Path(__file__).with_name("default_mapping.json")
         data = json.loads(path.read_text())
         self.metadata = data
@@ -39,10 +39,16 @@ class ActuatorMapping:
             or len(set(self.names)) != 12
         ):
             raise ValueError("Mapping must contain 12 unique actuator names")
-        self.signs = finite_tensor(data["signs"], 12, "signs")
-        self.offsets = finite_tensor(data["offsets_degrees"], 12, "offsets_degrees")
-        self.minimum = finite_tensor(data["minimum_degrees"], 12, "minimum_degrees")
-        self.maximum = finite_tensor(data["maximum_degrees"], 12, "maximum_degrees")
+        self.signs = finite_tensor(data["signs"], 12, "signs", device=device)
+        self.offsets = finite_tensor(
+            data["offsets_degrees"], 12, "offsets_degrees", device=device
+        )
+        self.minimum = finite_tensor(
+            data["minimum_degrees"], 12, "minimum_degrees", device=device
+        )
+        self.maximum = finite_tensor(
+            data["maximum_degrees"], 12, "maximum_degrees", device=device
+        )
         if not ((self.signs == 1) | (self.signs == -1)).all():
             raise ValueError("Mapping signs must be +1 or -1")
         if not (self.minimum < self.maximum).all():
@@ -127,10 +133,24 @@ class PolicyRuntime:
     """Assemble observations, publish one command, then advance local history."""
 
     def __init__(
-        self, bundle: Path, mapping: Path | None = None, feedback_timeout: float = 0.25
+        self,
+        bundle: Path,
+        mapping: Path | None = None,
+        feedback_timeout: float = 0.25,
+        device: str = "cpu",
     ):
         if not math.isfinite(feedback_timeout) or feedback_timeout <= 0:
             raise ValueError("feedback_timeout must be finite and positive")
+        bundle = bundle.expanduser().resolve()
+        self.device = torch.device(device)
+        if self.device.type not in ("cpu", "cuda"):
+            raise ValueError("policy_device must be cpu or cuda[:index]")
+        if self.device.type == "cuda" and not torch.cuda.is_available():
+            raise ValueError(
+                "CUDA policy requested but this Python/PyTorch environment has no usable CUDA. "
+                "Install a matching JetPack/Python/PyTorch build in the CUDA environment, "
+                "or launch with orin_device:=cpu (or policy_device:=cpu)."
+            )
         self.metadata = json.loads((bundle / "policy.json").read_text())
         try:
             self.contract, self.settings = validate_metadata(self.metadata)
@@ -143,22 +163,24 @@ class PolicyRuntime:
         ):
             raise ValueError("Policy checksum does not match metadata")
         torch.set_num_threads(1)
-        self.actor = torch.jit.load(str(policy_path), map_location="cpu").eval()
-        self.mapping = ActuatorMapping(mapping)
+        self.actor = torch.jit.load(str(policy_path), map_location=self.device).eval()
+        self.mapping = ActuatorMapping(mapping, device=self.device)
         self.dt = self.contract["control_timestep"]
-        ranges = torch.tensor(self.contract["control_ranges"], dtype=torch.float32)
+        ranges = torch.tensor(
+            self.contract["control_ranges"], dtype=torch.float32, device=self.device
+        )
         self.center = ranges.mean(dim=1)
         self.half_range = (ranges[:, 1] - ranges[:, 0]) / 2
-        self.command = torch.zeros(3)
-        self.previous_action = torch.zeros(12)
-        self.previous_action_delta = torch.zeros(12)
+        self.command = torch.zeros(3, device=self.device)
+        self.previous_action = torch.zeros(12, device=self.device)
+        self.previous_action_delta = torch.zeros(12, device=self.device)
         self.gait_phase = 0.0
         self.gait_blend = 0.0
         self.feedback = None
         self.feedback_received = float("-inf")
         self.feedback_timeout = feedback_timeout
         with torch.inference_mode():
-            self._validate_action(self.actor(torch.zeros(1, 90)))
+            self._validate_action(self.actor(torch.zeros(1, 90, device=self.device)))
 
     @staticmethod
     def _validate_action(action):
@@ -170,7 +192,7 @@ class PolicyRuntime:
             raise ValueError("Policy must return 12 finite actions with shape (1, 12)")
 
     def set_command(self, values) -> None:
-        self.command = finite_tensor(values, 3, "velocity command")
+        self.command = finite_tensor(values, 3, "velocity command", device=self.device)
 
     def update_feedback(self, values: dict, now: float) -> None:
         # An invalid replacement invalidates the previous sample immediately.
@@ -179,7 +201,10 @@ class PolicyRuntime:
         for name, size in FEEDBACK_FIELDS:
             value = values[name]
             blocks[name] = finite_tensor(
-                [value] if name == "motion_progress" else value, size, name
+                [value] if name == "motion_progress" else value,
+                size,
+                name,
+                device=self.device,
             )
         self.feedback = blocks
         self.feedback_received = now
@@ -192,9 +217,13 @@ class PolicyRuntime:
             "command": self.command,
             "previous_action": self.previous_action,
             "previous_action_delta": self.previous_action_delta,
-            "gait_sin": torch.tensor([math.sin(2 * math.pi * self.gait_phase)]),
-            "gait_cos": torch.tensor([math.cos(2 * math.pi * self.gait_phase)]),
-            "gait_blend": torch.tensor([self.gait_blend]),
+            "gait_sin": torch.tensor(
+                [math.sin(2 * math.pi * self.gait_phase)], device=self.device
+            ),
+            "gait_cos": torch.tensor(
+                [math.cos(2 * math.pi * self.gait_phase)], device=self.device
+            ),
+            "gait_blend": torch.tensor([self.gait_blend], device=self.device),
         }
         return torch.cat([blocks[name] for name, _ in OBSERVATION_FIELDS]).unsqueeze(0)
 
@@ -207,8 +236,12 @@ class PolicyRuntime:
             return False
         with torch.inference_mode():
             observation = self.observation()
+            if self.device.type == "cuda":
+                torch.cuda.synchronize(self.device)
             inference_started = time.perf_counter()
             raw_action = self.actor(observation)
+            if self.device.type == "cuda":
+                torch.cuda.synchronize(self.device)
             self.last_inference_seconds = time.perf_counter() - inference_started
             self._validate_action(raw_action)
             smoothing = self.settings["action_smoothing"]

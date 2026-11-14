@@ -21,3 +21,8 @@ test_result/
 
 # Isolated inference uv environments
 **/inference/.venv/
+
+# Downloaded policy/model artifacts are local to each robot
+src/catbot_policy/artifacts/
+
+.venv-cuda/

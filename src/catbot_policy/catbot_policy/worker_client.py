@@ -22,6 +22,9 @@ class WorkerClient:
         feedback_timeout,
         ack_timeout,
         startup_timeout,
+        device="cpu",
+        environment="",
+        sync=True,
     ):
         project = Path(project).expanduser().resolve()
         runner = project / "run_worker.py"
@@ -32,13 +35,15 @@ class WorkerClient:
         command = [
             uv,
             "run",
-            "--locked",
+            "--locked" if sync else "--no-sync",
             "--project",
             str(project),
             "--python",
             python,
             "python",
             str(runner),
+            "--device",
+            device,
             "--bundle",
             bundle,
             "--feedback-timeout",
@@ -56,6 +61,14 @@ class WorkerClient:
             "UV_PROJECT_ENVIRONMENT",
         ):
             env.pop(name, None)
+        if environment:
+            selected = Path(environment).expanduser().resolve()
+            if not sync and not (selected / "bin/python").is_file():
+                raise ValueError(
+                    f"Prepare the CUDA worker environment at {selected} first, "
+                    "or select orin_device:=cpu. Jetson CUDA needs a matching PyTorch build."
+                )
+            env["UV_PROJECT_ENVIRONMENT"] = str(selected)
         self.closed = False
         self.events = queue.Queue(maxsize=8)
         self.process = subprocess.Popen(

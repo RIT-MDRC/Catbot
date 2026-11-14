@@ -199,6 +199,7 @@ class DeploymentTests(unittest.TestCase):
 
         bundle = self.prepare()
         runtime = PolicyRuntime(bundle)
+        self.assertEqual((self.cache / "selected").resolve(), bundle.parent)
         self.assertEqual((self.cache / "latest").resolve(), bundle)
         self.assertTrue((bundle.parent / self.checkpoint.name).is_file())
         inputs = torch.randn(1, 90) * 2 + 3
@@ -224,7 +225,7 @@ class DeploymentTests(unittest.TestCase):
         wandb = SimpleNamespace(Api=lambda: self.api, Error=RuntimeError)
         output = io.StringIO()
         with patch.dict(sys.modules, {"wandb": wandb}), patch("sys.stdout", output):
-            main(["--directory", str(directory)])
+            main(["team/catbot/run1", "--directory", str(directory)])
         command = shlex.split(output.getvalue().splitlines()[-1])
         self.assertEqual(
             command[:4], ["ros2", "launch", "catbot_policy", "catbot.launch.py"]

@@ -22,9 +22,14 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--bundle", type=Path, required=True)
     parser.add_argument("--mapping", type=Path)
+    parser.add_argument("--device", default="cpu")
     parser.add_argument("--feedback-timeout", type=float, default=0.25)
     parser.add_argument("--ack-timeout", type=float, default=2.0)
     args = parser.parse_args()
+    if sys.version_info[:2] != (3, 14):
+        parser.error(
+            "The inference worker requires Python 3.14; keep ROS on its separate interpreter"
+        )
     if not math.isfinite(args.ack_timeout) or args.ack_timeout <= 0:
         parser.error("--ack-timeout must be finite and positive")
     output = os.fdopen(os.dup(sys.stdout.fileno()), "w", buffering=1)
@@ -56,11 +61,13 @@ def main():
             args.bundle.expanduser(),
             args.mapping.expanduser() if args.mapping else None,
             args.feedback_timeout,
+            device=args.device,
         )
         send(
             {
                 "type": "ready",
                 "dt": runtime.dt,
+                "device": str(runtime.device),
                 "metadata": runtime.metadata,
                 "mapping": runtime.mapping.metadata,
                 "python_version": sys.version.split()[0],

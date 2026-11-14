@@ -53,6 +53,9 @@ class PolicyNode(Node):
             self.feedback_timeout,
             self.worker_timeout,
             startup_timeout,
+            device=str(param("policy_device", "cpu")),
+            environment=str(param("policy_worker_environment", "")),
+            sync=bool(param("policy_worker_sync", True)),
         )
         try:
             self.initialize()
@@ -110,7 +113,7 @@ class PolicyNode(Node):
         self.create_timer(0.002, self.poll)
         self.create_timer(5.0, self.report_metrics)
         self.get_logger().info(
-            f"Policy worker ready on Python {self.worker.ready['python_version']}; ROS stays on its own interpreter"
+            f"Policy worker ready on Python {self.worker.ready['python_version']}, device {self.worker.ready['device']}; ROS stays on its own interpreter"
         )
 
     def contract_callback(self, message):
@@ -290,6 +293,7 @@ class PolicyNode(Node):
             * (time.process_time() - self.adapter_cpu_started)
             / elapsed,
             "adapter_peak_rss_kib": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss,
+            "device": self.worker.ready["device"],
             "window_seconds": elapsed,
             "control_interval_ms": self.dt * 1000,
             "published_hz": self.published / elapsed,
