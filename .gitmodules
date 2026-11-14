@@ -1,0 +1,3 @@
+[submodule "external/catbot_sim_rollout"]
+	path = external/catbot_sim_rollout
+	url = git@github.com:RIT-MDRC/catbot_sim_rollout.git

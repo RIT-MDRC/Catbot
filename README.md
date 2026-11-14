@@ -118,3 +118,18 @@ For more command information goto [catbot-cli](cli/README.md)
 ### Before contributing
 Make sure to read the documentation in the [wiki](https://github.com/RIT-MDRC/Catbot/wiki).
 Questions with the documentation are welcomed in the [issues tab](https://github.com/RIT-MDRC/Catbot/issues).
+
+## Shared simulation rollout worker
+
+The rollout worker is the `external/catbot_sim_rollout` Git submodule, shared with
+catbot-orin. Initialize the pinned checkout with:
+
+```bash
+git submodule update --init external/catbot_sim_rollout
+```
+
+It has its own uv project and pinned physics dependency. Only on a machine that
+runs simulation, use `uv sync --locked --project external/catbot_sim_rollout`.
+The Pi's policy/foundation environment does not need those dependencies.
+See [the worker README](external/catbot_sim_rollout/README.md) for its CLI/protocol
+and catbot-orin's `docs/SIMULATION.md` for distributed launch instructions.
