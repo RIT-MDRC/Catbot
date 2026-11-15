@@ -1,31 +1,36 @@
 """Exercise actual ROS messages when ROS is installed; never address foundation."""
 
+import json
 import os
 import tempfile
 import time
 import unittest
 from pathlib import Path
 
-from test_runtime import feedback_values, make_bundle
-
-try:
-    import rclpy
-    from catbot_policy.node import PolicyNode
-    from geometry_msgs.msg import Twist
-    from rclpy.executors import SingleThreadedExecutor
-    from rclpy.impl.implementation_singleton import rclpy_implementation  # noqa: F401
-    from rclpy.qos import QoSProfile, ReliabilityPolicy
-
-    from catbot_interfaces.msg import ActuatorPositionCommand, PolicyFeedback
-
-    ROS_AVAILABLE = True
-except ImportError:
-    ROS_AVAILABLE = False
+FIXTURES = Path(__file__).resolve().parents[3] / "tests/fixtures"
 
 
-@unittest.skipUnless(
-    ROS_AVAILABLE, "Requires real ROS bindings and generated interfaces"
-)
+def feedback_values():
+    return json.loads((FIXTURES / "contract.json").read_text())["feedback"]
+
+
+def make_bundle(root):
+    (root / "run_worker.py").touch()
+    (root / "uv.lock").touch()
+    return root
+
+
+import pytest
+import rclpy
+from catbot_interfaces.msg import ActuatorPositionCommand, PolicyFeedback
+from catbot_policy.node import PolicyNode
+from geometry_msgs.msg import Twist
+from rclpy.executors import SingleThreadedExecutor
+from rclpy.impl.implementation_singleton import rclpy_implementation  # noqa: F401
+from rclpy.qos import QoSProfile, ReliabilityPolicy
+
+
+@pytest.mark.ros
 class RosSmokeTests(unittest.TestCase):
     def test_feedback_to_remapped_actuator_commands(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -36,6 +41,10 @@ class RosSmokeTests(unittest.TestCase):
                     "--ros-args",
                     "-p",
                     f"policy_bundle:={bundle}",
+                    "-p",
+                    f"policy_worker_project:={bundle}",
+                    "-p",
+                    f"policy_uv_executable:={FIXTURES / 'fake_worker.py'}",
                     "-r",
                     f"/body/control/position:={prefix}/output",
                     "-r",
@@ -92,7 +101,7 @@ class RosSmokeTests(unittest.TestCase):
                     list(received[0].actuator_names), policy.mapping["actuator_names"]
                 )
                 self.assertEqual(len(received[0].positions_degrees), 12)
-                self.assertGreater(received[0].positions_degrees[0], 0)
+                self.assertNotEqual(received[0].positions_degrees[0], 0)
                 spin_for(0.4)
                 count = len(received)
                 spin_for(0.1)

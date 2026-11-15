@@ -661,6 +661,11 @@ def test_read_keeps_session_open_when_knee_feedback_cannot_convert(
 ):
     runtime = command_runtime
     config = json.loads(motor_test_sample.DEFAULT_CONFIG.read_text())
+    # These regression inputs were captured with this calibration. Keep the
+    # unreachable geometry stable when the robot's calibration changes.
+    config["actuator_motion_profile"]["knee_ballscrew"]["ballscrew_linkage"][
+        "x_offset"
+    ] = {"value": 6.7624856638, "unit": "centimeters"}
     actuator = object.__new__(Actuator)
     actuator.profile = motion_profile_actions.parse_motion_profile(
         config["actuator_motion_profile"]["knee_ballscrew"], "test_knee_profile"

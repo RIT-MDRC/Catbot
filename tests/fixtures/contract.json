@@ -1,0 +1,825 @@
+{
+  "layout": [
+    [
+      "base_height_quaternion",
+      5
+    ],
+    [
+      "heading_linear_velocity",
+      3
+    ],
+    [
+      "base_angular_velocity",
+      3
+    ],
+    [
+      "joint_positions",
+      12
+    ],
+    [
+      "joint_velocities",
+      12
+    ],
+    [
+      "command",
+      3
+    ],
+    [
+      "previous_action",
+      12
+    ],
+    [
+      "previous_action_delta",
+      12
+    ],
+    [
+      "normalized_air_time",
+      4
+    ],
+    [
+      "previous_contact",
+      4
+    ],
+    [
+      "has_stance",
+      4
+    ],
+    [
+      "gait_sin",
+      1
+    ],
+    [
+      "gait_cos",
+      1
+    ],
+    [
+      "gait_blend",
+      1
+    ],
+    [
+      "motion_travel",
+      12
+    ],
+    [
+      "motion_progress",
+      1
+    ]
+  ],
+  "metadata": {
+    "schema_version": 1,
+    "torch_version": "2.14.0",
+    "policy_sha256": "b093b8f88371e6dc04fe073f1a757f9d068eee5091c31c0cb8b8688a45f63eba",
+    "model_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "policy_contract": {
+      "version": 3,
+      "observations": [
+        {
+          "name": "base_height_quaternion",
+          "size": 5
+        },
+        {
+          "name": "heading_linear_velocity",
+          "size": 3
+        },
+        {
+          "name": "base_angular_velocity",
+          "size": 3
+        },
+        {
+          "name": "joint_positions",
+          "size": 12
+        },
+        {
+          "name": "joint_velocities",
+          "size": 12
+        },
+        {
+          "name": "command",
+          "size": 3
+        },
+        {
+          "name": "previous_action",
+          "size": 12
+        },
+        {
+          "name": "previous_action_delta",
+          "size": 12
+        },
+        {
+          "name": "normalized_air_time",
+          "size": 4
+        },
+        {
+          "name": "previous_contact",
+          "size": 4
+        },
+        {
+          "name": "has_stance",
+          "size": 4
+        },
+        {
+          "name": "gait_sin",
+          "size": 1
+        },
+        {
+          "name": "gait_cos",
+          "size": 1
+        },
+        {
+          "name": "gait_blend",
+          "size": 1
+        },
+        {
+          "name": "motion_travel",
+          "size": 12
+        },
+        {
+          "name": "motion_progress",
+          "size": 1
+        }
+      ],
+      "observation_dimension": 90,
+      "actions": [
+        "fl_hip_abduction",
+        "fl_hip_flexion",
+        "fl_knee",
+        "fr_hip_abduction",
+        "fr_hip_flexion",
+        "fr_knee",
+        "rl_hip_abduction",
+        "rl_hip_flexion",
+        "rl_knee",
+        "rr_hip_abduction",
+        "rr_hip_flexion",
+        "rr_knee"
+      ],
+      "joint_order": [
+        "base_free",
+        "fl_hip_abduction",
+        "fl_hip_flexion",
+        "fl_knee",
+        "fr_hip_abduction",
+        "fr_hip_flexion",
+        "fr_knee",
+        "rl_hip_abduction",
+        "rl_hip_flexion",
+        "rl_knee",
+        "rr_hip_abduction",
+        "rr_hip_flexion",
+        "rr_knee"
+      ],
+      "nq": 19,
+      "nv": 18,
+      "commands": [
+        "forward_mps",
+        "left_mps",
+        "yaw_radps"
+      ],
+      "control_ranges": [
+        [
+          -0.7,
+          0.7
+        ],
+        [
+          -0.7,
+          0.7
+        ],
+        [
+          -3.141592653589793,
+          0
+        ],
+        [
+          -0.7,
+          0.7
+        ],
+        [
+          -0.7,
+          0.7
+        ],
+        [
+          -3.141592653589793,
+          0
+        ],
+        [
+          -0.7,
+          0.7
+        ],
+        [
+          -0.7,
+          0.7
+        ],
+        [
+          -3.141592653589793,
+          0
+        ],
+        [
+          -0.7,
+          0.7
+        ],
+        [
+          -0.7,
+          0.7
+        ],
+        [
+          -3.141592653589793,
+          0
+        ]
+      ],
+      "locked_channels": [],
+      "control_timestep": 0.02
+    },
+    "settings": {
+      "action_smoothing": 0.8,
+      "trot_speed": 0.35,
+      "bound_speed": 0.6,
+      "gait_transition_seconds": 0.5,
+      "air_time_limit": 0.5
+    }
+  },
+  "mapping": {
+    "actuator_names": [
+      "fla",
+      "flf",
+      "flk",
+      "fra",
+      "frf",
+      "frk",
+      "bla",
+      "blf",
+      "blk",
+      "bra",
+      "brf",
+      "brk"
+    ],
+    "signs": [
+      1,
+      -1,
+      1,
+      -1,
+      1,
+      -1,
+      1,
+      -1,
+      1,
+      -1,
+      1,
+      -1
+    ],
+    "offsets_degrees": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0,
+      10.0,
+      11.0
+    ],
+    "minimum_degrees": [
+      -40,
+      -40,
+      -55,
+      -40,
+      -40,
+      -55,
+      -40,
+      -40,
+      -55,
+      -40,
+      -40,
+      -55
+    ],
+    "maximum_degrees": [
+      40,
+      40,
+      55,
+      40,
+      40,
+      55,
+      40,
+      40,
+      55,
+      40,
+      40,
+      55
+    ]
+  },
+  "feedback": {
+    "base_height_quaternion": [
+      0.01,
+      0.02,
+      0.03,
+      0.04,
+      0.05
+    ],
+    "heading_linear_velocity": [
+      0.01,
+      0.02,
+      0.03
+    ],
+    "base_angular_velocity": [
+      0.01,
+      0.02,
+      0.03
+    ],
+    "joint_positions": [
+      0.01,
+      0.02,
+      0.03,
+      0.04,
+      0.05,
+      0.06,
+      0.07,
+      0.08,
+      0.09,
+      0.1,
+      0.11,
+      0.12
+    ],
+    "joint_velocities": [
+      0.01,
+      0.02,
+      0.03,
+      0.04,
+      0.05,
+      0.06,
+      0.07,
+      0.08,
+      0.09,
+      0.1,
+      0.11,
+      0.12
+    ],
+    "normalized_air_time": [
+      0.01,
+      0.02,
+      0.03,
+      0.04
+    ],
+    "previous_contact": [
+      false,
+      true,
+      false,
+      true
+    ],
+    "has_stance": [
+      false,
+      true,
+      false,
+      true
+    ],
+    "motion_travel": [
+      0.01,
+      0.02,
+      0.03,
+      0.04,
+      0.05,
+      0.06,
+      0.07,
+      0.08,
+      0.09,
+      0.1,
+      0.11,
+      0.12
+    ],
+    "motion_progress": 0.75
+  },
+  "local": {
+    "command": [
+      0.8,
+      -0.2,
+      0.5
+    ],
+    "previous_action": [
+      0.0,
+      0.05,
+      0.1,
+      0.15,
+      0.2,
+      0.25,
+      0.3,
+      0.35,
+      0.4,
+      0.45,
+      0.5,
+      0.55
+    ],
+    "previous_action_delta": [
+      0.0,
+      -0.03333333333333333,
+      -0.06666666666666667,
+      -0.1,
+      -0.13333333333333333,
+      -0.16666666666666666,
+      -0.2,
+      -0.23333333333333334,
+      -0.26666666666666666,
+      -0.3,
+      -0.3333333333333333,
+      -0.36666666666666664
+    ],
+    "gait_sin": [
+      1.0
+    ],
+    "gait_cos": [
+      0.0
+    ],
+    "gait_blend": [
+      0.4
+    ]
+  },
+  "observation": [
+    0.01,
+    0.02,
+    0.03,
+    0.04,
+    0.05,
+    0.01,
+    0.02,
+    0.03,
+    0.01,
+    0.02,
+    0.03,
+    0.01,
+    0.02,
+    0.03,
+    0.04,
+    0.05,
+    0.06,
+    0.07,
+    0.08,
+    0.09,
+    0.1,
+    0.11,
+    0.12,
+    0.01,
+    0.02,
+    0.03,
+    0.04,
+    0.05,
+    0.06,
+    0.07,
+    0.08,
+    0.09,
+    0.1,
+    0.11,
+    0.12,
+    0.8,
+    -0.2,
+    0.5,
+    0.0,
+    0.05,
+    0.1,
+    0.15,
+    0.2,
+    0.25,
+    0.3,
+    0.35,
+    0.4,
+    0.45,
+    0.5,
+    0.55,
+    0.0,
+    -0.03333333333333333,
+    -0.06666666666666667,
+    -0.1,
+    -0.13333333333333333,
+    -0.16666666666666666,
+    -0.2,
+    -0.23333333333333334,
+    -0.26666666666666666,
+    -0.3,
+    -0.3333333333333333,
+    -0.36666666666666664,
+    0.01,
+    0.02,
+    0.03,
+    0.04,
+    false,
+    true,
+    false,
+    true,
+    false,
+    true,
+    false,
+    true,
+    1.0,
+    0.0,
+    0.4,
+    0.01,
+    0.02,
+    0.03,
+    0.04,
+    0.05,
+    0.06,
+    0.07,
+    0.08,
+    0.09,
+    0.1,
+    0.11,
+    0.12,
+    0.75
+  ],
+  "radians": [
+    -2.0,
+    -0.2,
+    -1.0,
+    0.3,
+    2.0,
+    -1.0,
+    -0.4,
+    0.5,
+    -1.5,
+    0.6,
+    -0.7,
+    -2.0
+  ],
+  "degrees": [
+    -40,
+    12.459155902616466,
+    -55,
+    -14.188733853924695,
+    40,
+    55,
+    -16.918311805232932,
+    -21.64788975654116,
+    -55,
+    -25.37746770784939,
+    -30.10704565915762,
+    55
+  ],
+  "inverse_radians": [
+    -0.6981317007977318,
+    -0.20000000000000004,
+    -0.9948376736367679,
+    0.3,
+    0.6283185307179586,
+    -0.8726646259971648,
+    -0.4000000000000001,
+    0.5,
+    -1.0995574287564276,
+    0.6,
+    -0.7,
+    -0.767944870877505
+  ],
+  "rollout": {
+    "contract": {
+      "version": 1,
+      "model_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "policy_contract": {
+        "version": 3,
+        "observations": [
+          {
+            "name": "base_height_quaternion",
+            "size": 5
+          },
+          {
+            "name": "heading_linear_velocity",
+            "size": 3
+          },
+          {
+            "name": "base_angular_velocity",
+            "size": 3
+          },
+          {
+            "name": "joint_positions",
+            "size": 12
+          },
+          {
+            "name": "joint_velocities",
+            "size": 12
+          },
+          {
+            "name": "command",
+            "size": 3
+          },
+          {
+            "name": "previous_action",
+            "size": 12
+          },
+          {
+            "name": "previous_action_delta",
+            "size": 12
+          },
+          {
+            "name": "normalized_air_time",
+            "size": 4
+          },
+          {
+            "name": "previous_contact",
+            "size": 4
+          },
+          {
+            "name": "has_stance",
+            "size": 4
+          },
+          {
+            "name": "gait_sin",
+            "size": 1
+          },
+          {
+            "name": "gait_cos",
+            "size": 1
+          },
+          {
+            "name": "gait_blend",
+            "size": 1
+          },
+          {
+            "name": "motion_travel",
+            "size": 12
+          },
+          {
+            "name": "motion_progress",
+            "size": 1
+          }
+        ],
+        "observation_dimension": 90,
+        "actions": [
+          "fl_hip_abduction",
+          "fl_hip_flexion",
+          "fl_knee",
+          "fr_hip_abduction",
+          "fr_hip_flexion",
+          "fr_knee",
+          "rl_hip_abduction",
+          "rl_hip_flexion",
+          "rl_knee",
+          "rr_hip_abduction",
+          "rr_hip_flexion",
+          "rr_knee"
+        ],
+        "joint_order": [
+          "base_free",
+          "fl_hip_abduction",
+          "fl_hip_flexion",
+          "fl_knee",
+          "fr_hip_abduction",
+          "fr_hip_flexion",
+          "fr_knee",
+          "rl_hip_abduction",
+          "rl_hip_flexion",
+          "rl_knee",
+          "rr_hip_abduction",
+          "rr_hip_flexion",
+          "rr_knee"
+        ],
+        "nq": 19,
+        "nv": 18,
+        "commands": [
+          "forward_mps",
+          "left_mps",
+          "yaw_radps"
+        ],
+        "control_ranges": [
+          [
+            -0.7,
+            0.7
+          ],
+          [
+            -0.7,
+            0.7
+          ],
+          [
+            -3.141592653589793,
+            0
+          ],
+          [
+            -0.7,
+            0.7
+          ],
+          [
+            -0.7,
+            0.7
+          ],
+          [
+            -3.141592653589793,
+            0
+          ],
+          [
+            -0.7,
+            0.7
+          ],
+          [
+            -0.7,
+            0.7
+          ],
+          [
+            -3.141592653589793,
+            0
+          ],
+          [
+            -0.7,
+            0.7
+          ],
+          [
+            -0.7,
+            0.7
+          ],
+          [
+            -3.141592653589793,
+            0
+          ]
+        ],
+        "locked_channels": [],
+        "control_timestep": 0.02
+      },
+      "settings": {
+        "action_smoothing": 0.8,
+        "trot_speed": 0.35,
+        "bound_speed": 0.6,
+        "gait_transition_seconds": 0.5,
+        "air_time_limit": 0.5
+      }
+    },
+    "feedback": {
+      "base_height_quaternion": [
+        0.01,
+        0.02,
+        0.03,
+        0.04,
+        0.05
+      ],
+      "heading_linear_velocity": [
+        0.01,
+        0.02,
+        0.03
+      ],
+      "base_angular_velocity": [
+        0.01,
+        0.02,
+        0.03
+      ],
+      "joint_positions": [
+        0.01,
+        0.02,
+        0.03,
+        0.04,
+        0.05,
+        0.06,
+        0.07,
+        0.08,
+        0.09,
+        0.1,
+        0.11,
+        0.12
+      ],
+      "joint_velocities": [
+        0.01,
+        0.02,
+        0.03,
+        0.04,
+        0.05,
+        0.06,
+        0.07,
+        0.08,
+        0.09,
+        0.1,
+        0.11,
+        0.12
+      ],
+      "normalized_air_time": [
+        0.01,
+        0.02,
+        0.03,
+        0.04
+      ],
+      "previous_contact": [
+        false,
+        true,
+        false,
+        true
+      ],
+      "has_stance": [
+        false,
+        true,
+        false,
+        true
+      ],
+      "motion_travel": [
+        0.01,
+        0.02,
+        0.03,
+        0.04,
+        0.05,
+        0.06,
+        0.07,
+        0.08,
+        0.09,
+        0.1,
+        0.11,
+        0.12
+      ],
+      "motion_progress": 0.75
+    },
+    "scene": {
+      "bodies": [],
+      "geoms": []
+    },
+    "poses": []
+  }
+}

@@ -363,6 +363,6 @@ def test_robot_configuration_assigns_nonlinear_profile_only_to_k_joints():
     assert profile["position_min"] == {"value": -55, "unit": "degrees"}
     assert profile["position_max"] == {"value": 55, "unit": "degrees"}
     assert profile["ballscrew_linkage"]["x_offset"] == {
-        "value": 6.7624856638,
+        "value": 10.461,
         "unit": "centimeters",
     }

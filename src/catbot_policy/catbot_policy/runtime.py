@@ -19,11 +19,25 @@ from catbot_policy.protocol import (
 )
 
 
-def finite_tensor(values, size: int, name: str, *, device="cpu") -> torch.Tensor:
+def finite_tensor(
+    values, size: int, name: str, *, device="cpu", allow_bool=False
+) -> torch.Tensor:
     """Validate a flat numeric vector before it enters inference or mapping."""
+    if (
+        isinstance(values, (list, tuple))
+        and not allow_bool
+        and any(isinstance(value, bool) for value in values)
+    ):
+        raise ValueError(f"Invalid boolean in {name}")
+    if (
+        isinstance(values, torch.Tensor)
+        and values.dtype == torch.bool
+        and not allow_bool
+    ):
+        raise ValueError(f"Invalid boolean in {name}")
     try:
         result = torch.tensor(values, dtype=torch.float32, device=device)
-    except (TypeError, ValueError, RuntimeError) as error:
+    except (TypeError, ValueError, RuntimeError, OverflowError) as error:
         raise ValueError(f"Invalid {name}") from error
     if result.shape != (size,) or not torch.isfinite(result).all():
         raise ValueError(f"{name} must contain {size} finite values")
@@ -56,8 +70,16 @@ class ActuatorMapping:
 
 
 def validate_metadata(metadata: dict) -> tuple[dict, dict]:
+    """Reject malformed or incompatible metadata with a consistent ValueError."""
+    try:
+        return _validate_metadata(metadata)
+    except (KeyError, TypeError, IndexError, OverflowError) as error:
+        raise ValueError("Malformed policy bundle metadata") from error
+
+
+def _validate_metadata(metadata: dict) -> tuple[dict, dict]:
     """Reject incompatible interfaces before loading the trusted actor."""
-    if metadata["schema_version"] != 1:
+    if type(metadata["schema_version"]) is not int or metadata["schema_version"] != 1:
         raise ValueError("Unsupported policy bundle schema")
     if metadata["torch_version"] != torch.__version__.split("+")[0]:
         raise ValueError("Policy bundle and runtime PyTorch versions must match")
@@ -82,18 +104,22 @@ def validate_metadata(metadata: dict) -> tuple[dict, dict]:
         "nv": 18,
         "commands": ["forward_mps", "left_mps", "yaw_radps"],
     }
-    if any(contract[key] != value for key, value in expected.items()):
+    # JSON comparison preserves scalar types: true must not alias integer 1.
+    if any(
+        json.dumps(contract[key], sort_keys=True) != json.dumps(value, sort_keys=True)
+        for key, value in expected.items()
+    ):
         raise ValueError("Incompatible policy observation/action contract")
     ranges = contract["control_ranges"]
     if not isinstance(ranges, list) or len(ranges) != 12:
         raise ValueError("Expected 12 actuator control ranges")
     for limits in ranges:
-        bounds = finite_tensor(limits, 2, "control range")
-        if bounds[0] > bounds[1]:
+        finite_tensor(limits, 2, "control range")
+        if limits[0] > limits[1]:
             raise ValueError("Control ranges must be ordered")
-    if contract["locked_channels"] != [
-        i for i, (lo, hi) in enumerate(ranges) if lo == hi
-    ]:
+    if any(type(i) is not int for i in contract["locked_channels"]) or contract[
+        "locked_channels"
+    ] != [i for i, (lo, hi) in enumerate(ranges) if lo == hi]:
         raise ValueError("Locked channels do not match control ranges")
     dt = contract["control_timestep"]
     settings = metadata["settings"]
@@ -211,6 +237,7 @@ class PolicyRuntime:
                 size,
                 name,
                 device=self.device,
+                allow_bool=name in ("previous_contact", "has_stance"),
             )
         self.feedback = blocks
         self.feedback_received = now
