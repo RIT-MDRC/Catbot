@@ -9,6 +9,7 @@ import threading
 from pathlib import Path
 
 from catbot_policy.protocol import MAX_LINE_BYTES, VERSION
+from catbot_policy.worker_launch import WorkerLaunchSpec
 
 
 class WorkerClient:
@@ -32,18 +33,8 @@ class WorkerClient:
             raise ValueError(
                 "policy_worker_project needs the initialized inference uv project"
             )
-        command = [
-            uv,
-            "run",
-            "--locked" if sync else "--no-sync",
-            "--project",
-            str(project),
-            "--python",
-            python,
-            "python",
+        arguments = [
             str(runner),
-            "--device",
-            device,
             "--bundle",
             bundle,
             "--feedback-timeout",
@@ -52,33 +43,26 @@ class WorkerClient:
             str(ack_timeout),
         ]
         if mapping:
-            command += ["--mapping", mapping]
-        env = os.environ.copy()
-        for name in (
-            "PYTHONPATH",
-            "PYTHONHOME",
-            "VIRTUAL_ENV",
-            "UV_PROJECT_ENVIRONMENT",
-        ):
-            env.pop(name, None)
-        if environment:
-            selected = Path(environment).expanduser().resolve()
-            if not sync and not (selected / "bin/python").is_file():
-                raise ValueError(
-                    f"Prepare the CUDA worker environment at {selected} first, "
-                    "or select orin_device:=cpu. Jetson CUDA needs a matching PyTorch build."
-                )
-            env["UV_PROJECT_ENVIRONMENT"] = str(selected)
+            arguments += ["--mapping", mapping]
+        spec = WorkerLaunchSpec.build(
+            project,
+            uv,
+            arguments,
+            python=python,
+            device=device,
+            environment=environment,
+            sync=sync,
+        )
         self.closed = False
         self.events = queue.Queue(maxsize=8)
         self.process = subprocess.Popen(
-            command,
+            spec.command,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             text=True,
             bufsize=1,
             start_new_session=True,
-            env=env,
+            env=spec.environment,
         )
         self.stdin, self.stdout = self.process.stdin, self.process.stdout
         if self.stdin is None or self.stdout is None:

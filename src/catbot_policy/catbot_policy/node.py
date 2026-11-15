@@ -11,12 +11,13 @@ from collections import deque
 from pathlib import Path
 
 import rclpy
+from catbot_interfaces.msg import ActuatorPositionCommand, PolicyFeedback
 from geometry_msgs.msg import Twist
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from std_msgs.msg import String
 
-from catbot_interfaces.msg import ActuatorPositionCommand, PolicyFeedback
+from catbot_policy.configuration import POLICY_DEFAULTS, POLICY_PARAMETERS
 from catbot_policy.protocol import FEEDBACK_FIELDS, finite_values, validate_feedback
 from catbot_policy.worker_client import WorkerClient
 
@@ -25,37 +26,38 @@ class PolicyNode(Node):
     def __init__(self):
         super().__init__("catbot_policy")
 
-        def param(name, default):
-            return self.declare_parameter(name, default).value
+        self.policy_parameters = {
+            name: self.declare_parameter(name, POLICY_DEFAULTS[name]).value
+            for name in POLICY_PARAMETERS
+        }
 
-        bundle = str(param("policy_bundle", ""))
-        mapping = str(param("mapping_file", ""))
+        def param(name):
+            return self.policy_parameters[name]
+
+        bundle = str(param("policy_bundle"))
+        mapping = str(param("mapping_file"))
         if not bundle:
             raise ValueError("Set policy_bundle to an exported policy directory")
-        self.feedback_timeout = float(param("feedback_timeout", 0.25))
-        self.worker_timeout = float(param("policy_worker_timeout", 2.0))
-        startup_timeout = float(param("policy_startup_timeout", 120.0))
+        self.feedback_timeout = float(param("feedback_timeout"))
+        self.worker_timeout = float(param("policy_worker_timeout"))
+        startup_timeout = float(param("policy_startup_timeout"))
         if not all(
             math.isfinite(v) and v > 0
             for v in (self.feedback_timeout, self.worker_timeout, startup_timeout)
         ):
             raise ValueError("Policy timeouts must be positive and finite")
         self.worker = WorkerClient(
-            str(
-                param(
-                    "policy_worker_project", str(Path(__file__).with_name("inference"))
-                )
-            ),
-            str(param("policy_python", "3.14")),
-            str(param("policy_uv_executable", "uv")),
+            str(param("policy_worker_project")),
+            str(param("policy_python")),
+            str(param("policy_uv_executable")),
             str(Path(bundle).expanduser()),
             str(Path(mapping).expanduser()) if mapping else "",
             self.feedback_timeout,
             self.worker_timeout,
             startup_timeout,
-            device=str(param("policy_device", "cpu")),
-            environment=str(param("policy_worker_environment", "")),
-            sync=bool(param("policy_worker_sync", True)),
+            device=str(param("policy_device")),
+            environment=str(param("policy_worker_environment")),
+            sync=bool(param("policy_worker_sync")),
         )
         try:
             self.initialize()
@@ -75,9 +77,7 @@ class PolicyNode(Node):
         self.command = [0.0, 0.0, 0.0]
         self.pending = None
         self.sequence = 0
-        self.contract_ready = not bool(
-            self.declare_parameter("simulation_mode", False).value
-        )
+        self.contract_ready = not bool(self.policy_parameters["simulation_mode"])
         reliable = QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE)
         self.publisher = self.create_publisher(
             ActuatorPositionCommand, "/body/control/position", reliable

@@ -99,6 +99,30 @@ class RuntimeTests(unittest.TestCase):
                 self.assertEqual(block.abs().sum().item(), 0)
         self.assertEqual(offset, 90)
 
+    def test_observation_storage_reused_and_command_update_atomic(self):
+        self.runtime.update_feedback(feedback_values(), 0)
+        original = self.runtime.observation()
+        self.runtime.set_command([0.8, -0.2, 0.5])
+        cached = self.runtime.command_values
+        with self.assertRaises(ValueError):
+            self.runtime.set_command([float("nan"), 0, 0])
+        self.assertEqual(cached, self.runtime.command_values)
+        self.runtime.step(0, self.publish)
+        updated = self.runtime.observation()
+        self.assertEqual(original.data_ptr(), updated.data_ptr())
+        offset = 0
+        for name, size in OBSERVATION_FIELDS:
+            block = updated[0, offset : offset + size]
+            if name == "previous_action":
+                torch.testing.assert_close(block, self.runtime.previous_action)
+            if name == "gait_sin":
+                self.assertAlmostEqual(
+                    block.item(),
+                    math.sin(2 * math.pi * self.runtime.gait_phase),
+                    places=6,
+                )
+            offset += size
+
     def test_clamping_smoothing_names_mapping_and_history(self):
         self.runtime.update_feedback(feedback_values(), 0)
         self.assertTrue(self.runtime.step(0, self.publish))

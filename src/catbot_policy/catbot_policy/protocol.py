@@ -63,3 +63,6 @@ def validate_feedback(values):
         )
         result[name] = checked[0] if name == "motion_progress" else checked
     return result
+
+
+OBSERVATION_DIMENSION = sum(size for _, size in OBSERVATION_FIELDS)

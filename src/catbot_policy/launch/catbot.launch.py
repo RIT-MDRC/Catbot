@@ -4,6 +4,7 @@ import os
 from importlib.util import find_spec
 from pathlib import Path
 
+from catbot_policy.configuration import POLICY_DEFAULTS, POLICY_PARAMETERS
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, Shutdown
 from launch.substitutions import LaunchConfiguration, PythonExpression
@@ -31,34 +32,25 @@ def generate_launch_description():
     return LaunchDescription(
         [
             DeclareLaunchArgument(
-                "policy_bundle",
-                default_value=POLICY_BUNDLE,
-                description="Exported policy directory containing policy.pt and policy.json",
-            ),
-            DeclareLaunchArgument(
                 "backend", default_value="hardware", choices=["hardware", "simulation"]
             ),
-            DeclareLaunchArgument(
-                "mapping_file",
-                default_value=str(
-                    Path(find_spec("catbot_policy").origin).parent
-                    / "default_mapping.json"
-                ),
-            ),
-            DeclareLaunchArgument("policy_python", default_value="3.14"),
-            DeclareLaunchArgument("policy_device", default_value="cpu"),
-            DeclareLaunchArgument("policy_worker_environment", default_value=""),
-            DeclareLaunchArgument("policy_worker_sync", default_value="true"),
-            DeclareLaunchArgument(
-                "policy_worker_project",
-                default_value=str(
-                    Path(find_spec("catbot_policy").origin).parent / "inference"
-                ),
-            ),
-            DeclareLaunchArgument("policy_uv_executable", default_value="uv"),
-            DeclareLaunchArgument("feedback_timeout", default_value="0.25"),
-            DeclareLaunchArgument("policy_worker_timeout", default_value="2.0"),
-            DeclareLaunchArgument("policy_startup_timeout", default_value="120.0"),
+            *[
+                DeclareLaunchArgument(
+                    name,
+                    default_value=str(default).lower()
+                    if isinstance(default, bool)
+                    else str(default),
+                )
+                for name, default in {
+                    **POLICY_DEFAULTS,
+                    "policy_bundle": POLICY_BUNDLE,
+                    "mapping_file": str(
+                        Path(find_spec("catbot_policy").origin).parent
+                        / "default_mapping.json"
+                    ),
+                }.items()
+                if name != "simulation_mode"
+            ],
             Node(
                 package="foundation",
                 executable=PythonExpression(
@@ -79,36 +71,14 @@ def generate_launch_description():
                 output="screen",
                 parameters=[
                     {
-                        "policy_bundle": LaunchConfiguration("policy_bundle"),
-                        "policy_device": LaunchConfiguration("policy_device"),
-                        "policy_worker_environment": ParameterValue(
-                            LaunchConfiguration("policy_worker_environment"),
-                            value_type=str,
-                        ),
-                        "policy_worker_sync": ParameterValue(
-                            LaunchConfiguration("policy_worker_sync"), value_type=bool
-                        ),
-                        "policy_python": ParameterValue(
-                            LaunchConfiguration("policy_python"), value_type=str
-                        ),
-                        "policy_worker_project": LaunchConfiguration(
-                            "policy_worker_project"
-                        ),
-                        "policy_uv_executable": LaunchConfiguration(
-                            "policy_uv_executable"
-                        ),
-                        "feedback_timeout": ParameterValue(
-                            LaunchConfiguration("feedback_timeout"), value_type=float
-                        ),
-                        "policy_worker_timeout": ParameterValue(
-                            LaunchConfiguration("policy_worker_timeout"),
-                            value_type=float,
-                        ),
-                        "policy_startup_timeout": ParameterValue(
-                            LaunchConfiguration("policy_startup_timeout"),
-                            value_type=float,
-                        ),
-                        "mapping_file": LaunchConfiguration("mapping_file"),
+                        **{
+                            name: ParameterValue(
+                                LaunchConfiguration(name),
+                                value_type=type(POLICY_DEFAULTS[name]),
+                            )
+                            for name in POLICY_PARAMETERS
+                            if name != "simulation_mode"
+                        },
                         "simulation_mode": ParameterValue(
                             PythonExpression(
                                 [

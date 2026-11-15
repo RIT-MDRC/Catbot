@@ -15,7 +15,9 @@ from pathlib import Path
 
 import torch
 
-from catbot_policy.runtime import PolicyRuntime, validate_metadata
+from catbot_policy.files import sha256_file
+from catbot_policy.protocol import OBSERVATION_DIMENSION
+from catbot_policy.runtime import PolicyRuntime, validate_action, validate_metadata
 
 CHECKPOINT_PATTERN = re.compile(r"model_(\d+)\.pt")
 NAME_PATTERN = re.compile(r"[A-Za-z0-9_-]+")
@@ -80,10 +82,7 @@ def checkpoint_metadata(checkpoint: Path) -> tuple[dict, dict]:
         raise ValueError("Unsupported training manifest version")
     if "robot" not in config:
         raise ValueError("Checkpoint predates the 12-actuator policy; retrain it")
-    if (
-        hashlib.sha256((root / "model.xml").read_bytes()).hexdigest()
-        != manifest["model_sha256"]
-    ):
+    if sha256_file(root / "model.xml") != manifest["model_sha256"]:
         raise ValueError("Saved model checksum does not match the training manifest")
     if any(config[key] != manifest[key] for key in ("environment", "robot", "runner")):
         raise ValueError("Saved configuration does not match the training manifest")
@@ -131,7 +130,9 @@ def export_checkpoint(checkpoint: Path, output: Path) -> Path:
     from tensordict import TensorDict
 
     torch.set_num_threads(1)
-    observations = TensorDict({"actor": torch.zeros(1, 90)}, batch_size=[1])
+    observations = TensorDict(
+        {"actor": torch.zeros(1, OBSERVATION_DIMENSION)}, batch_size=[1]
+    )
     actor = MLPModel(observations, {"actor": ["actor"]}, "actor", 12, **actor_config)
     weights = torch.load(checkpoint, map_location="cpu", weights_only=True)
     actor.load_state_dict(weights["actor_state_dict"], strict=True)
@@ -139,9 +140,7 @@ def export_checkpoint(checkpoint: Path, output: Path) -> Path:
     exported = torch.jit.script(actor.as_jit().cpu().eval())
     output.mkdir(parents=True)
     exported.save(str(output / "policy.pt"))
-    metadata["policy_sha256"] = hashlib.sha256(
-        (output / "policy.pt").read_bytes()
-    ).hexdigest()
+    metadata["policy_sha256"] = sha256_file(output / "policy.pt")
     (output / "policy.json").write_text(json.dumps(metadata, indent=2) + "\n")
 
     # Load through the same path as the ROS node and check deterministic parity.
@@ -149,12 +148,12 @@ def export_checkpoint(checkpoint: Path, output: Path) -> Path:
     generator = torch.Generator().manual_seed(0)
     with torch.inference_mode():
         for inputs in (
-            torch.zeros(1, 90),
-            torch.randn(1, 90, generator=generator) * 2 + 3,
+            torch.zeros(1, OBSERVATION_DIMENSION),
+            torch.randn(1, OBSERVATION_DIMENSION, generator=generator) * 2 + 3,
         ):
             expected = actor(TensorDict({"actor": inputs}, batch_size=[1]))
             actual = runtime.actor(inputs)
-            runtime._validate_action(actual)
+            validate_action(actual)
             torch.testing.assert_close(actual, expected)
     return output
 
@@ -178,10 +177,7 @@ def prepare_policy(
         for name in names:
             print(f"Downloading {name}", flush=True)
             files[name].download(root=str(staging), replace=True).close()
-        hashes = {
-            name: hashlib.sha256((staging / name).read_bytes()).hexdigest()
-            for name in names
-        }
+        hashes = {name: sha256_file(staging / name) for name in names}
         fingerprint = hashlib.sha256(
             json.dumps(hashes, sort_keys=True).encode()
         ).hexdigest()

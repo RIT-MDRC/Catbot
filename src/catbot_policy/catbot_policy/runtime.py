@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import math
 import time
@@ -10,7 +9,14 @@ from pathlib import Path
 
 import torch
 
-from catbot_policy.protocol import ACTION_NAMES, FEEDBACK_FIELDS, OBSERVATION_FIELDS
+from catbot_policy.configuration import validate_mapping
+from catbot_policy.files import sha256_file
+from catbot_policy.protocol import (
+    ACTION_NAMES,
+    FEEDBACK_FIELDS,
+    OBSERVATION_DIMENSION,
+    OBSERVATION_FIELDS,
+)
 
 
 def finite_tensor(values, size: int, name: str, *, device="cpu") -> torch.Tensor:
@@ -32,13 +38,7 @@ class ActuatorMapping:
         data = json.loads(path.read_text())
         self.metadata = data
         self.names = data["actuator_names"]
-        if (
-            not isinstance(self.names, list)
-            or len(self.names) != 12
-            or any(not isinstance(name, str) or not name.strip() for name in self.names)
-            or len(set(self.names)) != 12
-        ):
-            raise ValueError("Mapping must contain 12 unique actuator names")
+        validate_mapping(data)
         self.signs = finite_tensor(data["signs"], 12, "signs", device=device)
         self.offsets = finite_tensor(
             data["offsets_degrees"], 12, "offsets_degrees", device=device
@@ -49,10 +49,6 @@ class ActuatorMapping:
         self.maximum = finite_tensor(
             data["maximum_degrees"], 12, "maximum_degrees", device=device
         )
-        if not ((self.signs == 1) | (self.signs == -1)).all():
-            raise ValueError("Mapping signs must be +1 or -1")
-        if not (self.minimum < self.maximum).all():
-            raise ValueError("Mapping minimum must be below maximum")
 
     def convert(self, radians: torch.Tensor) -> list[float]:
         degrees = torch.rad2deg(radians) * self.signs + self.offsets
@@ -79,7 +75,7 @@ def validate_metadata(metadata: dict) -> tuple[dict, dict]:
         "observations": [
             {"name": name, "size": size} for name, size in OBSERVATION_FIELDS
         ],
-        "observation_dimension": 90,
+        "observation_dimension": OBSERVATION_DIMENSION,
         "actions": ACTION_NAMES,
         "joint_order": ["base_free", *ACTION_NAMES],
         "nq": 19,
@@ -129,6 +125,15 @@ def validate_metadata(metadata: dict) -> tuple[dict, dict]:
     return contract, settings
 
 
+def validate_action(action):
+    if (
+        not isinstance(action, torch.Tensor)
+        or action.shape != (1, 12)
+        or not torch.isfinite(action).all()
+    ):
+        raise ValueError("Policy must return 12 finite actions with shape (1, 12)")
+
+
 class PolicyRuntime:
     """Assemble observations, publish one command, then advance local history."""
 
@@ -157,10 +162,7 @@ class PolicyRuntime:
         except (KeyError, TypeError, IndexError) as error:
             raise ValueError("Malformed policy bundle metadata") from error
         policy_path = bundle / "policy.pt"
-        if (
-            hashlib.sha256(policy_path.read_bytes()).hexdigest()
-            != self.metadata["policy_sha256"]
-        ):
+        if sha256_file(policy_path) != self.metadata["policy_sha256"]:
             raise ValueError("Policy checksum does not match metadata")
         torch.set_num_threads(1)
         self.actor = torch.jit.load(str(policy_path), map_location=self.device).eval()
@@ -172,6 +174,15 @@ class PolicyRuntime:
         self.center = ranges.mean(dim=1)
         self.half_range = (ranges[:, 1] - ranges[:, 0]) / 2
         self.command = torch.zeros(3, device=self.device)
+        self.command_values = (0.0, 0.0, 0.0)
+        self.observation_buffer = torch.empty(
+            1, OBSERVATION_DIMENSION, device=self.device
+        )
+        self.observation_slices = {}
+        offset = 0
+        for name, size in OBSERVATION_FIELDS:
+            self.observation_slices[name] = slice(offset, offset + size)
+            offset += size
         self.previous_action = torch.zeros(12, device=self.device)
         self.previous_action_delta = torch.zeros(12, device=self.device)
         self.gait_phase = 0.0
@@ -180,19 +191,14 @@ class PolicyRuntime:
         self.feedback_received = float("-inf")
         self.feedback_timeout = feedback_timeout
         with torch.inference_mode():
-            self._validate_action(self.actor(torch.zeros(1, 90, device=self.device)))
-
-    @staticmethod
-    def _validate_action(action):
-        if (
-            not isinstance(action, torch.Tensor)
-            or action.shape != (1, 12)
-            or not torch.isfinite(action).all()
-        ):
-            raise ValueError("Policy must return 12 finite actions with shape (1, 12)")
+            validate_action(
+                self.actor(torch.zeros(1, OBSERVATION_DIMENSION, device=self.device))
+            )
 
     def set_command(self, values) -> None:
-        self.command = finite_tensor(values, 3, "velocity command", device=self.device)
+        command = finite_tensor(values, 3, "velocity command")
+        self.command_values = tuple(command.tolist())
+        self.command.copy_(command)
 
     def update_feedback(self, values: dict, now: float) -> None:
         # An invalid replacement invalidates the previous sample immediately.
@@ -212,20 +218,19 @@ class PolicyRuntime:
     def observation(self) -> torch.Tensor:
         if self.feedback is None:
             raise ValueError("No valid feedback")
-        blocks = {
-            **self.feedback,
-            "command": self.command,
-            "previous_action": self.previous_action,
-            "previous_action_delta": self.previous_action_delta,
-            "gait_sin": torch.tensor(
-                [math.sin(2 * math.pi * self.gait_phase)], device=self.device
-            ),
-            "gait_cos": torch.tensor(
-                [math.cos(2 * math.pi * self.gait_phase)], device=self.device
-            ),
-            "gait_blend": torch.tensor([self.gait_blend], device=self.device),
-        }
-        return torch.cat([blocks[name] for name, _ in OBSERVATION_FIELDS]).unsqueeze(0)
+        for name, value in self.feedback.items():
+            self.observation_buffer[0, self.observation_slices[name]].copy_(value)
+        for name in ("command", "previous_action", "previous_action_delta"):
+            self.observation_buffer[0, self.observation_slices[name]].copy_(
+                getattr(self, name)
+            )
+        for name, value in (
+            ("gait_sin", math.sin(2 * math.pi * self.gait_phase)),
+            ("gait_cos", math.cos(2 * math.pi * self.gait_phase)),
+            ("gait_blend", self.gait_blend),
+        ):
+            self.observation_buffer[0, self.observation_slices[name]].fill_(value)
+        return self.observation_buffer
 
     def step(self, now: float, publish) -> bool:
         """Publish if feedback is fresh; commit history only after successful send."""
@@ -236,14 +241,12 @@ class PolicyRuntime:
             return False
         with torch.inference_mode():
             observation = self.observation()
-            if self.device.type == "cuda":
-                torch.cuda.synchronize(self.device)
             inference_started = time.perf_counter()
             raw_action = self.actor(observation)
             if self.device.type == "cuda":
                 torch.cuda.synchronize(self.device)
             self.last_inference_seconds = time.perf_counter() - inference_started
-            self._validate_action(raw_action)
+            validate_action(raw_action)
             smoothing = self.settings["action_smoothing"]
             action = smoothing * self.previous_action + (1 - smoothing) * raw_action[
                 0
@@ -257,14 +260,15 @@ class PolicyRuntime:
             1.0,
             max(
                 0.0,
-                (abs(self.command[0].item()) - self.settings["trot_speed"])
+                (abs(self.command_values[0]) - self.settings["trot_speed"])
                 / (self.settings["bound_speed"] - self.settings["trot_speed"]),
             ),
         )
         limit = self.dt / self.settings["gait_transition_seconds"]
         self.gait_blend += min(limit, max(-limit, target_blend - self.gait_blend))
         moving = (
-            self.command[:2].norm().item() > 0.1 or abs(self.command[2].item()) > 0.1
+            math.hypot(*self.command_values[:2]) > 0.1
+            or abs(self.command_values[2]) > 0.1
         )
         self.gait_phase = (
             self.gait_phase + self.dt * (1.5 + 0.5 * self.gait_blend) * moving
