@@ -2,9 +2,15 @@
 
 from pathlib import Path
 
+from catbot_policy.artifacts import DEFAULT_ENTITY, DEFAULT_PROJECT, policy_directory
 from catbot_policy.protocol import finite_values
 
 POLICY_DEFAULTS = {
+    "run_id": "",
+    "checkpoint": "",
+    "policy_entity": DEFAULT_ENTITY,
+    "policy_project": DEFAULT_PROJECT,
+    "policy_artifacts_directory": str(policy_directory()),
     "policy_bundle": "",
     "policy_device": "cpu",
     "policy_worker_environment": "auto",

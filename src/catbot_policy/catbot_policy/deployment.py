@@ -8,20 +8,29 @@ import hashlib
 import importlib.metadata
 import json
 import os
-import re
 import shlex
 import tempfile
 from pathlib import Path
 
 import torch
 
+from catbot_policy.artifacts import (
+    CHECKPOINT_PATTERN,
+    DEFAULT_ENTITY,
+    DEFAULT_PROJECT,
+    NAME_PATTERN,
+    RUN_FILES,
+    available_models,
+    checkpoint_name,
+    policy_directory,
+)
+from catbot_policy.artifacts import (
+    run_path as normalize_run_path,
+)
 from catbot_policy.files import sha256_file
 from catbot_policy.protocol import OBSERVATION_DIMENSION
 from catbot_policy.runtime import PolicyRuntime, validate_action, validate_metadata
 
-CHECKPOINT_PATTERN = re.compile(r"model_(\d+)\.pt")
-NAME_PATTERN = re.compile(r"[A-Za-z0-9_-]+")
-RUN_FILES = ("config.json", "model.xml", "manifest.json")
 SETTINGS = (
     "action_smoothing",
     "trot_speed",
@@ -29,11 +38,6 @@ SETTINGS = (
     "gait_transition_seconds",
     "air_time_limit",
 )
-
-
-def policy_directory() -> Path:
-    """Keep the explicitly downloaded run beside the policy ROS package."""
-    return Path(__file__).resolve().parents[1] / "artifacts"
 
 
 def latest_checkpoint(files: dict) -> str | None:
@@ -216,15 +220,29 @@ def prepare_policy(
 
 def main(argv=None) -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("run", nargs="?", help="Optional ENTITY/PROJECT/RUN_ID")
-    parser.add_argument("checkpoint", nargs="?", help="Optional model_N.pt in that run")
+    parser.add_argument("run", nargs="?", help="RUN_ID or ENTITY/PROJECT/RUN_ID")
+    parser.add_argument(
+        "checkpoint",
+        nargs="?",
+        help="Checkpoint number or model_N.pt; omitted selects latest in this run",
+    )
+    parser.add_argument("--run-id", help="Alternative to positional RUN_ID")
+    parser.add_argument(
+        "--checkpoint",
+        dest="checkpoint_number",
+        help="Alternative checkpoint number or model_N.pt",
+    )
     parser.add_argument(
         "--latest",
         action="store_true",
         help="Explicitly select the newest complete W&B run",
     )
-    parser.add_argument("--entity", default=os.environ.get("WANDB_ENTITY"))
-    parser.add_argument("--project", default=os.environ.get("WANDB_PROJECT", "catbot"))
+    parser.add_argument(
+        "--entity", default=os.environ.get("WANDB_ENTITY", DEFAULT_ENTITY)
+    )
+    parser.add_argument(
+        "--project", default=os.environ.get("WANDB_PROJECT", DEFAULT_PROJECT)
+    )
     parser.add_argument(
         "--directory",
         type=Path,
@@ -235,17 +253,25 @@ def main(argv=None) -> None:
         "--login", action="store_true", help="Log in to W&B before downloading"
     )
     args = parser.parse_args(argv)
+    if args.run_id:
+        if args.run:
+            parser.error("Use either positional run or --run-id")
+        args.run = args.run_id
+    if args.checkpoint_number is not None:
+        if args.checkpoint:
+            parser.error("Use either positional checkpoint or --checkpoint")
+        args.checkpoint = args.checkpoint_number
     if not args.run and not args.latest:
-        parser.error(
-            "Specify ENTITY/PROJECT/RUN_ID for a fixed run, or explicitly use --latest"
-        )
+        parser.error("Specify RUN_ID for a fixed run, or explicitly use --latest")
     if args.run and args.latest:
         parser.error("Choose an explicit run or --latest, not both")
-    if args.run and (
-        len(args.run.split("/")) != 3
-        or not all(NAME_PATTERN.fullmatch(part) for part in args.run.split("/"))
-    ):
-        parser.error("run must be ENTITY/PROJECT/RUN_ID")
+    try:
+        if args.run:
+            args.run = normalize_run_path(args.run, args.entity, args.project)
+        if args.checkpoint:
+            args.checkpoint = checkpoint_name(args.checkpoint)
+    except ValueError as error:
+        parser.error(f"{error}\n{available_models(args.directory)}")
     if not NAME_PATTERN.fullmatch(args.project):
         parser.error("project must be a W&B project name")
     if args.checkpoint and (
@@ -275,7 +301,10 @@ def main(argv=None) -> None:
         AssertionError,
         wandb.Error,
     ) as error:
-        parser.exit(1, f"Policy preparation failed: {error}\n")
+        parser.exit(
+            1,
+            f"Policy preparation failed: {error}\n{available_models(args.directory)}\n",
+        )
     print(f"run_directory: {bundle.parent}")
     print(f"policy_bundle: {bundle}")
     print(f"Selected local run: {args.directory.expanduser().resolve() / 'selected'}")
