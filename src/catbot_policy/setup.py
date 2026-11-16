@@ -17,6 +17,7 @@ setup(
             "inference/*.toml",
             "inference/*.lock",
             "inference/*.py",
+            "inference/cuda/*.toml",
         ]
     },
     install_requires=["setuptools"],

@@ -1,0 +1,10 @@
+[project]
+name = "catbot-policy-inference-cuda"
+version = "0.1.0"
+description = "Externally provisioned Jetson CUDA inference, separate from the CPU lock"
+requires-python = ">=3.10,<3.15"
+# JetPack-specific Torch is installed by setup_environment.py, never by uv sync.
+dependencies = []
+
+[tool.uv]
+package = false

@@ -1,6 +1,6 @@
 # Catbot policy node
 
-`catbot_policy` runs an exported actor on CPU or CUDA in an isolated Python 3.14 worker, combines named feedback with
+`catbot_policy` runs an exported actor on CPU or CUDA in an isolated device-specific Python worker, combines named feedback with
 software-maintained observations, and publishes the existing
 `catbot_interfaces/ActuatorPositionCommand`. It does not access CAN, initialize
 foundation, or perform homing/calibration. A feedback provider is required;
@@ -114,10 +114,10 @@ ros2 run catbot_policy policy --ros-args \
 
 Running colcon through the activated ROS-compatible Python keeps the adapter
 compatible with ROS's binary bindings. PyTorch is installed only in the separate
-Python 3.14 inference project. The optional root `policy` dependency group remains
+device-specific inference project (CPU: Python 3.14; Jetson CUDA: Python 3.10). The optional root `policy` dependency group remains
 available for offline runtime/export tooling, but the ROS adapter does not need
 it. Do not use IntelliSense-only ROS packages as runtime bindings. Jazzy's ROS
-adapter must use Jazzy's native Python ABI; its inference worker still uses 3.14.
+adapter must use Jazzy's native Python ABI; inference remains independent.
 
 Parameters are `policy_bundle` (required), `mapping_file` (optional JSON), and
 `feedback_timeout` (positive seconds, default `0.25`). Topic remapping works
@@ -274,12 +274,12 @@ Restart the entire distributed launch to reset policy and simulator history.
 This exercises the inference runtime and simulation transport, not CAN hardware
 workload. See the catbot-orin repository's `docs/SIMULATION.md` for orchestration.
 
-### Isolated Python 3.14 inference
+### Isolated CPU/CUDA inference
 
 The `policy` ROS executable now runs only the ROS adapter on the ROS-compatible
 interpreter. PyTorch, actor execution, mapping and policy history run in a separate
-uv environment at `catbot_policy/inference`, requiring Python 3.14 and the locked
-PyTorch version. The ROS package no longer installs PyTorch as a dependency.
+uv environment at `catbot_policy/inference`: CPU uses Python 3.14 and locked
+PyTorch; CUDA uses a separately prepared Python 3.10 environment by default. The ROS package no longer installs PyTorch as a dependency.
 
 ```bash
 # From the Catbot workspace, on the policy host:
@@ -287,7 +287,8 @@ uv sync --locked --python 3.14 --project src/catbot_policy/catbot_policy/inferen
 ros2 launch catbot_policy catbot.launch.py policy_python:=3.14
 ```
 
-`policy_python` accepts a uv Python version or interpreter path. Keep the ROS
+`policy_python` defaults to `auto` (CUDA: 3.10; CPU: 3.14), or accepts a uv
+Python version or interpreter path. Keep the ROS
 adapter on its ROS-compatible interpreter; pointing the adapter itself to Python
 3.14 does not make Humble's Python 3.10 bindings compatible. The Orin scenario
 launches expose `policy_ros_python` and `remote_policy_ros_python` independently.
@@ -317,18 +318,45 @@ observations, history and actuator mapping all use the selected device. CUDA tim
 synchronizes the selected device around the actor call. `/policy/metrics` reports
 the selected device, and unavailable CUDA raises an error without a CPU fallback.
 
-The shipped inference lock is a **CPU** environment. A CUDA-enabled Jetson build
-must match JetPack, Python 3.14 and the exported bundle's exact PyTorch version.
-The runtime retains its strict version/contract checks, including rejection of
-incompatible prerelease builds. Until a compatible build is prepared, use CPU.
+The shipped inference lock is a **CPU** environment. CUDA inference uses the
+separate `inference/cuda` project and `<inference>/.venv-cuda`, permitting older
+Python without applying CPU dependencies. `policy_worker_environment:=auto` and
+`policy_worker_sync:=auto` select these defaults in both Catbot and Orin launches.
+CPU uses `<inference>/.venv` and locked syncing; CUDA uses `uv run --no-sync`.
+Explicit syncing for CUDA is rejected to preserve vendor packages.
 
-To preserve a prepared CUDA environment, set `policy_worker_environment` to its
-absolute venv path and `policy_worker_sync:=false`. The adapter uses
-`UV_PROJECT_ENVIRONMENT` and `uv run --no-sync` to avoid replacing NVIDIA packages
-with the CPU lock. It checks that an interpreter exists before launch. With sync
-enabled, the normal locked CPU environment is prepared automatically.
+From the Catbot workspace, prepare each environment separately **on the target**:
 
-The Orin scenario helper resolves these choices automatically from the selected
-device: CUDA uses `<worker_project>/.venv-cuda` without syncing; CPU uses the normal
-locked project environment. Override these settings only for a prepared compatible
-environment. No CUDA installation or execution was verified on the development Mac.
+```bash
+python3 src/catbot_policy/catbot_policy/inference/setup_environment.py --device cpu
+# Use an actual trusted wheel matching JetPack/CUDA/Python/Jetson architecture:
+python3 src/catbot_policy/catbot_policy/inference/setup_environment.py \
+  --device cuda --torch-wheel /absolute/path/to/jetson-torch-cp310-linux_aarch64.whl
+# OR reuse CUDA Torch already installed for system Python, in a new CUDA venv:
+python3 src/catbot_policy/catbot_policy/inference/setup_environment.py \
+  --device cuda --python /usr/bin/python3 --system-site-packages
+
+ros2 launch catbot_policy catbot.launch.py policy_device:=cuda:0
+ros2 launch catbot_policy catbot.launch.py policy_device:=cpu
+```
+
+On Orin, prefix script paths with `external/Catbot/`. The setup script accepts
+`--python` and `--environment`; use corresponding `policy_python` and
+`policy_worker_environment` launch overrides if customized. Setup reports Python,
+Torch and CUDA versions and checks CUDA allocation on the target. It does not
+start ROS, policy or simulation. CUDA libraries and wheel-specific system
+prerequisites remain external to uv. No guessed wheel URL is installed.
+
+`policy_torch_compatibility:=auto` selects strict exported/runtime Torch matching
+for CPU and `load` compatibility for CUDA. `load` warns about version differences,
+retains checksums and observation/action contracts, and requires TorchScript
+loading and finite `(1, 12)` startup output. Newer exports can still fail on older
+Torch operators: re-export for a compatible runtime or use modern CPU in that case.
+Successful loading does not prove numerical parity; compare with the modern CPU
+reference before physical deployment. Override with `policy_torch_compatibility:=exact`
+for strict matching. Direct `PolicyRuntime` calls retain exact matching by default.
+
+The simulator remains a separate Python 3.14 project. Older CUDA **policy** support
+does not port the MuJoCo training stack. Orin scenario defaults use CPU simulation
+and CUDA policy; `orin_device:=cpu` selects modern CPU policy. These changes were
+checked statically only, without executing CUDA, ROS or policy on the development Mac.

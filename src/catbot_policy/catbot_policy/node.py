@@ -1,4 +1,4 @@
-"""ROS adapter on ROS Python; inference and PyTorch live in a uv Python 3.14 worker."""
+"""ROS adapter on ROS Python; inference uses an independent CPU or CUDA worker."""
 
 from __future__ import annotations
 
@@ -11,12 +11,12 @@ from collections import deque
 from pathlib import Path
 
 import rclpy
-from catbot_interfaces.msg import ActuatorPositionCommand, PolicyFeedback
 from geometry_msgs.msg import Twist
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from std_msgs.msg import String
 
+from catbot_interfaces.msg import ActuatorPositionCommand, PolicyFeedback
 from catbot_policy.configuration import POLICY_DEFAULTS, POLICY_PARAMETERS
 from catbot_policy.protocol import FEEDBACK_FIELDS, finite_values, validate_feedback
 from catbot_policy.worker_client import WorkerClient
@@ -57,7 +57,8 @@ class PolicyNode(Node):
             startup_timeout,
             device=str(param("policy_device")),
             environment=str(param("policy_worker_environment")),
-            sync=bool(param("policy_worker_sync")),
+            sync=str(param("policy_worker_sync")),
+            torch_compatibility=str(param("policy_torch_compatibility")),
         )
         try:
             self.initialize()
