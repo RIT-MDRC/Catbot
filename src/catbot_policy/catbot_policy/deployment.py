@@ -29,6 +29,7 @@ from catbot_policy.artifacts import (
 )
 from catbot_policy.files import sha256_file
 from catbot_policy.protocol import OBSERVATION_DIMENSION
+from catbot_policy.rollout_setup import find_rollout_repository, prepare_rollout
 from catbot_policy.runtime import PolicyRuntime, validate_action, validate_metadata
 
 SETTINGS = (
@@ -170,6 +171,7 @@ def prepare_policy(
     project="catbot",
     checkpoint=None,
     directory=None,
+    rollout_repository=None,
 ) -> Path:
     run_path, files, checkpoint = select_run(api, run_path, entity, project, checkpoint)
     directory = (directory or policy_directory()).expanduser().resolve()
@@ -202,6 +204,9 @@ def prepare_policy(
             )
             destination.parent.mkdir(parents=True, exist_ok=True)
             staging.rename(destination)
+
+    if rollout_repository is not None:
+        prepare_rollout(Path(rollout_repository), bundle.parent)
 
     # A single selected-run link supplies both model files and the policy bundle.
     # This is a fixed local selection, not a W&B query at launch time.
@@ -252,6 +257,16 @@ def main(argv=None) -> None:
     parser.add_argument(
         "--login", action="store_true", help="Log in to W&B before downloading"
     )
+    parser.add_argument(
+        "--rollout-repository",
+        type=Path,
+        help="Simulator project (default: discover external/catbot_sim_rollout)",
+    )
+    parser.add_argument(
+        "--skip-rollout-setup",
+        action="store_true",
+        help="Prepare only the policy bundle, without updating the simulator",
+    )
     args = parser.parse_args(argv)
     if args.run_id:
         if args.run:
@@ -291,6 +306,11 @@ def main(argv=None) -> None:
             project=args.project,
             checkpoint=args.checkpoint,
             directory=args.directory,
+            rollout_repository=(
+                None
+                if args.skip_rollout_setup
+                else args.rollout_repository or find_rollout_repository()
+            ),
         )
     except (
         OSError,

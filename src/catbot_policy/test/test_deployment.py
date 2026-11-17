@@ -139,6 +139,11 @@ class DeploymentTests(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
+        discovery = patch(
+            "catbot_policy.deployment.find_rollout_repository", return_value=None
+        )
+        discovery.start()
+        self.addCleanup(discovery.stop)
         self.source = self.root / "source"
         self.source.mkdir()
         self.cache = self.root / "cache"
@@ -257,6 +262,20 @@ class DeploymentTests(unittest.TestCase):
         self.assertEqual(source["run"], "team/catbot/run1")
         self.assertEqual(source["checkpoint"], "model_100.pt")
 
+    def test_cli_automatically_prepares_discovered_simulator(self):
+        wandb = SimpleNamespace(Api=lambda: self.api, Error=RuntimeError)
+        with (
+            patch.dict(sys.modules, {"wandb": wandb}),
+            patch("sys.stdout", io.StringIO()),
+            patch(
+                "catbot_policy.deployment.find_rollout_repository",
+                return_value=self.root,
+            ),
+            patch("catbot_policy.deployment.prepare_rollout") as setup,
+        ):
+            main(["run1", "--directory", str(self.cache)])
+        setup.assert_called_once_with(self.root, (self.cache / "selected").resolve())
+
     def test_cli_download_failure_reports_error_and_exits(self):
         self.files[-1].fail = True
         error_output = io.StringIO()
@@ -296,6 +315,21 @@ class DeploymentTests(unittest.TestCase):
             self.prepare()
         self.assertEqual((self.cache / "latest").resolve(), first)
         self.assertEqual(list(self.cache.glob(".download-*")), [])
+
+    def test_rollout_failure_preserves_previous_selection(self):
+        first = self.prepare()
+        self.manifest["git_revision"] = "a" * 40
+        self.save_manifest()
+        with (
+            patch(
+                "catbot_policy.deployment.prepare_rollout",
+                side_effect=RuntimeError("sync failed"),
+            ),
+            self.assertRaisesRegex(RuntimeError, "sync failed"),
+        ):
+            prepare_policy(self.api, directory=self.cache, rollout_repository=self.root)
+        self.assertEqual((self.cache / "selected").resolve(), first.parent)
+        self.assertEqual((self.cache / "latest").resolve(), first)
 
     def test_bad_manifest_is_rejected_before_loading_weights(self):
         for change in ("model", "config", "version", "observations"):

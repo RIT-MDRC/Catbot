@@ -389,6 +389,15 @@ work; `--entity` / `--project` or `WANDB_ENTITY` / `WANDB_PROJECT` override the
 downloader defaults. Download/export selects the result for subsequent default
 launches. Failed preparation preserves the previous selected link.
 
+When `external/catbot_sim_rollout` is available, the downloader automatically
+pins its `catbot-mujoco` dependency to the run manifest's `git_revision`, updates
+the lockfile, syncs only the simulator's `.venv`, and validates the saved config
+before selecting the new policy. GPU policy `.venv-cuda` is left untouched.
+Run downloads with ROS stopped. Use `--rollout-repository PATH` to select a custom
+simulator checkout, or `--skip-rollout-setup` for policy-only preparation. On setup
+failure, dependency files are restored and the previous policy stays selected;
+the simulator `.venv` may have changed, so rerun preparation before launching.
+
 Launch without arguments to keep the selected local download. To select from the
 local cache without downloading or changing the saved selection:
 
