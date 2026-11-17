@@ -1,6 +1,6 @@
 #! /usr/bin/env node
 
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -45,6 +45,17 @@ export function uvEnvironment(root) {
 		UV_PROJECT_ENVIRONMENT: runtimeEnvironment(),
 		CATBOT_PROJECT_ROOT: root,
 	};
+}
+
+export function pruneBuildLogs(logDirectory) {
+	if (!existsSync(logDirectory)) return;
+	const runs = readdirSync(logDirectory, { withFileTypes: true })
+		.filter((entry) => entry.isDirectory() && /^build_\d{4}-\d{2}-\d{2}_/.test(entry.name))
+		.map((entry) => entry.name)
+		.sort();
+	for (const run of runs.slice(0, -5)) {
+		rmSync(path.join(logDirectory, run), { recursive: true });
+	}
 }
 
 function setup(args) {
@@ -119,6 +130,7 @@ function setup(args) {
 			],
 			{ env: uvEnvironment(root) },
 		);
+		pruneBuildLogs(path.join(rosRuntime, 'log'));
 	}
 	if (status === 0) {
 		console.log('Catbot setup complete.');
