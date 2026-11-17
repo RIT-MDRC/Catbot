@@ -57,3 +57,28 @@ class PolicyFeedback:
     motion_progress: float
     def __init__(self, **kwargs: object) -> None: ...
 
+
+class PolicyMetrics:
+    stamp: Time
+    device: str
+    window_seconds: float
+    control_interval_ms: float
+    published_hz: float
+    sample_count: int
+    inference_p50_ms: float
+    inference_p95_ms: float
+    inference_p99_ms: float
+    round_trip_p50_ms: float
+    round_trip_p95_ms: float
+    round_trip_p99_ms: float
+    feedback_age_p50_ms: float
+    feedback_age_p95_ms: float
+    feedback_age_p99_ms: float
+    missed_timer_intervals: int
+    busy_ticks: int
+    discarded_results: int
+    adapter_cpu_percent_one_core: float
+    adapter_peak_rss_kib: int
+    worker_cpu_percent_one_core: float
+    worker_peak_rss_kib: float
+    def __init__(self, **kwargs: object) -> None: ...

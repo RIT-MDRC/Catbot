@@ -1,6 +1,7 @@
 """Exercise actual ROS messages when ROS is installed; never address foundation."""
 
 import json
+import math
 import os
 import tempfile
 import time
@@ -29,8 +30,9 @@ from geometry_msgs.msg import Twist
 from rclpy.executors import SingleThreadedExecutor
 from rclpy.impl.implementation_singleton import rclpy_implementation  # noqa: F401
 from rclpy.qos import QoSProfile, ReliabilityPolicy
+from rclpy.serialization import deserialize_message, serialize_message
 
-from catbot_interfaces.msg import ActuatorPositionCommand, PolicyFeedback
+from catbot_interfaces.msg import ActuatorPositionCommand, PolicyFeedback, PolicyMetrics
 
 
 @pytest.mark.ros
@@ -54,6 +56,8 @@ class RosSmokeTests(unittest.TestCase):
                     f"/policy/feedback:={prefix}/feedback",
                     "-r",
                     f"/policy/cmd_vel:={prefix}/cmd_vel",
+                    "-r",
+                    f"/policy/metrics:={prefix}/metrics",
                 ]
             )
             executor = SingleThreadedExecutor()
@@ -67,6 +71,10 @@ class RosSmokeTests(unittest.TestCase):
                 executor.add_node(policy)
                 executor.add_node(probe)
                 received = []
+                metrics = []
+                probe.create_subscription(
+                    PolicyMetrics, f"{prefix}/metrics", metrics.append, 1
+                )
                 probe.create_subscription(
                     ActuatorPositionCommand, f"{prefix}/output", received.append, 1
                 )
@@ -105,6 +113,19 @@ class RosSmokeTests(unittest.TestCase):
                 )
                 self.assertEqual(len(received[0].positions_degrees), 12)
                 self.assertNotEqual(received[0].positions_degrees[0], 0)
+                policy.report_metrics()
+                deadline = time.monotonic() + 2
+                while not metrics and time.monotonic() < deadline:
+                    spin_for(0.03)
+                self.assertTrue(metrics, "No typed policy metrics received")
+                message = deserialize_message(
+                    serialize_message(metrics[-1]), PolicyMetrics
+                )
+                self.assertGreater(message.published_hz, 0)
+                self.assertGreater(message.sample_count, 0)
+                self.assertTrue(math.isfinite(message.inference_p95_ms))
+                self.assertEqual(message.control_interval_ms, policy.dt * 1000)
+                self.assertGreater(message.stamp.sec, 0)
                 spin_for(0.4)
                 count = len(received)
                 spin_for(0.1)

@@ -16,7 +16,7 @@ from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from std_msgs.msg import String
 
-from catbot_interfaces.msg import ActuatorPositionCommand, PolicyFeedback
+from catbot_interfaces.msg import ActuatorPositionCommand, PolicyFeedback, PolicyMetrics
 from catbot_policy.artifacts import available_models, resolve_downloaded
 from catbot_policy.configuration import POLICY_DEFAULTS, POLICY_PARAMETERS
 from catbot_policy.protocol import FEEDBACK_FIELDS, finite_values, validate_feedback
@@ -95,7 +95,7 @@ class PolicyNode(Node):
         self.publisher = self.create_publisher(
             ActuatorPositionCommand, "/body/control/position", reliable
         )
-        self.metrics = self.create_publisher(String, "/policy/metrics", 1)
+        self.metrics = self.create_publisher(PolicyMetrics, "/policy/metrics", 1)
         self.create_subscription(
             PolicyFeedback,
             "/policy/feedback",
@@ -297,11 +297,12 @@ class PolicyNode(Node):
         def percentiles(values):
             values = sorted(values)
             return {
-                label: values[int((len(values) - 1) * q)] if values else None
+                label: values[int((len(values) - 1) * q)] if values else math.nan
                 for label, q in (("p50", 0.5), ("p95", 0.95), ("p99", 0.99))
             }
 
         report = {
+            "stamp": self.get_clock().now().to_msg(),
             "adapter_cpu_percent_one_core": 100
             * (time.process_time() - self.adapter_cpu_started)
             / elapsed,
@@ -310,18 +311,23 @@ class PolicyNode(Node):
             "window_seconds": elapsed,
             "control_interval_ms": self.dt * 1000,
             "published_hz": self.published / elapsed,
-            "inference_ms": percentiles([s[0] for s in self.samples]),
-            "round_trip_ms": percentiles([s[1] for s in self.samples]),
-            "feedback_age_ms": percentiles([s[2] for s in self.samples]),
+            "sample_count": len(self.samples),
             "missed_timer_intervals": self.missed,
             "busy_ticks": self.busy_ticks,
             "discarded_results": self.discarded,
-            "worker_peak_rss_kib": self.worker_rss,
-            "worker_cpu_percent_one_core": None
+            "worker_peak_rss_kib": float(self.worker_rss)
+            if self.worker_rss is not None
+            else math.nan,
+            "worker_cpu_percent_one_core": math.nan
             if self.worker_cpu is None or self.worker_cpu_previous is None
             else 100 * (self.worker_cpu - self.worker_cpu_previous) / elapsed,
         }
-        self.metrics.publish(String(data=json.dumps(report)))
+        for prefix, index in (("inference", 0), ("round_trip", 1), ("feedback_age", 2)):
+            for percentile, value in percentiles(
+                [s[index] for s in self.samples]
+            ).items():
+                report[f"{prefix}_{percentile}_ms"] = value
+        self.metrics.publish(PolicyMetrics(**report))
         self.worker_cpu_previous = self.worker_cpu
         self.samples.clear()
         self.published = self.discarded = self.busy_ticks = self.missed = 0

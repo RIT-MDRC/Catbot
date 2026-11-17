@@ -12,6 +12,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/BodyErrorState.msg"
   "msg/BodyKinematicState.msg"
   "msg/PolicyFeedback.msg"
+  "msg/PolicyMetrics.msg"
   DEPENDENCIES builtin_interfaces
 )
 

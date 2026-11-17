@@ -267,9 +267,18 @@ nodes. Hardware remains the default. The policy waits for a matching transient
 supplies model hash, policy contract, settings, and mapping. Foundation validates
 and forwards `/body/control/position` to `/simulation/control/position`.
 
-`/policy/metrics` publishes five-second JSON summaries of actor/round-trip
+`/policy/metrics` publishes typed `catbot_interfaces/msg/PolicyMetrics` messages every
+five seconds with actor/round-trip
 p50/p95/p99, successful command rate, missed timer intervals, busy ticks, discarded
 results, feedback age, and separate adapter/worker CPU and Linux peak RSS.
+Foxglove can plot numeric fields directly, for example
+`/policy/metrics.inference_p95_ms` and `/policy/metrics.published_hz`.
+`stamp` records publication time; `sample_count` counts accepted timing samples.
+Timing fields are flat (`inference_p50_ms`, `round_trip_p95_ms`,
+`feedback_age_p99_ms`); unavailable measurements are NaN, including empty windows.
+Feedback age starts at local receipt and excludes inbound network transit.
+This replaces the former `std_msgs/String` JSON topic; rebuild and source
+`catbot_interfaces` and `catbot_policy` on both hosts before restarting.
 Restart the entire distributed launch to reset policy and simulator history.
 This exercises the inference runtime and simulation transport, not CAN hardware
 workload. See the catbot-orin repository's `docs/SIMULATION.md` for orchestration.
