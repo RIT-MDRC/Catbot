@@ -1,4 +1,4 @@
-"""ROS-free policy runtime on Python 3.14; one inference and acknowledgement at a time."""
+"""ROS-free policy runtime; one inference and acknowledgement at a time."""
 
 import argparse
 import contextlib
@@ -23,13 +23,12 @@ def main():
     parser.add_argument("--bundle", type=Path, required=True)
     parser.add_argument("--mapping", type=Path)
     parser.add_argument("--device", default="cpu")
+    parser.add_argument(
+        "--torch-compatibility", choices=["auto", "exact", "load"], default="auto"
+    )
     parser.add_argument("--feedback-timeout", type=float, default=0.25)
     parser.add_argument("--ack-timeout", type=float, default=2.0)
     args = parser.parse_args()
-    if sys.version_info[:2] != (3, 14):
-        parser.error(
-            "The inference worker requires Python 3.14; keep ROS on its separate interpreter"
-        )
     if not math.isfinite(args.ack_timeout) or args.ack_timeout <= 0:
         parser.error("--ack-timeout must be finite and positive")
     output = os.fdopen(os.dup(sys.stdout.fileno()), "w", buffering=1)
@@ -62,6 +61,9 @@ def main():
             args.mapping.expanduser() if args.mapping else None,
             args.feedback_timeout,
             device=args.device,
+            torch_compatibility=("load" if args.device.startswith("cuda") else "exact")
+            if args.torch_compatibility == "auto"
+            else args.torch_compatibility,
         )
         send(
             {

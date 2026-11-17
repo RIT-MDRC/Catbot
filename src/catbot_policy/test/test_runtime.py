@@ -7,6 +7,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import torch
 
@@ -220,6 +221,45 @@ class RuntimeTests(unittest.TestCase):
             self.runtime.step(0, fail)
         self.assertEqual(self.runtime.previous_action.sum().item(), 0)
         self.assertEqual(self.commands, [])
+
+    def test_invalid_runtime_options_rejected_before_loading_actor(self):
+        for options, message in (
+            ({"feedback_timeout": 0}, "feedback_timeout"),
+            ({"feedback_timeout": math.inf}, "feedback_timeout"),
+            ({"device": "meta"}, "policy_device"),
+            ({"torch_compatibility": "auto"}, "torch_compatibility"),
+        ):
+            with (
+                self.subTest(options=options),
+                patch("torch.jit.load") as load,
+                self.assertRaisesRegex(ValueError, message),
+            ):
+                PolicyRuntime(self.root, **options)
+            load.assert_not_called()
+
+    def test_cuda_without_available_runtime_rejected_before_loading_actor(self):
+        with (
+            patch("torch.cuda.is_available", return_value=False),
+            patch("torch.jit.load") as load,
+            self.assertRaisesRegex(ValueError, "no usable CUDA"),
+        ):
+            PolicyRuntime(self.root, device="cuda:0")
+        load.assert_not_called()
+
+    def test_incompatible_actor_load_reports_export_and_runtime_versions(self):
+        path = self.root / "policy.json"
+        metadata = json.loads(path.read_text())
+        metadata["torch_version"] = "0.0.0"
+        path.write_text(json.dumps(metadata))
+        with (
+            patch("torch.jit.load", side_effect=RuntimeError("unsupported archive")),
+            self.assertWarnsRegex(RuntimeWarning, "not numerical parity"),
+            self.assertRaises(ValueError) as error,
+        ):
+            PolicyRuntime(self.root, torch_compatibility="load")
+        self.assertIn("exported with PyTorch 0.0.0", str(error.exception))
+        self.assertIn(f"using {torch.__version__}", str(error.exception))
+        self.assertIsInstance(error.exception.__cause__, RuntimeError)
 
     def test_mapping_overrides_and_bounds(self):
         default = Path(__file__).parents[1] / "catbot_policy" / "default_mapping.json"

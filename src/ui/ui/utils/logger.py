@@ -1,5 +1,7 @@
 import logging
 from datetime import datetime as d
+from pathlib import Path
+import re
 from watchdog.events import FileSystemEventHandler, FileSystemEvent
 from textual.widgets import RichLog
 import __main__
@@ -41,18 +43,33 @@ def configure_logger(level: str = "Debug"):
     """
     Configure the logger.
 
+    Keep the latest five runs for this program, including the current run.
+
     :param level: the level to log at
     """
     lvl = map_level(level)
     print(f"Configuring logger {level}...")
-    start_time = d.now().strftime("%Y-%m-%d.%H:%M:%S")
+    start_time = d.now().strftime("%Y-%m-%d.%H:%M:%S.%f")
     filename = "ui." + __main__.__file__.split("/")[-1].split(".")[0]
+    log_dir = Path(".log")
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_path = log_dir / f"{start_time}.{filename}.{level}.log"
     logging.basicConfig(
-        filename=f".log/{start_time}.{filename}.{level}.log",
+        filename=log_path,
         format="%(filename)s: %(message)s",
         level=lvl,  # TODO: hook it to env or config file
         force=True,
     )
+    pattern = re.compile(
+        rf"\d{{4}}-\d{{2}}-\d{{2}}\.\d{{2}}:\d{{2}}:\d{{2}}(?:\.\d{{6}})?\.{re.escape(filename)}\.(?:Debug|Info|Warning|Error|Critical)\.log"
+    )
+    logs = sorted(
+        path
+        for path in log_dir.iterdir()
+        if path.is_file() and not path.is_symlink() and pattern.fullmatch(path.name)
+    )
+    for old_log in logs[:-5]:
+        old_log.unlink(missing_ok=True)
 
 
 last_read_line = {}

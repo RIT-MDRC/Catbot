@@ -1,0 +1,19 @@
+[project]
+name = "catbot-policy-tests"
+version = "0.0.0"
+requires-python = ">=3.14,<3.15"
+dependencies = [
+  "torch==2.14.0", "rsl-rl-lib==5.4.2", "tensordict", "numpy",
+  "pytest>=8,<10", "pytest-cov>=6,<8", "hypothesis>=6,<7", "pyyaml>=6,<7",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true

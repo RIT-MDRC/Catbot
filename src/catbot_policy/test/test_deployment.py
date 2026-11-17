@@ -110,9 +110,14 @@ class SelectionTests(unittest.TestCase):
 
     def test_invalid_arguments_do_not_reach_wandb(self):
         for arguments in (
+            [],
             ["team/catbot/../run"],
             ["team/catbot/run", "../model_1.pt"],
-            ["--project", "../catbot"],
+            ["--latest", "--project", "../catbot"],
+            ["run1", "--run-id", "run2"],
+            ["run1", "1", "--checkpoint", "2"],
+            ["run1", "--latest"],
+            ["--latest", "--checkpoint", "1"],
         ):
             with (
                 self.subTest(arguments=arguments),
@@ -233,6 +238,42 @@ class DeploymentTests(unittest.TestCase):
         self.assertEqual(
             command[4], f"policy_bundle:={(directory / 'latest').resolve()}"
         )
+
+    def test_cli_named_run_and_checkpoint_options_select_requested_model(self):
+        output = io.StringIO()
+        wandb = SimpleNamespace(Api=lambda: self.api, Error=RuntimeError)
+        with patch.dict(sys.modules, {"wandb": wandb}), patch("sys.stdout", output):
+            main(
+                [
+                    "--run-id",
+                    "team/catbot/run1",
+                    "--checkpoint",
+                    "100",
+                    "--directory",
+                    str(self.cache),
+                ]
+            )
+        source = json.loads((self.cache / "latest/source.json").read_text())
+        self.assertEqual(source["run"], "team/catbot/run1")
+        self.assertEqual(source["checkpoint"], "model_100.pt")
+
+    def test_cli_download_failure_reports_error_and_exits(self):
+        self.files[-1].fail = True
+        error_output = io.StringIO()
+        wandb = SimpleNamespace(Api=lambda: self.api, Error=RuntimeError)
+        with (
+            patch.dict(sys.modules, {"wandb": wandb}),
+            patch("sys.stdout", io.StringIO()),
+            patch("sys.stderr", error_output),
+            self.assertRaises(SystemExit) as error,
+        ):
+            main(["team/catbot/run1", "--directory", str(self.cache)])
+        self.assertEqual(error.exception.code, 1)
+        self.assertIn(
+            "Policy preparation failed: Interrupted download", error_output.getvalue()
+        )
+        self.assertFalse((self.cache / "selected").exists())
+        self.assertEqual(list(self.cache.glob(".download-*")), [])
 
     def test_same_checkpoint_name_with_new_weights_selects_new_bundle(self):
         first = self.prepare()

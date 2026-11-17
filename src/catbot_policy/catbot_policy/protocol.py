@@ -42,11 +42,14 @@ FEEDBACK_FIELDS = tuple(
 )
 
 
-def finite_values(values, size, name):
+def finite_values(values, size, name, *, allow_bool=False):
     if not isinstance(values, (list, tuple)) or len(values) != size:
         raise ValueError(f"{name} must contain {size} values")
     if any(
-        not isinstance(v, (bool, int, float)) or not math.isfinite(v) for v in values
+        (isinstance(v, bool) and not allow_bool)
+        or not isinstance(v, (int, float))
+        or not math.isfinite(v)
+        for v in values
     ):
         raise ValueError(f"{name} must contain finite numeric values")
     return list(values)
@@ -54,12 +57,15 @@ def finite_values(values, size, name):
 
 def validate_feedback(values):
     if not isinstance(values, dict):
-        raise ValueError("Feedback must be a named snapshot")
+        raise ValueError("Feedback must be a named snapshot")  # noqa: TRY004 - protocol error
     result = {}
     for name, size in FEEDBACK_FIELDS:
         value = values[name]
         checked = finite_values(
-            [value] if name == "motion_progress" else value, size, name
+            [value] if name == "motion_progress" else value,
+            size,
+            name,
+            allow_bool=name in ("previous_contact", "has_stance"),
         )
         result[name] = checked[0] if name == "motion_progress" else checked
     return result

@@ -137,3 +137,9 @@ catbot sample motor-test --motor odrive_1 --config /path/to/config.json
 The CLI automatically sources `/opt/ros/humble/setup.bash` on the Pi and runs
 Python files through the locked uv environment. Bring up `can0` separately
 before running CAN samples.
+
+Log retention keeps the latest five runs, including the current run. Foundation
+and UI logs in `.log/` are pruned per program when logging starts, across log
+levels. `catbot setup` also keeps the latest five Colcon build-log directories
+under the Catbot runtime's `ros/log/` directory after each build. Older matching
+logs are removed automatically; unrelated files and directories are preserved.

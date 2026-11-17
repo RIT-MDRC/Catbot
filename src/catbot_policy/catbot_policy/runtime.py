@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import math
 import time
+import warnings
 from pathlib import Path
 
 import torch
@@ -19,11 +20,25 @@ from catbot_policy.protocol import (
 )
 
 
-def finite_tensor(values, size: int, name: str, *, device="cpu") -> torch.Tensor:
+def finite_tensor(
+    values, size: int, name: str, *, device="cpu", allow_bool=False
+) -> torch.Tensor:
     """Validate a flat numeric vector before it enters inference or mapping."""
+    if (
+        isinstance(values, (list, tuple))
+        and not allow_bool
+        and any(isinstance(value, bool) for value in values)
+    ):
+        raise ValueError(f"Invalid boolean in {name}")
+    if (
+        isinstance(values, torch.Tensor)
+        and values.dtype == torch.bool
+        and not allow_bool
+    ):
+        raise ValueError(f"Invalid boolean in {name}")
     try:
         result = torch.tensor(values, dtype=torch.float32, device=device)
-    except (TypeError, ValueError, RuntimeError) as error:
+    except (TypeError, ValueError, RuntimeError, OverflowError) as error:
         raise ValueError(f"Invalid {name}") from error
     if result.shape != (size,) or not torch.isfinite(result).all():
         raise ValueError(f"{name} must contain {size} finite values")
@@ -55,12 +70,37 @@ class ActuatorMapping:
         return degrees.clamp(self.minimum, self.maximum).tolist()
 
 
-def validate_metadata(metadata: dict) -> tuple[dict, dict]:
+def validate_metadata(
+    metadata: dict, *, torch_compatibility="exact"
+) -> tuple[dict, dict]:
+    """Reject malformed or incompatible metadata with a consistent ValueError."""
+    try:
+        return _validate_metadata(metadata, torch_compatibility=torch_compatibility)
+    except (KeyError, TypeError, IndexError, OverflowError) as error:
+        raise ValueError("Malformed policy bundle metadata") from error
+
+
+def _validate_metadata(
+    metadata: dict, *, torch_compatibility="exact"
+) -> tuple[dict, dict]:
     """Reject incompatible interfaces before loading the trusted actor."""
-    if metadata["schema_version"] != 1:
+    if type(metadata["schema_version"]) is not int or metadata["schema_version"] != 1:
         raise ValueError("Unsupported policy bundle schema")
-    if metadata["torch_version"] != torch.__version__.split("+")[0]:
-        raise ValueError("Policy bundle and runtime PyTorch versions must match")
+    if torch_compatibility not in ("exact", "load"):
+        raise ValueError("torch_compatibility must be exact or load")
+    version = metadata["torch_version"]
+    if not isinstance(version, str) or not version.strip():
+        raise ValueError("Invalid policy PyTorch version")
+    if version != torch.__version__.split("+")[0]:
+        if torch_compatibility == "exact":
+            raise ValueError("Policy bundle and runtime PyTorch versions must match")
+        warnings.warn(
+            f"Policy exported with PyTorch {version}; runtime is {torch.__version__}. "
+            "Load compatibility checks the actor interface, not numerical parity. "
+            "Validate this bundle on the target before physical operation.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
     for key in ("model_sha256", "policy_sha256"):
         digest = metadata[key]
         if not isinstance(digest, str) or len(digest) != 64:
@@ -82,18 +122,22 @@ def validate_metadata(metadata: dict) -> tuple[dict, dict]:
         "nv": 18,
         "commands": ["forward_mps", "left_mps", "yaw_radps"],
     }
-    if any(contract[key] != value for key, value in expected.items()):
+    # JSON comparison preserves scalar types: true must not alias integer 1.
+    if any(
+        json.dumps(contract[key], sort_keys=True) != json.dumps(value, sort_keys=True)
+        for key, value in expected.items()
+    ):
         raise ValueError("Incompatible policy observation/action contract")
     ranges = contract["control_ranges"]
     if not isinstance(ranges, list) or len(ranges) != 12:
         raise ValueError("Expected 12 actuator control ranges")
     for limits in ranges:
-        bounds = finite_tensor(limits, 2, "control range")
-        if bounds[0] > bounds[1]:
+        finite_tensor(limits, 2, "control range")
+        if limits[0] > limits[1]:
             raise ValueError("Control ranges must be ordered")
-    if contract["locked_channels"] != [
-        i for i, (lo, hi) in enumerate(ranges) if lo == hi
-    ]:
+    if any(type(i) is not int for i in contract["locked_channels"]) or contract[
+        "locked_channels"
+    ] != [i for i, (lo, hi) in enumerate(ranges) if lo == hi]:
         raise ValueError("Locked channels do not match control ranges")
     dt = contract["control_timestep"]
     settings = metadata["settings"]
@@ -143,6 +187,7 @@ class PolicyRuntime:
         mapping: Path | None = None,
         feedback_timeout: float = 0.25,
         device: str = "cpu",
+        torch_compatibility: str = "exact",
     ):
         if not math.isfinite(feedback_timeout) or feedback_timeout <= 0:
             raise ValueError("feedback_timeout must be finite and positive")
@@ -158,14 +203,25 @@ class PolicyRuntime:
             )
         self.metadata = json.loads((bundle / "policy.json").read_text())
         try:
-            self.contract, self.settings = validate_metadata(self.metadata)
+            self.contract, self.settings = validate_metadata(
+                self.metadata, torch_compatibility=torch_compatibility
+            )
         except (KeyError, TypeError, IndexError) as error:
             raise ValueError("Malformed policy bundle metadata") from error
         policy_path = bundle / "policy.pt"
         if sha256_file(policy_path) != self.metadata["policy_sha256"]:
             raise ValueError("Policy checksum does not match metadata")
         torch.set_num_threads(1)
-        self.actor = torch.jit.load(str(policy_path), map_location=self.device).eval()
+        try:
+            self.actor = torch.jit.load(
+                str(policy_path), map_location=self.device
+            ).eval()
+        except RuntimeError as error:
+            raise ValueError(
+                f"Cannot load policy exported with PyTorch {self.metadata['torch_version']} "
+                f"using {torch.__version__}; re-export with a compatible PyTorch runtime "
+                "or use the modern CPU environment."
+            ) from error
         self.mapping = ActuatorMapping(mapping, device=self.device)
         self.dt = self.contract["control_timestep"]
         ranges = torch.tensor(
@@ -211,6 +267,7 @@ class PolicyRuntime:
                 size,
                 name,
                 device=self.device,
+                allow_bool=name in ("previous_contact", "has_stance"),
             )
         self.feedback = blocks
         self.feedback_received = now

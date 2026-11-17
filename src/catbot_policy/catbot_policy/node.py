@@ -1,4 +1,4 @@
-"""ROS adapter on ROS Python; inference and PyTorch live in a uv Python 3.14 worker."""
+"""ROS adapter on ROS Python; inference uses an independent CPU or CUDA worker."""
 
 from __future__ import annotations
 
@@ -11,12 +11,13 @@ from collections import deque
 from pathlib import Path
 
 import rclpy
-from catbot_interfaces.msg import ActuatorPositionCommand, PolicyFeedback
 from geometry_msgs.msg import Twist
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from std_msgs.msg import String
 
+from catbot_interfaces.msg import ActuatorPositionCommand, PolicyFeedback
+from catbot_policy.artifacts import available_models, resolve_downloaded
 from catbot_policy.configuration import POLICY_DEFAULTS, POLICY_PARAMETERS
 from catbot_policy.protocol import FEEDBACK_FIELDS, finite_values, validate_feedback
 from catbot_policy.worker_client import WorkerClient
@@ -35,9 +36,20 @@ class PolicyNode(Node):
             return self.policy_parameters[name]
 
         bundle = str(param("policy_bundle"))
+        if param("run_id") or param("checkpoint") or not bundle:
+            selected = resolve_downloaded(
+                param("policy_artifacts_directory"),
+                param("run_id"),
+                param("checkpoint"),
+                entity=param("policy_entity"),
+                project=param("policy_project"),
+            )
+            bundle = str(selected / "bundle")
         mapping = str(param("mapping_file"))
-        if not bundle:
-            raise ValueError("Set policy_bundle to an exported policy directory")
+        if not (Path(bundle).expanduser() / "policy.json").is_file():
+            raise ValueError(
+                f"Missing policy bundle: {bundle}\n{available_models(param('policy_artifacts_directory'))}"
+            )
         self.feedback_timeout = float(param("feedback_timeout"))
         self.worker_timeout = float(param("policy_worker_timeout"))
         startup_timeout = float(param("policy_startup_timeout"))
@@ -57,7 +69,8 @@ class PolicyNode(Node):
             startup_timeout,
             device=str(param("policy_device")),
             environment=str(param("policy_worker_environment")),
-            sync=bool(param("policy_worker_sync")),
+            sync=str(param("policy_worker_sync")),
+            torch_compatibility=str(param("policy_torch_compatibility")),
         )
         try:
             self.initialize()

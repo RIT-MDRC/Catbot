@@ -26,3 +26,10 @@ test_result/
 src/catbot_policy/artifacts/
 
 .venv-cuda/
+
+# Test reports and property-test cache
+.hypothesis/
+.pytest_cache/
+.coverage*
+*-coverage.json
+*-tests.xml
