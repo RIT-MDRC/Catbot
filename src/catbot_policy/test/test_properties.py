@@ -16,6 +16,21 @@ INVALID = st.one_of(
 )
 
 
+def test_cross_version_loading_retains_contract_validation():
+    metadata = copy.deepcopy(FIXTURE["metadata"])
+    metadata["torch_version"] = "0.0.0"
+    with pytest.raises(ValueError, match="must match"):
+        validate_metadata(metadata)
+    with pytest.warns(RuntimeWarning, match="not numerical parity"):
+        validate_metadata(metadata, torch_compatibility="load")
+    metadata["policy_contract"]["observation_dimension"] = 89
+    with (
+        pytest.warns(RuntimeWarning),
+        pytest.raises(ValueError, match="observation/action contract"),
+    ):
+        validate_metadata(metadata, torch_compatibility="load")
+
+
 @given(st.integers(0, 11), INVALID)
 def test_finite_tensor_rejects_invalid_member(index, invalid):
     values = [0.0] * 12

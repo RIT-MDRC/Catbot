@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import math
 import time
+import warnings
 from pathlib import Path
 
 import torch
@@ -69,20 +70,37 @@ class ActuatorMapping:
         return degrees.clamp(self.minimum, self.maximum).tolist()
 
 
-def validate_metadata(metadata: dict) -> tuple[dict, dict]:
+def validate_metadata(
+    metadata: dict, *, torch_compatibility="exact"
+) -> tuple[dict, dict]:
     """Reject malformed or incompatible metadata with a consistent ValueError."""
     try:
-        return _validate_metadata(metadata)
+        return _validate_metadata(metadata, torch_compatibility=torch_compatibility)
     except (KeyError, TypeError, IndexError, OverflowError) as error:
         raise ValueError("Malformed policy bundle metadata") from error
 
 
-def _validate_metadata(metadata: dict) -> tuple[dict, dict]:
+def _validate_metadata(
+    metadata: dict, *, torch_compatibility="exact"
+) -> tuple[dict, dict]:
     """Reject incompatible interfaces before loading the trusted actor."""
     if type(metadata["schema_version"]) is not int or metadata["schema_version"] != 1:
         raise ValueError("Unsupported policy bundle schema")
-    if metadata["torch_version"] != torch.__version__.split("+")[0]:
-        raise ValueError("Policy bundle and runtime PyTorch versions must match")
+    if torch_compatibility not in ("exact", "load"):
+        raise ValueError("torch_compatibility must be exact or load")
+    version = metadata["torch_version"]
+    if not isinstance(version, str) or not version.strip():
+        raise ValueError("Invalid policy PyTorch version")
+    if version != torch.__version__.split("+")[0]:
+        if torch_compatibility == "exact":
+            raise ValueError("Policy bundle and runtime PyTorch versions must match")
+        warnings.warn(
+            f"Policy exported with PyTorch {version}; runtime is {torch.__version__}. "
+            "Load compatibility checks the actor interface, not numerical parity. "
+            "Validate this bundle on the target before physical operation.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
     for key in ("model_sha256", "policy_sha256"):
         digest = metadata[key]
         if not isinstance(digest, str) or len(digest) != 64:
@@ -169,6 +187,7 @@ class PolicyRuntime:
         mapping: Path | None = None,
         feedback_timeout: float = 0.25,
         device: str = "cpu",
+        torch_compatibility: str = "exact",
     ):
         if not math.isfinite(feedback_timeout) or feedback_timeout <= 0:
             raise ValueError("feedback_timeout must be finite and positive")
@@ -184,14 +203,25 @@ class PolicyRuntime:
             )
         self.metadata = json.loads((bundle / "policy.json").read_text())
         try:
-            self.contract, self.settings = validate_metadata(self.metadata)
+            self.contract, self.settings = validate_metadata(
+                self.metadata, torch_compatibility=torch_compatibility
+            )
         except (KeyError, TypeError, IndexError) as error:
             raise ValueError("Malformed policy bundle metadata") from error
         policy_path = bundle / "policy.pt"
         if sha256_file(policy_path) != self.metadata["policy_sha256"]:
             raise ValueError("Policy checksum does not match metadata")
         torch.set_num_threads(1)
-        self.actor = torch.jit.load(str(policy_path), map_location=self.device).eval()
+        try:
+            self.actor = torch.jit.load(
+                str(policy_path), map_location=self.device
+            ).eval()
+        except RuntimeError as error:
+            raise ValueError(
+                f"Cannot load policy exported with PyTorch {self.metadata['torch_version']} "
+                f"using {torch.__version__}; re-export with a compatible PyTorch runtime "
+                "or use the modern CPU environment."
+            ) from error
         self.mapping = ActuatorMapping(mapping, device=self.device)
         self.dt = self.contract["control_timestep"]
         ranges = torch.tensor(

@@ -13,7 +13,9 @@
 # ///
 """Download and prepare a selected W&B checkpoint for the ROS policy node.
 
-Run `uv run pull_policy.py ENTITY/PROJECT/RUN_ID [model_N.pt]` from this directory. This prepares a policy without
+Run `uv run pull_policy.py RUN_ID [CHECKPOINT_NUMBER]` from this directory.
+The default project is hiromon-rochester-institute-of-technology/catbot;
+omitting the checkpoint selects the latest checkpoint in the specified run. This prepares a policy without
 starting ROS or moving hardware; `ros2 launch catbot_policy catbot.launch.py`
 then uses the successfully prepared bundle by default.
 """

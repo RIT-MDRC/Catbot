@@ -8,6 +8,7 @@ import subprocess
 import threading
 from pathlib import Path
 
+from catbot_policy.configuration import inference_python
 from catbot_policy.protocol import MAX_LINE_BYTES, VERSION
 from catbot_policy.worker_launch import WorkerLaunchSpec
 
@@ -24,8 +25,9 @@ class WorkerClient:
         ack_timeout,
         startup_timeout,
         device="cpu",
-        environment="",
-        sync=True,
+        environment="auto",
+        sync="auto",
+        torch_compatibility="auto",
     ):
         project = Path(project).expanduser().resolve()
         runner = project / "run_worker.py"
@@ -41,14 +43,29 @@ class WorkerClient:
             str(feedback_timeout),
             "--ack-timeout",
             str(ack_timeout),
+            "--torch-compatibility",
+            torch_compatibility,
         ]
         if mapping:
             arguments += ["--mapping", mapping]
+        environment, sync = WorkerLaunchSpec.resolve(device, project, environment, sync)
+        if str(device).startswith("cuda"):
+            if sync:
+                raise ValueError(
+                    "CUDA inference requires policy_worker_sync:=false (or auto); "
+                    "prepare the Jetson environment with inference/setup_environment.py"
+                )
+            # This project permits older Python without applying the CPU Torch lock.
+            project = project / "cuda"
+            if not (project / "pyproject.toml").is_file():
+                raise ValueError(
+                    "policy_worker_project needs its cuda project directory"
+                )
         spec = WorkerLaunchSpec.build(
             project,
             uv,
             arguments,
-            python=python,
+            python=inference_python(device, python),
             device=device,
             environment=environment,
             sync=sync,

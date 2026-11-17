@@ -2,23 +2,37 @@
 
 from pathlib import Path
 
+from catbot_policy.artifacts import DEFAULT_ENTITY, DEFAULT_PROJECT, policy_directory
 from catbot_policy.protocol import finite_values
 
 POLICY_DEFAULTS = {
+    "run_id": "",
+    "checkpoint": "",
+    "policy_entity": DEFAULT_ENTITY,
+    "policy_project": DEFAULT_PROJECT,
+    "policy_artifacts_directory": str(policy_directory()),
     "policy_bundle": "",
     "policy_device": "cpu",
-    "policy_worker_environment": "",
-    "policy_worker_sync": True,
+    "policy_worker_environment": "auto",
+    "policy_worker_sync": "auto",
+    "policy_torch_compatibility": "auto",
     "mapping_file": "",
     "simulation_mode": False,
     "feedback_timeout": 0.25,
-    "policy_python": "3.14",
+    "policy_python": "auto",
     "policy_worker_project": str(Path(__file__).with_name("inference")),
     "policy_uv_executable": "uv",
     "policy_worker_timeout": 2.0,
     "policy_startup_timeout": 120.0,
 }
 POLICY_PARAMETERS = tuple(POLICY_DEFAULTS)
+
+
+def inference_python(device, requested="auto"):
+    """Keep JetPack inference independent of the modern CPU/training interpreter."""
+    if requested == "auto":
+        return "3.10" if str(device).startswith("cuda") else "3.14"
+    return requested
 
 
 def validate_mapping(data):
