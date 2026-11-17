@@ -31,6 +31,46 @@ def test_cross_version_loading_retains_contract_validation():
         validate_metadata(metadata, torch_compatibility="load")
 
 
+@pytest.mark.parametrize(
+    ("key", "value", "message"),
+    [
+        ("torch_version", "", "PyTorch version"),
+        ("torch_version", None, "PyTorch version"),
+        ("model_sha256", "0" * 63, "model_sha256"),
+        ("policy_sha256", "z" * 64, "policy_sha256"),
+    ],
+)
+def test_metadata_rejects_invalid_versions_and_checksums(key, value, message):
+    metadata = copy.deepcopy(FIXTURE["metadata"])
+    metadata["torch_version"] = torch.__version__.split("+")[0]
+    metadata[key] = value
+    with pytest.raises(ValueError, match=message):
+        validate_metadata(metadata)
+
+
+def test_unknown_torch_compatibility_is_rejected():
+    with pytest.raises(ValueError, match="exact or load"):
+        validate_metadata(FIXTURE["metadata"], torch_compatibility="ignore")
+
+
+@pytest.mark.parametrize("ranges", [[], [[-1, 1]] * 11, None])
+def test_metadata_requires_all_twelve_control_ranges(ranges):
+    metadata = copy.deepcopy(FIXTURE["metadata"])
+    metadata["torch_version"] = torch.__version__.split("+")[0]
+    metadata["policy_contract"]["control_ranges"] = ranges
+    with pytest.raises(ValueError, match="12 actuator control ranges"):
+        validate_metadata(metadata)
+
+
+def test_boolean_tensor_requires_explicit_permission():
+    values = torch.tensor([True, False])
+    with pytest.raises(ValueError, match="Invalid boolean"):
+        finite_tensor(values, 2, "contact")
+    torch.testing.assert_close(
+        finite_tensor(values, 2, "contact", allow_bool=True), torch.tensor([1.0, 0.0])
+    )
+
+
 @given(st.integers(0, 11), INVALID)
 def test_finite_tensor_rejects_invalid_member(index, invalid):
     values = [0.0] * 12

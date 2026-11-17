@@ -7,6 +7,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import torch
 
@@ -75,6 +76,36 @@ class RuntimeTests(unittest.TestCase):
 
     def publish(self, names, targets):
         self.commands.append((names, targets))
+
+    def test_invalid_device_and_feedback_timeout_fail_before_actor_load(self):
+        for timeout in (0, -1, math.nan, math.inf):
+            with (
+                self.subTest(timeout=timeout),
+                self.assertRaisesRegex(ValueError, "feedback_timeout"),
+            ):
+                PolicyRuntime(self.root, feedback_timeout=timeout)
+        with self.assertRaisesRegex(ValueError, "policy_device must be cpu or cuda"):
+            PolicyRuntime(self.root, device="mps")
+        with (
+            patch("torch.cuda.is_available", return_value=False),
+            patch("torch.jit.load") as load,
+            self.assertRaisesRegex(ValueError, "no usable CUDA"),
+        ):
+            PolicyRuntime(self.root, device="cuda:0")
+        load.assert_not_called()
+
+    def test_actor_load_failure_explains_runtime_compatibility(self):
+        failure = RuntimeError("unsupported serialized operator")
+        with (
+            patch("torch.jit.load", side_effect=failure),
+            self.assertRaisesRegex(ValueError, "re-export with a compatible") as error,
+        ):
+            PolicyRuntime(self.root)
+        self.assertIs(error.exception.__cause__, failure)
+
+    def test_observation_requires_valid_feedback(self):
+        with self.assertRaisesRegex(ValueError, "No valid feedback"):
+            self.runtime.observation()
 
     def test_observation_order_and_software_fields(self):
         feedback = feedback_values()
