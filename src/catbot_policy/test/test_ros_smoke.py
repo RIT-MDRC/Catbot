@@ -17,17 +17,20 @@ def feedback_values():
 def make_bundle(root):
     (root / "run_worker.py").touch()
     (root / "uv.lock").touch()
+    fixture = json.loads((FIXTURES / "contract.json").read_text())
+    (root / "policy.json").write_text(json.dumps(fixture["metadata"]))
     return root
 
 
 import pytest
 import rclpy
-from catbot_interfaces.msg import ActuatorPositionCommand, PolicyFeedback
 from catbot_policy.node import PolicyNode
 from geometry_msgs.msg import Twist
 from rclpy.executors import SingleThreadedExecutor
 from rclpy.impl.implementation_singleton import rclpy_implementation  # noqa: F401
 from rclpy.qos import QoSProfile, ReliabilityPolicy
+
+from catbot_interfaces.msg import ActuatorPositionCommand, PolicyFeedback
 
 
 @pytest.mark.ros

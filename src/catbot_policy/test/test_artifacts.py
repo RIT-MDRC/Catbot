@@ -19,7 +19,7 @@ from catbot_policy.artifacts import (
 class ArtifactTests(unittest.TestCase):
     def test_defaults_and_numeric_selection(self):
         with tempfile.TemporaryDirectory() as directory:
-            cache = Path(directory)
+            cache = Path(directory).resolve()
 
             def model(number, suffix="a"):
                 root = (
