@@ -1,12 +1,6 @@
 {
-	"smbus2": {
-		"smbus": 1
-	},
-	"can_bus": {
-		"can_bus_1": {
-			"silence": true
-		}
-	},
+	"smbus2": { "smbus": 1 },
+	"can_bus": { "can_bus_1": { "silence": true } },
 	"actuator_motion_profile": {
 		"standard_64_to_1": {
 			"motor_turns_per_actuator_turn": 64,
@@ -48,7 +42,7 @@
 					"value": 5,
 					"unit": "millimeters"
 				},
-				"x_offset": { "value": 10.461, "unit": "centimeters" }
+				"x_offset": { "value": 6.76, "unit": "centimeters" }
 			}
 		}
 	},
