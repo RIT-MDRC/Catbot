@@ -14,6 +14,7 @@ sys.path.insert(0, str(FOUNDATION_ROOT))
 from body_control import (
     actuators_by_axis_id,
     prepare_position_targets,
+    validate_motor_command,
 )
 from component.actuator import actuator_actions, motion_profile_actions
 from component.actuator.actuator import Actuator
@@ -137,3 +138,37 @@ def test_unready_or_faulted_requested_actuator_is_rejected() -> None:
         except ValueError:
             continue
         raise AssertionError("unready or faulted actuator was accepted")
+
+
+@pytest.mark.parametrize(
+    "operation,state",
+    [
+        ("idle", 0),
+        ("clear_errors", 0),
+        ("hold", 0),
+        ("trajectory", 0),
+        ("state", 1),
+        ("state", 3),
+        ("state", 4),
+        ("state", 8),
+        ("state", 11),
+    ],
+)
+def test_immediate_motor_commands_validate_explicit_operations(operation, state):
+    validate_motor_command(["flk"], {"flk"}, operation, state)
+
+
+@pytest.mark.parametrize(
+    "names,operation,state",
+    [
+        ([], "idle", 0),
+        (["flk", "flk"], "idle", 0),
+        (["unknown"], "idle", 0),
+        (["flk"], "startup", 0),
+        (["flk"], "state", 2),
+        (["flk"], "state", 255),
+    ],
+)
+def test_invalid_motor_batch_rejected_before_io(names, operation, state):
+    with pytest.raises(ValueError):
+        validate_motor_command(names, {"flk"}, operation, state)

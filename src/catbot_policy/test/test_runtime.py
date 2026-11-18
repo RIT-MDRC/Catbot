@@ -10,6 +10,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import torch
+from mapping_fixture import write_mapping
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -71,7 +72,8 @@ class RuntimeTests(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
         self.root = make_bundle(Path(self.temporary.name))
-        self.runtime = PolicyRuntime(self.root)
+        self.mapping = write_mapping(self.root)
+        self.runtime = PolicyRuntime(self.root, mapping=self.mapping)
         self.commands = []
 
     def publish(self, names, targets):
@@ -130,20 +132,7 @@ class RuntimeTests(unittest.TestCase):
         names, targets = self.commands[0]
         self.assertEqual(
             names,
-            [
-                "fla",
-                "flf",
-                "flk",
-                "fra",
-                "frf",
-                "frk",
-                "bla",
-                "blf",
-                "blk",
-                "bra",
-                "brf",
-                "brk",
-            ],
+            [f"joint_{i}" for i in range(12)],
         )
         self.assertAlmostEqual(targets[0], math.degrees(0.14), places=5)
         self.assertAlmostEqual(targets[2], 18, places=4)
@@ -234,7 +223,7 @@ class RuntimeTests(unittest.TestCase):
                 patch("torch.jit.load") as load,
                 self.assertRaisesRegex(ValueError, message),
             ):
-                PolicyRuntime(self.root, **options)
+                PolicyRuntime(self.root, mapping=self.mapping, **options)
             load.assert_not_called()
 
     def test_cuda_without_available_runtime_rejected_before_loading_actor(self):
@@ -243,7 +232,7 @@ class RuntimeTests(unittest.TestCase):
             patch("torch.jit.load") as load,
             self.assertRaisesRegex(ValueError, "no usable CUDA"),
         ):
-            PolicyRuntime(self.root, device="cuda:0")
+            PolicyRuntime(self.root, mapping=self.mapping, device="cuda:0")
         load.assert_not_called()
 
     def test_incompatible_actor_load_reports_export_and_runtime_versions(self):
@@ -256,21 +245,24 @@ class RuntimeTests(unittest.TestCase):
             self.assertWarnsRegex(RuntimeWarning, "not numerical parity"),
             self.assertRaises(ValueError) as error,
         ):
-            PolicyRuntime(self.root, torch_compatibility="load")
+            PolicyRuntime(self.root, mapping=self.mapping, torch_compatibility="load")
         self.assertIn("exported with PyTorch 0.0.0", str(error.exception))
         self.assertIn(f"using {torch.__version__}", str(error.exception))
         self.assertIsInstance(error.exception.__cause__, RuntimeError)
 
     def test_mapping_overrides_and_bounds(self):
-        default = Path(__file__).parents[1] / "catbot_policy" / "default_mapping.json"
-        mapping = json.loads(default.read_text())
+        mapping = json.loads(self.mapping.read_text())
         mapping["signs"][0] = -1
         mapping["offsets_degrees"][0] = 5
         path = self.root / "mapping.json"
         path.write_text(json.dumps(mapping))
-        converted = ActuatorMapping(path).convert(torch.full((12,), math.pi / 2))
-        self.assertEqual(converted[0], -40)
+        converter = ActuatorMapping(path)
+        converted = converter.convert(torch.full((12,), math.pi / 6))
+        self.assertAlmostEqual(converted[0], -25, places=4)
+        self.assertAlmostEqual(converted[1], 30, places=4)
         self.assertEqual(converted[2], 55)
+        self.assertEqual(converter.convert(torch.full((12,), 10.0))[0], -40)
+        self.assertEqual(converter.convert(torch.full((12,), -10.0))[0], 40)
         mapping["actuator_names"][0] = mapping["actuator_names"][1]
         path.write_text(json.dumps(mapping))
         with self.assertRaisesRegex(ValueError, "unique"):
@@ -289,11 +281,11 @@ class RuntimeTests(unittest.TestCase):
             metadata["policy_contract"][key] = value
             metadata_path.write_text(json.dumps(metadata))
             with self.subTest(key=key), self.assertRaises(ValueError):
-                PolicyRuntime(self.root)
+                PolicyRuntime(self.root, mapping=self.mapping)
         metadata_path.write_text(json.dumps(original))
         (self.root / "policy.pt").write_bytes(b"tampered")
         with self.assertRaisesRegex(ValueError, "checksum"):
-            PolicyRuntime(self.root)
+            PolicyRuntime(self.root, mapping=self.mapping)
 
     def test_locked_channel_is_masked(self):
         path = self.root / "policy.json"
@@ -301,7 +293,7 @@ class RuntimeTests(unittest.TestCase):
         metadata["policy_contract"]["control_ranges"][0] = [0.1, 0.1]
         metadata["policy_contract"]["locked_channels"] = [0]
         path.write_text(json.dumps(metadata))
-        runtime = PolicyRuntime(self.root)
+        runtime = PolicyRuntime(self.root, mapping=self.mapping)
         runtime.update_feedback(feedback_values(), 0)
         runtime.step(0, self.publish)
         self.assertEqual(runtime.previous_action[0].item(), 0)

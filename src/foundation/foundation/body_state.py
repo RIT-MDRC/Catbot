@@ -7,25 +7,36 @@ from component.actuator import actuator_actions
 from component.motor import motor_actions
 
 
+def encoder_available(motor, now: float, stale_seconds: float) -> bool:
+    """Check raw encoder freshness without performing kinematic conversion."""
+    return (
+        motor.current_position is not None
+        and motor.current_velocity is not None
+        and math.isfinite(motor.current_position)
+        and math.isfinite(motor.current_velocity)
+        and motor.last_encoder_estimate_time is not None
+        and 0 <= now - motor.last_encoder_estimate_time <= stale_seconds
+    )
+
+
 def kinematic_values(actuator, now: float, stale_seconds: float) -> tuple:
     """Return logical validity, position, and velocity for one actuator."""
     motor_name = actuator.motor if hasattr(actuator, "motor") else actuator
     motor = motor_actions.get_state_snapshot(motor_name)
-    valid = (
-        motor.current_position is not None
-        and motor.current_velocity is not None
-        and motor.last_encoder_estimate_time is not None
-        and now - motor.last_encoder_estimate_time <= stale_seconds
-    )
-    if not valid:
+    position, velocity = motor.current_position, motor.current_velocity
+    if (
+        position is None
+        or velocity is None
+        or not encoder_available(motor, now, stale_seconds)
+    ):
         return False, math.nan, math.nan
     return (
         True,
-        actuator_actions.motor_turns_to_position(actuator, motor.current_position),
+        actuator_actions.motor_turns_to_position(actuator, position),
         actuator_actions.motor_turns_to_velocity(
             actuator,
-            motor.current_velocity,
-            position_motor_turns=motor.current_position,
+            velocity,
+            position_motor_turns=position,
         ),
     )
 

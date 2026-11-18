@@ -82,3 +82,27 @@ class PolicyMetrics:
     worker_cpu_percent_one_core: float
     worker_peak_rss_kib: float
     def __init__(self, **kwargs: object) -> None: ...
+
+class PolicyAction:
+    stamp: Time
+    session: str
+    sequence: int
+    command: ActuatorPositionCommand
+    def __init__(self, **kwargs: object) -> None: ...
+
+class PolicyActionAck:
+    session: str
+    sequence: int
+    forwarded: bool
+    def __init__(self, **kwargs: object) -> None: ...
+
+class OrinHeartbeat:
+    stamp: Time
+    session: str
+    sequence: int
+    action_sequence: int
+    probe_id: int
+    policy_active: bool
+    degraded: bool
+    reason: str
+    def __init__(self, **kwargs: object) -> None: ...

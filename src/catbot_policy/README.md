@@ -1,8 +1,10 @@
 # Catbot policy node
 
 `catbot_policy` runs an exported actor on CPU or CUDA in an isolated device-specific Python worker, combines named feedback with
-software-maintained observations, and publishes the existing
-`catbot_interfaces/ActuatorPositionCommand`. It does not access CAN, initialize
+software-maintained observations. Hardware proposals use timestamped, sequenced
+`PolicyAction` envelopes through the [RPi Supervisor](../catbot_supervisor/README.md);
+its forwarding acknowledgement controls policy history. Simulation keeps the
+existing `ActuatorPositionCommand` transport. It does not access CAN, initialize
 foundation, or perform homing/calibration. A feedback provider is required;
 hardware sensing and simulator feedback publishing are not implemented here.
 
@@ -52,19 +54,20 @@ the fixed local selection; they never query W&B or switch runs by themselves.
 A failed export leaves the existing selection intact. `source.json` records the
 run/checkpoint and checksums. `--directory` remains available for a custom cache.
 
-The launch file defaults to that selected bundle. In your **built and sourced
-ROS workspace**, run:
+For hardware, launch the Orin service host with the selected bundle and start
+Foundation plus the Pi gateway separately. The supervisor operator guide covers
+explicit startup, readiness, run, emergency, recovery, and shutdown:
 
 ```bash
-ros2 launch catbot_policy catbot.launch.py
+# Orin
+ros2 launch catbot_supervisor orin.launch.py policy_bundle:=/absolute/path/to/bundle
+# Pi
+ros2 launch catbot_supervisor rpi.launch.py
 ```
 
-Pulling a policy does not start nodes or move hardware. Foundation and the policy
-node start when you run the launch command, and a feedback provider is still
-required. A running node keeps its loaded actor; restart it to load a newly
-selected policy. You only need to build the launcher once; pulling another
-policy does not require a rebuild. When using `--directory /custom/cache`, use
-the explicit `policy_bundle:=...` launch command printed by the script.
+Pulling a policy does not start nodes or move hardware. The Orin host starts its
+policy job only when the Pi requests startup. A feedback provider is required.
+Restart the managed policy session to load a newly selected actor.
 
 ## Export a policy
 
@@ -105,11 +108,11 @@ uv sync --locked
 uv sync --locked --python 3.14 --project src/catbot_policy/catbot_policy/inference
 source .venv/bin/activate
 python "$(command -v colcon)" build \
-  --packages-select catbot_interfaces foundation catbot_policy \
+  --packages-select catbot_interfaces foundation catbot_policy catbot_supervisor \
   --cmake-args -DPython3_EXECUTABLE="$VIRTUAL_ENV/bin/python"
 source install/setup.bash
-ros2 run catbot_policy policy --ros-args \
-  -p policy_bundle:=/absolute/path/to/deployment/bundle
+ros2 launch catbot_supervisor orin.launch.py \
+  policy_bundle:=/absolute/path/to/deployment/bundle
 ```
 
 Running colcon through the activated ROS-compatible Python keeps the adapter
@@ -119,46 +122,18 @@ available for offline runtime/export tooling, but the ROS adapter does not need
 it. Do not use IntelliSense-only ROS packages as runtime bindings. Jazzy's ROS
 adapter must use Jazzy's native Python ABI; inference remains independent.
 
-Parameters are `policy_bundle` (required), `mapping_file` (optional JSON), and
-`feedback_timeout` (positive seconds, default `0.25`). Topic remapping works
-through normal ROS arguments. For inspection without addressing foundation:
+Parameters include `policy_bundle`, `mapping_file`, and `feedback_timeout`.
+The hardware adapter requires the `action_session` assigned by Orin Supervisor
+before spawning inference. It publishes `/orin/policy/action`; the Pi publishes
+`/rpi/supervisor/action_ack` after its gate decision. Only forwarded proposals
+advance action history. Missing/invalid/stale feedback pauses publication and
+freezes history. In hardware mode this also trips the Pi's action watchdog and
+runs the emergency path.
 
-```bash
-ros2 run catbot_policy policy --ros-args \
-  -p policy_bundle:=/absolute/path/to/deployment/bundle \
-  -r /body/control/position:=/policy/preview/position
-ros2 topic echo /policy/preview/position
-```
-
-Run the echo in another sourced terminal. The node publishes nothing until
-feedback arrives. Missing, malformed, non-finite, or stale feedback pauses
-publication and freezes local history. The latest valid sample can be reused
-until its timeout. Freshness uses local monotonic receipt time; `stamp` is
-informational. Fresh feedback resumes existing history; restart the node when
-starting a new feedback episode. Stopping publication leaves foundation's last
-target in place; it does not idle motors.
-
-### Launch foundation and policy together
-
-Set `POLICY_BUNDLE` in [`launch/catbot.launch.py`](launch/catbot.launch.py) to the
-exported bundle directory containing `policy.pt` and `policy.json`, then build
-and source the workspace as above. Run:
-
-```bash
-ros2 launch catbot_policy catbot.launch.py
-```
-
-To select another bundle without editing the file:
-
-```bash
-ros2 launch catbot_policy catbot.launch.py \
-  policy_bundle:=/absolute/path/to/another/bundle
-```
-
-Both nodes log to the terminal. Ctrl+C stops both; if either node exits, the
-launch shuts down the other node too. Foundation performs its normal startup
-calibration. The policy still needs a provider publishing `/policy/feedback`.
-After changing the launch file, rebuild unless using a symlink install.
+`ros2 launch catbot_policy catbot.launch.py` delegates hardware startup to the
+Pi-only launch. Policy-selection/device parameters belong on
+`ros2 launch catbot_supervisor orin.launch.py`. The `backend:=simulation` option
+keeps the local simulation policy path and existing command remapping.
 
 ## Feedback and commands
 
@@ -256,7 +231,8 @@ With real ROS bindings and generated interfaces available, the same command
 also runs a ROS smoke test. It publishes synthetic feedback and velocity commands
 to isolated test topics, receives remapped actuator targets, and checks that
 publication stops on timeout. It never starts foundation or publishes to its
-control topic. Without ROS, that test is explicitly skipped.
+control topic. ROS tests require real bindings and are selected explicitly with `-m ros`;
+missing bindings fail instead of silently skipping.
 
 ### Distributed simulation backend
 
@@ -293,7 +269,7 @@ PyTorch; CUDA uses a separately prepared Python 3.10 environment by default. The
 ```bash
 # From the Catbot workspace, on the policy host:
 uv sync --locked --python 3.14 --project src/catbot_policy/catbot_policy/inference
-ros2 launch catbot_policy catbot.launch.py policy_python:=3.14
+ros2 launch catbot_supervisor orin.launch.py policy_python:=3.14
 ```
 
 `policy_python` defaults to `auto` (CUDA: 3.10; CPU: 3.14), or accepts a uv
@@ -345,8 +321,8 @@ python3 src/catbot_policy/catbot_policy/inference/setup_environment.py \
 python3 src/catbot_policy/catbot_policy/inference/setup_environment.py \
   --device cuda --python /usr/bin/python3 --system-site-packages
 
-ros2 launch catbot_policy catbot.launch.py policy_device:=cuda:0
-ros2 launch catbot_policy catbot.launch.py policy_device:=cpu
+ros2 launch catbot_supervisor orin.launch.py policy_device:=cuda:0
+ros2 launch catbot_supervisor orin.launch.py policy_device:=cpu
 ```
 
 On Orin, prefix script paths with `external/Catbot/`. The setup script accepts
@@ -402,8 +378,8 @@ Launch without arguments to keep the selected local download. To select from the
 local cache without downloading or changing the saved selection:
 
 ```bash
-ros2 launch catbot_policy catbot.launch.py run_id:=ow4nsasy
-ros2 launch catbot_policy catbot.launch.py run_id:=ow4nsasy checkpoint:=19999
+ros2 launch catbot_supervisor orin.launch.py run_id:=ow4nsasy
+ros2 launch catbot_supervisor orin.launch.py run_id:=ow4nsasy checkpoint:=19999
 ```
 
 `run_id` alone chooses the highest **downloaded** checkpoint of that run, not a

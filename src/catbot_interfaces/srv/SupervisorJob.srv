@@ -1,0 +1,6 @@
+# Only jobs registered by the Orin administrator may be started or stopped.
+string name
+bool start
+---
+bool success
+string message

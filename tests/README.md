@@ -30,3 +30,24 @@ SIGTERM-ignoring modes. Process tests use real pipes and verify worker cleanup.
 Coverage floors apply separately to each file; CI uploads coverage JSON and JUnit
 reports even on failure. Orin additionally enforces 51% for scenarios.py's pure
 paths; its ROS launch assembly is exercised in the separate integration job.
+
+Behavior tests supply their own mappings and motion profiles. Do not assert the
+current calibration or deployment defaults: changing those values should not
+require rewriting unit tests. Test parsing, conversion, bounds, and failure
+behavior using explicit inputs. Keep the versioned golden fixture for shared
+observation/action compatibility and the ROS tests for real message serialization.
+
+
+Supervisor checks run in the root Python 3.10 suite:
+
+```sh
+uv run --locked --group dev python -m pytest src/catbot_supervisor/test
+```
+
+CI also builds `catbot_supervisor` and runs
+`src/catbot_supervisor/test/test_ros_supervisor.py` in its ROS job. This test uses
+real Pi/Orin ROS adapters and an actual managed policy-adapter process with the
+stdlib fake inference worker. It checks sequential startup, a closed gate before
+running, forwarding acknowledgements, stale-stream emergency disarm, explicit
+recovery, and shutdown. Foundation hardware and Pi health readings are doubled;
+this does not establish physical motor behavior or measured Pi CPU headroom.

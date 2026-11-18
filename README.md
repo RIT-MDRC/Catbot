@@ -71,8 +71,10 @@ velocity changes; stop commands remain immediate for safety. Changes apply to
 the next UI command. These four primary motion values can also be edited in the
 running UI's Motion settings panel.
 
-The main foundation node exposes sparse body position control and all-motor
-maintenance topics. See the [foundation body-control documentation](src/foundation/foundation/README.md#body-control-topics)
+The Foundation node exposes sparse body position control and immediate motor I/O.
+The [RPi Supervisor](src/catbot_supervisor/README.md) owns modes, link decisions,
+action gating, Pi health, and prescripted actions; Orin Supervisor services own
+policy and managed jobs. See the [foundation body-control documentation](src/foundation/foundation/README.md#body-control-topics)
 for message formats and publish examples.
 
 The [policy node](src/catbot_policy/README.md) loads exported trained actors,
@@ -80,12 +82,18 @@ accepts named feedback on `/policy/feedback`, and publishes actuator targets.
 Its documentation covers policy export, optional runtime dependencies, building,
 topic remapping, and the provisional joint mapping.
 
-To start foundation and policy together, build and source the workspace as
-described in the policy documentation, then run:
+Build and source the workspace, then start the Pi and Orin service hosts:
 
 ```bash
-ros2 launch catbot_policy catbot.launch.py
+# Pi
+ros2 launch catbot_supervisor rpi.launch.py network_interface:=eth0
+# Orin (in its own sourced terminal)
+ros2 launch catbot_supervisor orin.launch.py policy_bundle:=/absolute/path/to/bundle
 ```
+
+Use the supervisor's explicit startup script and run service to enable motion.
+See its [operator/API guide](src/catbot_supervisor/README.md) and
+[Foundation audit](src/catbot_supervisor/FOUNDATION_AUDIT.md).
 
 To download and prepare the latest W&B training checkpoint automatically:
 
@@ -94,11 +102,8 @@ cd src/catbot_policy
 uv run pull_policy.py
 ```
 
-The launcher uses the last successfully prepared bundle by default. You can
-set `POLICY_BUNDLE` in
-[`catbot.launch.py`](src/catbot_policy/launch/catbot.launch.py) to choose a fixed
-bundle instead. See the
-[policy setup instructions](src/catbot_policy/README.md#pull-the-latest-training-policy)
+The Orin launch selects locally prepared policy artifacts; see the
+[policy setup instructions](src/catbot_policy/README.md#pull-a-fixed-training-policy)
 for W&B login, run selection, and ROS setup.
 
 ### Install dependencies

@@ -76,10 +76,11 @@ to run the sample code on your computer or on catbot.
 
 ## Body control topics
 
-The foundation node clears ODrive errors, runs regular motor calibration one
-motor at a time, and enters closed-loop position control during startup.
-Calibration can move hardware. Keep the mechanism clear and keep a physical
-emergency stop available before starting the node.
+Foundation performs immediate body I/O. It does not clear faults, calibrate,
+home, arm, or run scripts automatically. The
+[RPi Supervisor](../../catbot_supervisor/README.md) owns all robot sequencing,
+emergency/shutdown actions, and policy forwarding. Its startup script is an
+explicit request and can move hardware.
 
 `/body/control/position` accepts a sparse
 `catbot_interfaces/msg/ActuatorPositionCommand`. Each actuator name is paired
@@ -103,21 +104,15 @@ A rejected message sends no targets. An error on an omitted actuator does not
 block the named subset. CAN frames cannot be sent atomically, so a transport
 failure after validation is logged for the affected actuator.
 
-The following `std_msgs/msg/Empty` topics act on every configured motor that is
-currently producing a heartbeat. Homing and calibration are sequential; after
-they finish, successful motors safely return to closed-loop position control.
-
-```bash
-ros2 topic pub --once /body/control/script/home std_msgs/msg/Empty "{}"
-ros2 topic pub --once /body/control/script/full_calibrate std_msgs/msg/Empty "{}"
-ros2 topic pub --once /body/control/script/calibrate std_msgs/msg/Empty "{}"
-ros2 topic pub --once /body/control/script/clear_errors std_msgs/msg/Empty "{}"
-```
-
-Only one script operation may run at a time. Missing heartbeats, ODrive errors,
-timeouts, rejected commands, and per-actuator CAN send failures are reported in
-the foundation node log. On shutdown, the node requests `IDLE` for every motor
-it armed and closes the CAN bus.
+`/body/control/motor` provides `catbot_interfaces/srv/MotorCommand` for immediate
+`idle`, `clear_errors`, `trajectory`, `hold`, or explicit `state` requests.
+An empty actuator-name list selects the complete configured roster, including
+unresponsive axes for disarm. Requests validate names and operation before I/O;
+non-idle operations retain heartbeat, fault, and encoder checks where required.
+Service success means CAN send success, not completion of a motor transition.
+The Pi supervisor confirms transitions from body state. The former
+`/body/control/script/*` topics have been removed. On Foundation process exit,
+last-chance cleanup requests IDLE on all configured axes and closes CAN resources.
 
 ## Body state topics
 
@@ -134,8 +129,8 @@ ros2 topic echo /body/state/position \
 ```
 
 `/body/state/error` publishes a
-`catbot_interfaces/msg/BodyErrorState` whenever a heartbeat, readiness value,
-axis state, or error value changes. It uses reliable, transient-local QoS, so a
+`catbot_interfaces/msg/BodyErrorState` at 20 Hz, including heartbeat, readiness,
+axis state, and error values. It uses reliable, transient-local QoS, so a
 late subscriber receives the most recent snapshot. A heartbeat is considered
 unavailable after 0.5 seconds. Each actuator reports the raw axis, motor,
 encoder, sensorless, and controller flag values plus readable flag names.

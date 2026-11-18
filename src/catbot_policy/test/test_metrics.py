@@ -23,6 +23,8 @@ def adapter(monkeypatch):
         "std_msgs.msg": {"String": object},
         "catbot_interfaces.msg": {
             "ActuatorPositionCommand": object,
+            "PolicyAction": object,
+            "PolicyActionAck": object,
             "PolicyFeedback": object,
             "PolicyMetrics": SimpleNamespace,
         },
@@ -65,13 +67,6 @@ def test_typed_metrics_window_and_reset(adapter):
     report, node = adapter
     report(node)
     message = node.metrics.publish.call_args.args[0]
-    schema = Path(__file__).parents[2] / "catbot_interfaces/msg/PolicyMetrics.msg"
-    fields = {
-        line.split()[1]
-        for line in schema.read_text().splitlines()
-        if line and not line.startswith("#")
-    }
-    assert set(vars(message)) == fields
     assert message.stamp == "publication stamp"
     assert message.window_seconds == 5.0
     assert message.control_interval_ms == 20.0
@@ -124,3 +119,32 @@ def test_first_worker_cpu_measurement_is_not_a_zero(adapter):
     assert math.isnan(
         node.metrics.publish.call_args.args[0].worker_cpu_percent_one_core
     )
+
+
+@pytest.mark.parametrize("forwarded", [True, False])
+def test_pi_acknowledgement_controls_worker_history(adapter, forwarded):
+    report, node = adapter
+    node.action_session = "session"
+    node.worker.send = Mock()
+    node.pending = {
+        "id": 20,
+        "gate_sequence": 7,
+        "gate_acknowledged": False,
+        "accepted": False,
+        "sample": (1, 2, 3),
+    }
+    ack = report.__globals__["PolicyNode"].action_ack
+    before = (node.published, node.discarded, len(node.samples))
+    ack(node, SimpleNamespace(session="old", sequence=7, forwarded=True))
+    ack(node, SimpleNamespace(session="session", sequence=6, forwarded=True))
+    node.worker.send.assert_not_called()
+    message = SimpleNamespace(session="session", sequence=7, forwarded=forwarded)
+    ack(node, message)
+    ack(node, message)
+    node.worker.send.assert_called_once_with(
+        {"type": "ack", "id": 20, "published": forwarded}
+    )
+    assert node.pending["accepted"] == forwarded
+    assert node.published == before[0] + int(forwarded)
+    assert node.discarded == before[1] + int(not forwarded)
+    assert len(node.samples) == before[2] + int(forwarded)

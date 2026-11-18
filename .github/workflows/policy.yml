@@ -14,7 +14,7 @@ jobs:
           cache-dependency-glob: '**/tests/uv.lock'
       - name: Existing foundation and UI tests
         working-directory: .
-        run: uv run --locked --group dev python -m pytest src/foundation/test/test_actuator.py src/foundation/test/test_body_control.py src/foundation/test/test_body_state.py src/foundation/test/test_odrive_position.py src/ui/test/test_policy_commands.py --junitxml=foundation-tests.xml
+        run: uv run --locked --group dev python -m pytest src/foundation/test/test_actuator.py src/foundation/test/test_body_control.py src/foundation/test/test_body_io.py src/foundation/test/test_body_state.py src/foundation/test/test_odrive_position.py src/ui/test/test_policy_commands.py src/catbot_supervisor/test --junitxml=foundation-tests.xml
       - name: Catbot policy suite and coverage floors
         working-directory: .
         run: |
@@ -42,7 +42,7 @@ jobs:
         shell: bash
         run: |
           source /opt/ros/humble/setup.bash
-          colcon build --base-paths src/catbot_interfaces src/catbot_policy --cmake-args -DBUILD_TESTING=OFF
+          colcon build --base-paths src/catbot_interfaces src/catbot_policy src/foundation src/catbot_supervisor --cmake-args -DBUILD_TESTING=OFF
       - name: ROS integration tests (required, no import skips)
         shell: bash
         env:
@@ -52,7 +52,7 @@ jobs:
         run: |
           source /opt/ros/humble/setup.bash
           source install/setup.bash
-          python3 -m pytest -m ros src/catbot_policy/test/test_ros_smoke.py --junitxml=ros-tests.xml
+          python3 -m pytest -m ros src/catbot_policy/test/test_ros_smoke.py src/catbot_supervisor/test/test_ros_supervisor.py --junitxml=ros-tests.xml
       - uses: actions/upload-artifact@v4
         if: always()
         with:

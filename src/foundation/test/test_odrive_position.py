@@ -1,7 +1,6 @@
 """Hardware-free tests for the ODrive position sample and controller helpers."""
 
 import asyncio
-import json
 import subprocess
 import sys
 import textwrap
@@ -660,15 +659,26 @@ def test_read_keeps_session_open_when_knee_feedback_cannot_convert(
     command_runtime, command, motor_turns
 ):
     runtime = command_runtime
-    config = json.loads(motor_test_sample.DEFAULT_CONFIG.read_text())
-    # These regression inputs were captured with this calibration. Keep the
-    # unreachable geometry stable when the robot's calibration changes.
-    config["actuator_motion_profile"]["knee_ballscrew"]["ballscrew_linkage"][
-        "x_offset"
-    ] = {"value": 6.7624856638, "unit": "centimeters"}
     actuator = object.__new__(Actuator)
     actuator.profile = motion_profile_actions.parse_motion_profile(
-        config["actuator_motion_profile"]["knee_ballscrew"], "test_knee_profile"
+        {
+            "position_min": {"value": -55, "unit": "degrees"},
+            "position_max": {"value": 55, "unit": "degrees"},
+            "trajectory_velocity": {"value": 1, "unit": "motor_turns_per_second"},
+            "trajectory_acceleration": {
+                "value": 1,
+                "unit": "motor_turns_per_second_squared",
+            },
+            "ballscrew_linkage": {
+                "L1": 7.235,
+                "L2": 18.6452,
+                "A": 11.869,
+                "B": 7.95,
+                "ballscrew_travel_per_motor_turn": {"value": 10, "unit": "millimeters"},
+                "x_offset": {"value": 6.7624856638, "unit": "centimeters"},
+            },
+        },
+        "test_knee_profile",
     )
     runtime.motors["front"].current_position = motor_turns
 

@@ -14,7 +14,9 @@ def test_golden_observation_and_mapping(tmp_path):
         ).read_text()
     )
     assert [list(x) for x in OBSERVATION_FIELDS] == fixture["layout"]
-    runtime = PolicyRuntime(make_bundle(tmp_path))
+    path = tmp_path / "mapping.json"
+    path.write_text(json.dumps(fixture["mapping"]))
+    runtime = PolicyRuntime(make_bundle(tmp_path), mapping=path)
     runtime.update_feedback(fixture["feedback"], 0)
     runtime.set_command(fixture["local"]["command"])
     runtime.previous_action.copy_(torch.tensor(fixture["local"]["previous_action"]))
@@ -28,7 +30,5 @@ def test_golden_observation_and_mapping(tmp_path):
         atol=1e-6,
         rtol=1e-6,
     )
-    path = tmp_path / "mapping.json"
-    path.write_text(json.dumps(fixture["mapping"]))
     actual = ActuatorMapping(path).convert(torch.tensor(fixture["radians"]))
     torch.testing.assert_close(torch.tensor(actual), torch.tensor(fixture["degrees"]))

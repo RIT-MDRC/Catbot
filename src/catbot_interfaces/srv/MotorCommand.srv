@@ -1,0 +1,9 @@
+# Immediate body I/O only; no waiting, ordering, scripts, or automatic re-arming.
+# Empty names selects every configured actuator (including unresponsive axes).
+string[] actuator_names
+# idle, clear_errors, trajectory, hold, state
+string operation
+uint8 state
+---
+bool success
+string message

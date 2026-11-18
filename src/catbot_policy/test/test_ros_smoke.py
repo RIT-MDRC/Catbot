@@ -32,7 +32,12 @@ from rclpy.impl.implementation_singleton import rclpy_implementation  # noqa: F4
 from rclpy.qos import QoSProfile, ReliabilityPolicy
 from rclpy.serialization import deserialize_message, serialize_message
 
-from catbot_interfaces.msg import ActuatorPositionCommand, PolicyFeedback, PolicyMetrics
+from catbot_interfaces.msg import (
+    PolicyAction,
+    PolicyActionAck,
+    PolicyFeedback,
+    PolicyMetrics,
+)
 
 
 @pytest.mark.ros
@@ -50,8 +55,12 @@ class RosSmokeTests(unittest.TestCase):
                     f"policy_worker_project:={bundle}",
                     "-p",
                     f"policy_uv_executable:={FIXTURES / 'fake_worker.py'}",
+                    "-p",
+                    "action_session:=smoke",
                     "-r",
-                    f"/body/control/position:={prefix}/output",
+                    f"/orin/policy/action:={prefix}/output",
+                    "-r",
+                    f"/rpi/supervisor/action_ack:={prefix}/ack",
                     "-r",
                     f"/policy/feedback:={prefix}/feedback",
                     "-r",
@@ -75,9 +84,23 @@ class RosSmokeTests(unittest.TestCase):
                 probe.create_subscription(
                     PolicyMetrics, f"{prefix}/metrics", metrics.append, 1
                 )
-                probe.create_subscription(
-                    ActuatorPositionCommand, f"{prefix}/output", received.append, 1
+                acknowledgements = probe.create_publisher(
+                    PolicyActionAck, f"{prefix}/ack", 1
                 )
+
+                def accept(message):
+                    received.append(message.command)
+                    self.assertEqual(message.session, "smoke")
+                    self.assertGreater(message.stamp.sec, 0)
+                    acknowledgements.publish(
+                        PolicyActionAck(
+                            session=message.session,
+                            sequence=message.sequence,
+                            forwarded=True,
+                        )
+                    )
+
+                probe.create_subscription(PolicyAction, f"{prefix}/output", accept, 1)
                 feedback_pub = probe.create_publisher(
                     PolicyFeedback,
                     f"{prefix}/feedback",
