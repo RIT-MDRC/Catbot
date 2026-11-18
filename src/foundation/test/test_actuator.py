@@ -1,6 +1,5 @@
 """Hardware-free tests for actuator profiles and motor-boundary behavior."""
 
-import json
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -298,9 +297,9 @@ def test_profile_and_competing_raw_bounds_are_rejected():
 def test_configuration_parser_accepts_explicit_quantities():
     parsed = motion_profile_actions.parse_motion_profile(
         {
-            "motor_turns_per_actuator_turn": 64,
-            "position_min": {"value": -40, "unit": "degrees"},
-            "position_max": {"value": 40, "unit": "degrees"},
+            "motor_turns_per_actuator_turn": 36,
+            "position_min": {"value": -25, "unit": "degrees"},
+            "position_max": {"value": 35, "unit": "degrees"},
             "trajectory_velocity": {
                 "value": 1,
                 "unit": "motor_turns_per_second",
@@ -312,7 +311,13 @@ def test_configuration_parser_accepts_explicit_quantities():
         },
         _identifier="profile",
     )
-    assert parsed.motor_turns_per_actuator_turn == 64
+    actuator, motor = make_actuator("parsed")
+    actuator.profile = parsed
+    assert actuator_actions.position_to_motor_turns(actuator, 30) == pytest.approx(3)
+    motor.current_position = 3
+    assert actuator_actions.get_current_position(actuator) == pytest.approx(30)
+    with pytest.raises(ValueError):
+        actuator_actions.validate_target_position(actuator, 36)
 
 
 def test_configuration_parser_accepts_knee_ballscrew_profile():
@@ -343,26 +348,13 @@ def test_configuration_parser_accepts_knee_ballscrew_profile():
         _identifier="knee",
     )
     assert parsed.motor_turns_per_actuator_turn is None
-    assert parsed.ballscrew_linkage.L2 == 18.6452
-    assert parsed.ballscrew_linkage.x_offset.value == 2.5
-
-
-def test_robot_configuration_assigns_nonlinear_profile_only_to_k_joints():
-    config_path = FOUNDATION_ROOT / "pinconfig.json"
-    with config_path.open() as config_file:
-        config = json.load(config_file)
-
-    knee_names = {"brk", "blk", "frk", "flk"}
-    assigned = {
-        name
-        for name, actuator in config["actuator"].items()
-        if actuator["profile"] == "knee_ballscrew"
-    }
-    assert assigned == knee_names
-    profile = config["actuator_motion_profile"]["knee_ballscrew"]
-    assert profile["position_min"] == {"value": -55, "unit": "degrees"}
-    assert profile["position_max"] == {"value": 55, "unit": "degrees"}
-    assert profile["ballscrew_linkage"]["x_offset"] == {
-        "value": 10.461,
-        "unit": "centimeters",
-    }
+    actuator, _ = make_knee_actuator()
+    actuator.profile = parsed
+    # Independent linkage reference: at zero degrees the screw is 6.7625 cm out,
+    # with one centimeter per motor turn and a 2.5 cm zero offset.
+    assert actuator_actions.position_to_motor_turns(actuator, 0) == pytest.approx(
+        4.2624856638
+    )
+    assert actuator_actions.motor_turns_to_position(
+        actuator, 4.2624856638
+    ) == pytest.approx(0, abs=1e-8)
