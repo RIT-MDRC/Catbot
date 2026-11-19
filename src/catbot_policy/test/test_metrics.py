@@ -25,6 +25,7 @@ def adapter(monkeypatch):
             "ActuatorPositionCommand": object,
             "PolicyAction": object,
             "PolicyActionAck": object,
+            "PolicyReady": SimpleNamespace,
             "PolicyFeedback": object,
             "PolicyMetrics": SimpleNamespace,
         },
@@ -148,3 +149,30 @@ def test_pi_acknowledgement_controls_worker_history(adapter, forwarded):
     assert node.published == before[0] + int(forwarded)
     assert node.discarded == before[1] + int(not forwarded)
     assert len(node.samples) == before[2] + int(forwarded)
+
+
+@pytest.mark.parametrize("verified", [True, False])
+def test_readiness_requires_runtime_verification(adapter, verified):
+    report, node = adapter
+    node.action_session = "session"
+    node.ready_publisher = Mock()
+    node.worker.ready = {"bundle_id": "a" * 64, "verified": verified}
+    report.__globals__["PolicyNode"]._publish_ready(node, True, "ready")
+    message = node.ready_publisher.publish.call_args.args[0]
+    assert message.session == "session" and message.bundle_id == "a" * 64
+    assert message.ready is verified and message.verified is verified
+
+
+def test_hardware_provider_contract_mismatch_blocks_readiness(adapter):
+    report, node = adapter
+    node.requires_contract = True
+    node.contract_ready = True
+    node.metadata = {"model_sha256": "expected", "policy_contract": {}, "settings": {}}
+    node.mapping = {}
+    node._publish_ready = Mock()
+    with pytest.raises(ValueError, match="Provider model"):
+        report.__globals__["PolicyNode"].contract_callback(
+            node, SimpleNamespace(data='{"version":1,"model_sha256":"wrong"}')
+        )
+    assert not node.contract_ready
+    node._publish_ready.assert_called_once_with(False, "provider contract mismatch")

@@ -102,7 +102,52 @@ class OrinHeartbeat:
     sequence: int
     action_sequence: int
     probe_id: int
+    policy_ready: bool
+    policy_verified: bool
+    bundle_id: str
+    load_error: str
+    preflight_passed: bool
+    preflight_reason: str
     policy_active: bool
     degraded: bool
     reason: str
+    def __init__(self, **kwargs: object) -> None: ...
+
+class ClockProbe:
+    id: int
+    stamp: Time
+    def __init__(self, **kwargs: object) -> None: ...
+
+class ClockReply:
+    id: int
+    origin_stamp: Time
+    received_stamp: Time
+    reply_stamp: Time
+    def __init__(self, **kwargs: object) -> None: ...
+
+class PolicyReady:
+    stamp: Time
+    session: str
+    bundle_id: str
+    verified: bool
+    ready: bool
+    detail: str
+    def __init__(self, **kwargs: object) -> None: ...
+
+class OrinTelemetry:
+    stamp: Time
+    cpu_percent: float
+    gpu_percent: float
+    temperature_c: float
+    memory_used_bytes: int
+    memory_total_bytes: int
+    disk_free_bytes: int
+    disk_total_bytes: int
+    resources_valid: bool
+    gpu_available: bool
+    run_id: str
+    git_commit: str
+    scenario: str
+    bundle_id: str
+    detail: str
     def __init__(self, **kwargs: object) -> None: ...

@@ -43,7 +43,9 @@ def registry():
             [
                 Step("wait_health", timeout=5.0),
                 Step("wait_policy_stopped", timeout=8.0),
+                Step("wait_preflight", timeout=120.0),
                 Step("job_start", "policy"),
+                Step("wait_policy_ready", timeout=120.0),
                 Step("wait_link", timeout=120.0),
             ]
             + maintenance(names, 4)
@@ -53,6 +55,16 @@ def registry():
             Step("wait_state", state=1),
             Step("job_stop", "policy"),
             Step("wait_policy_stopped", timeout=8.0),
+        ],
+        "restart_policy": lambda names: [
+            Step("wait_health", timeout=5.0),
+            Step("wait_preflight", timeout=120.0),
+            Step("motor", "idle"),
+            Step("wait_state", state=1),
+            Step("job_restart", "policy", timeout=8.0),
+            Step("wait_policy_ready", timeout=120.0),
+            Step("wait_link", timeout=120.0),
+            *maintenance(names),
         ],
         "emergency": lambda names: [Step("motor", "idle"), Step("wait_state", state=1)],
         "home": lambda names: maintenance(names, 11),

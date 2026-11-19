@@ -22,8 +22,19 @@ class SupervisorJob:
     class Request:
         name: str
         start: bool
+        operation: str
         def __init__(self, **kwargs: object) -> None: ...
     class Response:
         success: bool
         message: str
+        def __init__(self, **kwargs: object) -> None: ...
+
+class GetSupervisorStatus:
+    class Request:
+        name: str
+        def __init__(self, **kwargs: object) -> None: ...
+    class Response:
+        success: bool
+        message: str
+        status_json: str
         def __init__(self, **kwargs: object) -> None: ...

@@ -160,3 +160,67 @@ robot's ROS permissions so Orin cannot publish directly to Foundation command
 endpoints or forge Pi acknowledgements. A Pi process/OS crash also needs the
 motor/controller watchdog or an independent hardware stop: a software script
 cannot execute after the Pi has died.
+
+## Orin service contract (status JSON version 1)
+
+The watchdog remains fail-latched. There is no automatic policy restart. A stale
+250 ms action stream is reported as degraded; the Pi owns sequence verdicts and
+emergency/recovery. Losing the Pi's probes for 500 ms cancels queued restarts and
+stops every registered job.
+
+`SupervisorJob` keeps the legacy `name` + `start` fields. Its new `operation`
+field accepts `start`, `stop`, or `restart`; empty uses the legacy bool. Restart
+queues one replacement behind bounded process-group cleanup. Repeated requests
+coalesce, stop cancels a replacement, and preflight/lease are rechecked before
+spawning. Requests report acceptance; they do not claim that cleanup/load ended.
+
+```bash
+ros2 service call /orin/supervisor/job catbot_interfaces/srv/SupervisorJob "{name: policy, operation: restart}"
+ros2 service call /orin/supervisor/get_status catbot_interfaces/srv/GetSupervisorStatus "{name: policy}"
+# Preferred robot restart path: closes the gate, disarms, restarts and re-arms;
+# explicit /rpi/supervisor/run is still required afterwards.
+ros2 service call /rpi/supervisor/script catbot_interfaces/srv/RunScript "{name: restart_policy}"
+```
+
+`GetSupervisorStatus` accepts an empty name for all jobs. `status_json` contains:
+`version: 1`, `jobs` (state, PID, exit code, error), `policy` (session, ready,
+verified, bundle_id, load_error), `preflight` (passed/reason), `clock` (offset,
+uncertainty/reason), `tags`, and `resources`. Unknown job names fail explicitly.
+States are stopped, running, stopping, restarting, and failed. Loading/verified
+readiness is reported separately from the job's process existence.
+
+A policy worker reports verified only after metadata/checksum validation and
+actor loading. Bundle ID is the SHA-256 of the serialized policy actor, distinct
+from the physical model hash. `PolicyReady` is tied to the current process session;
+old readiness cannot arm a replacement. The managed policy also waits for a
+matching `/policy/contract` from the feedback bridge, including model hash,
+policy contract, settings and mapping. Hardware and simulation both use this check;
+supervised action routing is independent of simulation mode.
+
+Before policy start, the Pi startup script waits for the Orin preflight verdict.
+Orin publishes `ClockProbe` and Pi returns `ClockReply` with receive/send times.
+Orin computes the four-timestamp offset and half-RTT uncertainty bound, rejects
+replays, delayed replies and local clock steps, and requires
+`abs(offset) + uncertainty <= clock_tolerance` (20 ms default). Estimates expire
+after two seconds. Orin also requires known temperature below 80 C, at least 1 GiB
+free disk, and a successful bounded compute allocation probe in the selected
+CPU/CUDA inference environment. The ROS interpreter never imports PyTorch.
+Preflight failure is visible in the heartbeat and get_status; it blocks starts
+and replacements. A failed compute probe requires repairing/restarting the Orin
+host; it is not automatically retried during robot operation.
+
+`/orin/supervisor/telemetry` is typed `OrinTelemetry`, published at 1 Hz: aggregate
+CPU use, Jetson sysfs GPU load where available, maximum exposed thermal-zone
+temperature, memory used/total, disk free/total, run ID, git commit, scenario and
+verified policy bundle ID. Unknown floating measurements are NaN, with validity
+and GPU-availability flags; status JSON uses null. Missing temperature/memory/disk
+facts fail preflight. A missing GPU load sensor is explicitly unavailable and
+never treated as zero usage. Policy inference metrics remain `/policy/metrics`.
+Run ID defaults to the selected policy run ID or a generated session tag; it can
+be set using `supervisor_run_id`. Set `git_commit` explicitly if launching outside
+a Git checkout. `disk_path`, resource sys/proc roots and thresholds are parameters.
+
+Both hosts must rebuild/source the updated generated interfaces together. The Pi
+retains its own launch/config; Orin deployment configuration belongs in the Orin
+repository. Recording/rosbag coordination, capture rotation and offline/shadow
+simulation scheduling remain deferred and are not implemented by these APIs.

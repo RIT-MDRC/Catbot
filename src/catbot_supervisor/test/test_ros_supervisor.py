@@ -12,6 +12,7 @@ from catbot_supervisor.orin import OrinSupervisor
 from rclpy.executors import SingleThreadedExecutor
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile
+from std_msgs.msg import String
 from std_srvs.srv import Trigger
 
 from catbot_interfaces.msg import (
@@ -20,7 +21,12 @@ from catbot_interfaces.msg import (
     BodyErrorState,
     PolicyFeedback,
 )
-from catbot_interfaces.srv import MotorCommand, RunScript
+from catbot_interfaces.srv import (
+    GetSupervisorStatus,
+    MotorCommand,
+    RunScript,
+    SupervisorJob,
+)
 
 FIXTURES = Path(__file__).resolve().parents[3] / "tests/fixtures"
 
@@ -59,6 +65,18 @@ def test_managed_orin_policy_pi_gate_scripts_and_stale_emergency(tmp_path):
         }
         pi.health.sample = lambda now: dict(good)
         pi.health_sample = dict(good)
+        resources = {
+            "cpu_percent": 10.0,
+            "gpu_percent": None,
+            "temperature_c": 50.0,
+            "memory_used_bytes": 1000,
+            "memory_total_bytes": 2000,
+            "disk_free_bytes": 8 * 1024**3,
+            "disk_total_bytes": 16 * 1024**3,
+            "errors": [],
+        }
+        orin.resources.sample = lambda: dict(resources)
+        orin.resource_sample = dict(resources)
         body = Node("supervisor_test_body", use_global_arguments=False)
         states = dict.fromkeys(names, 1)
         operations, received, completing = [], [], {}
@@ -69,6 +87,11 @@ def test_managed_orin_policy_pi_gate_scripts_and_stale_emergency(tmp_path):
         )
         feedback_pub = body.create_publisher(PolicyFeedback, "/policy/feedback", 1)
         sensors_enabled = [True]
+        contract_pub = body.create_publisher(
+            String,
+            "/policy/contract",
+            QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL),
+        )
 
         def motor(request, response):
             operations.append(
@@ -111,6 +134,17 @@ def test_managed_orin_policy_pi_gate_scripts_and_stale_emergency(tmp_path):
                     ],
                 )
             )
+            contract_pub.publish(
+                String(
+                    data=json.dumps(
+                        {
+                            "version": 1,
+                            **fixture["metadata"],
+                            "mapping": fixture["mapping"],
+                        }
+                    )
+                )
+            )
             if sensors_enabled[0]:
                 values = dict(fixture["feedback"])
                 for key in ("previous_contact", "has_stance"):
@@ -135,6 +169,7 @@ def test_managed_orin_policy_pi_gate_scripts_and_stale_emergency(tmp_path):
             result = future.result()
             assert result.success, result.message
             body.destroy_client(client)
+            return result
 
         until(lambda: pi.gate.mode == Mode.IDLE)
         assert not received and not orin.jobs.running("policy")
@@ -147,6 +182,19 @@ def test_managed_orin_policy_pi_gate_scripts_and_stale_emergency(tmp_path):
             for operation, state, names_ in operations
             if operation == "state" and state == 4
         ] == [[name] for name in names]
+        status = json.loads(
+            call(
+                GetSupervisorStatus,
+                "/orin/supervisor/get_status",
+                GetSupervisorStatus.Request(name="policy"),
+            ).status_json
+        )
+        assert status["version"] == 1 and status["policy"]["ready"]
+        assert (
+            status["policy"]["verified"]
+            and status["policy"]["bundle_id"] == fixture["metadata"]["policy_sha256"]
+        )
+        assert pi.orin_preflight_passed and pi.orin_policy_verified
         call(Trigger, "/rpi/supervisor/run", Trigger.Request())
         until(lambda: len(received) >= 5)
         assert list(received[-1].actuator_names) == names
@@ -164,9 +212,35 @@ def test_managed_orin_policy_pi_gate_scripts_and_stale_emergency(tmp_path):
         call(Trigger, "/rpi/supervisor/recover", Trigger.Request())
         assert pi.gate.mode == Mode.IDLE
         assert len(received) == count
+        old_session = orin.session
+        call(
+            RunScript,
+            "/rpi/supervisor/script",
+            RunScript.Request(name="restart_policy"),
+        )
+        until(
+            lambda: (
+                orin.session != old_session
+                and orin.policy_ready
+                and pi.gate.mode == Mode.READY
+            ),
+            timeout=25,
+        )
+        assert len(orin.jobs.children) == 1
+        assert len(received) == count
         call(RunScript, "/rpi/supervisor/script", RunScript.Request(name="shutdown"))
         until(lambda: not pi.runner.active)
         assert pi.gate.mode == Mode.SHUTDOWN
+        # Independent clock replies do not renew the Pi action/probe lease.
+        call(
+            SupervisorJob,
+            "/orin/supervisor/job",
+            SupervisorJob.Request(name="policy", start=True),
+        )
+        until(lambda: orin.jobs.running("policy"))
+        pi.probe_timer.cancel()
+        until(lambda: not orin.jobs.running("policy"))
+        assert not orin.jobs.pending
     finally:
         executor.shutdown()
         for node in (pi, orin, body):

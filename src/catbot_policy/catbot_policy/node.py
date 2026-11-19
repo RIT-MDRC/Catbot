@@ -22,6 +22,7 @@ from catbot_interfaces.msg import (
     PolicyActionAck,
     PolicyFeedback,
     PolicyMetrics,
+    PolicyReady,
 )
 from catbot_policy.artifacts import available_models, resolve_downloaded
 from catbot_policy.configuration import POLICY_DEFAULTS, POLICY_PARAMETERS
@@ -43,6 +44,51 @@ class PolicyNode(Node):
                 "Hardware policy must be started through Orin Supervisor (action_session required)"
             )
 
+        self.supervised = bool(
+            self.declare_parameter(
+                "supervised_actions",
+                not bool(self.policy_parameters["simulation_mode"]),
+            ).value
+        )
+        self.requires_contract = bool(
+            self.declare_parameter(
+                "require_provider_contract",
+                bool(self.policy_parameters["simulation_mode"]),
+            ).value
+        )
+        self.provider_contract_topic = str(
+            self.declare_parameter(
+                "provider_contract_topic", "/simulation/contract"
+            ).value
+        )
+        self.ready_publisher = self.create_publisher(
+            PolicyReady,
+            "/orin/policy/ready",
+            QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL),
+        )
+        self._publish_ready(False, "loading")
+        try:
+            self._load()
+        except BaseException as error:
+            self._publish_ready(False, str(error))
+            raise
+
+    def _publish_ready(self, ready, detail):
+        worker = getattr(self, "worker", None)
+        report = worker.ready if worker is not None else {}
+        verified = report.get("verified") is True
+        self.ready_publisher.publish(
+            PolicyReady(
+                stamp=self.get_clock().now().to_msg(),
+                session=self.action_session,
+                bundle_id=str(report.get("bundle_id", "")),
+                verified=verified,
+                ready=bool(ready and verified),
+                detail=detail,
+            )
+        )
+
+    def _load(self):
         def param(name):
             return self.policy_parameters[name]
 
@@ -101,8 +147,7 @@ class PolicyNode(Node):
         self.command = [0.0, 0.0, 0.0]
         self.pending = None
         self.sequence = 0
-        self.contract_ready = not bool(self.policy_parameters["simulation_mode"])
-        self.supervised = not bool(self.policy_parameters["simulation_mode"])
+        self.contract_ready = not self.requires_contract
         self.action_sequence = 0
         reliable = QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE)
         self.publisher = self.create_publisher(
@@ -126,7 +171,7 @@ class PolicyNode(Node):
         )
         self.create_subscription(
             String,
-            "/simulation/contract",
+            self.provider_contract_topic,
             self.contract_callback,
             QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL),
         )
@@ -144,12 +189,16 @@ class PolicyNode(Node):
         self.create_timer(self.dt, self.tick)
         self.create_timer(0.002, self.poll)
         self.create_timer(5.0, self.report_metrics)
+        self._publish_ready(
+            self.contract_ready,
+            "ready" if self.contract_ready else "waiting for provider contract",
+        )
         self.get_logger().info(
             f"Policy worker ready on Python {self.worker.ready['python_version']}, device {self.worker.ready['device']}; ROS stays on its own interpreter"
         )
 
     def contract_callback(self, message):
-        if not bool(self.get_parameter("simulation_mode").value):
+        if not self.requires_contract:
             return
         value = json.loads(message.data)
         if (
@@ -160,10 +209,12 @@ class PolicyNode(Node):
             or value.get("mapping") != self.mapping
         ):
             self.contract_ready = False
+            self._publish_ready(False, "provider contract mismatch")
             raise ValueError(
                 "Provider model, policy contract, settings or mapping mismatch"
             )
         self.contract_ready = True
+        self._publish_ready(True, "ready")
 
     def feedback_callback(self, message):
         if not self.contract_ready:

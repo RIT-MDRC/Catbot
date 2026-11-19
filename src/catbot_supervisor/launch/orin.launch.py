@@ -1,6 +1,7 @@
 """Orin owns policy process lifetime and optional allowlisted jobs."""
 
 from catbot_policy.configuration import POLICY_DEFAULTS
+from catbot_supervisor.configuration import ORIN_DEFAULTS
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
@@ -14,7 +15,7 @@ def generate_launch_description():
         for name, value in POLICY_DEFAULTS.items()
         if name not in ("action_session", "simulation_mode")
     }
-    defaults.update(jobs_json="{}", pi_lease_timeout=0.5, action_timeout=0.25)
+    defaults.update(ORIN_DEFAULTS)
     return LaunchDescription(
         [
             *[

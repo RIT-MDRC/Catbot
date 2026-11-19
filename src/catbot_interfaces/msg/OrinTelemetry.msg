@@ -1,0 +1,15 @@
+builtin_interfaces/Time stamp
+float64 cpu_percent
+float64 gpu_percent
+float64 temperature_c
+uint64 memory_used_bytes
+uint64 memory_total_bytes
+uint64 disk_free_bytes
+uint64 disk_total_bytes
+bool resources_valid
+bool gpu_available
+string run_id
+string git_commit
+string scenario
+string bundle_id
+string detail

@@ -1,0 +1,7 @@
+# Empty selects all jobs.
+string name
+---
+bool success
+string message
+# Versioned JSON: version, jobs, policy, preflight, clock, tags, resources.
+string status_json

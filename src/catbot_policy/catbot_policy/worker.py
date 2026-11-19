@@ -20,7 +20,8 @@ class Discarded(Exception):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--bundle", type=Path, required=True)
+    parser.add_argument("--bundle", type=Path)
+    parser.add_argument("--preflight", action="store_true")
     parser.add_argument("--mapping", type=Path)
     parser.add_argument("--device", default="cpu")
     parser.add_argument(
@@ -56,6 +57,19 @@ def main():
         # Import PyTorch only after diagnostics are isolated from protocol stdout.
         from catbot_policy.runtime import PolicyRuntime
 
+        if args.preflight:
+            import torch
+
+            device = torch.device(args.device)
+            if device.type not in ("cpu", "cuda"):
+                raise ValueError("policy_device must be cpu or cuda[:index]")
+            tensor = torch.zeros(1, device=device)
+            if not torch.isfinite(tensor).all().item():
+                raise ValueError("compute allocation was non-finite")
+            send({"type": "preflight", "available": True, "device": args.device})
+            return
+        if args.bundle is None:
+            parser.error("--bundle is required unless --preflight is selected")
         runtime = PolicyRuntime(
             args.bundle.expanduser(),
             args.mapping.expanduser() if args.mapping else None,
@@ -68,6 +82,8 @@ def main():
         send(
             {
                 "type": "ready",
+                "verified": True,
+                "bundle_id": runtime.metadata["policy_sha256"],
                 "dt": runtime.dt,
                 "device": str(runtime.device),
                 "metadata": runtime.metadata,

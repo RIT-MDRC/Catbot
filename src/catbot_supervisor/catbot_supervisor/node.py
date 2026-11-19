@@ -13,6 +13,8 @@ from std_srvs.srv import Trigger
 from catbot_interfaces.msg import (
     ActuatorPositionCommand,
     BodyErrorState,
+    ClockProbe,
+    ClockReply,
     OrinHeartbeat,
     PolicyAction,
     PolicyActionAck,
@@ -67,6 +69,11 @@ class RpiSupervisor(Node):
         self.script_link_required = False
         self.orin_action_sequence = 0
         self.orin_policy_active = False
+        self.orin_preflight_passed = False
+        self.orin_policy_ready = False
+        self.orin_policy_verified = False
+        self.orin_bundle_id = ""
+        self.remote_stop_at = float("-inf")
         self.emergency_attempt = float("-inf")
         self.motor = self.create_client(MotorCommand, "/body/control/motor")
         self.jobs = self.create_client(SupervisorJob, "/orin/supervisor/job")
@@ -75,6 +82,12 @@ class RpiSupervisor(Node):
         )
         self.acks = self.create_publisher(
             PolicyActionAck, "/rpi/supervisor/action_ack", 1
+        )
+        self.clock_replies = self.create_publisher(
+            ClockReply, "/rpi/supervisor/clock_reply", 1
+        )
+        self.create_subscription(
+            ClockProbe, "/orin/supervisor/clock_probe", self.clock_probe, 1
         )
         self.probes = self.create_publisher(UInt64, "/orin/supervisor/probe", 1)
         self.status = self.create_publisher(
@@ -102,7 +115,7 @@ class RpiSupervisor(Node):
         ):
             self.create_service(Trigger, "/rpi/supervisor/" + name, callback)
         self.create_timer(0.02, self.tick)
-        self.create_timer(0.1, self.probe)
+        self.probe_timer = self.create_timer(0.1, self.probe)
         self.create_timer(1.0, self.sample_health)
         # Boot only disarms. Startup/calibration requires an explicit script request.
         self.script_name = "boot"
@@ -137,17 +150,36 @@ class RpiSupervisor(Node):
                     state=step.state,
                 )
             )
-        if step.kind in ("job_start", "job_stop"):
+        if step.kind in ("job_start", "job_stop", "job_restart"):
             if not self.jobs.service_is_ready():
                 return None
             return self.jobs.call_async(
                 SupervisorJob.Request(
-                    name=step.operation, start=step.kind == "job_start"
+                    name=step.operation,
+                    start=step.kind == "job_start",
+                    operation=step.kind.removeprefix("job_"),
                 )
             )
         raise ValueError(f"Unknown script step: {step.kind}")
 
     def satisfied(self, step):
+        if step.kind in ("wait_preflight", "wait_policy_ready"):
+            fresh = (
+                self.gate.heartbeat_at is not None
+                and time.monotonic() - self.gate.heartbeat_at
+                <= self.gate.limits.heartbeat_age
+            )
+            return (
+                fresh
+                and self.orin_preflight_passed
+                and (
+                    step.kind == "wait_preflight"
+                    or self.orin_policy_ready
+                    and self.orin_policy_verified
+                    and len(self.orin_bundle_id) == 64
+                )
+            )
+
         if step.kind == "wait_policy_stopped":
             return (
                 self.gate.heartbeat_at is not None
@@ -179,6 +211,17 @@ class RpiSupervisor(Node):
             )
         raise ValueError(f"Unknown wait step: {step.kind}")
 
+    def clock_probe(self, message):
+        received = self.get_clock().now().to_msg()
+        self.clock_replies.publish(
+            ClockReply(
+                id=message.id,
+                origin_stamp=message.stamp,
+                received_stamp=received,
+                reply_stamp=self.get_clock().now().to_msg(),
+            )
+        )
+
     def probe(self):
         self.probes.publish(UInt64(data=self.gate.probe(time.monotonic())))
 
@@ -191,13 +234,19 @@ class RpiSupervisor(Node):
             self.enter_emergency("Orin session changed during script")
         self.orin_action_sequence = message.action_sequence
         self.orin_policy_active = message.policy_active
+        now = time.monotonic()
         self.gate.heartbeat(
             message.session,
             message.sequence,
             message.degraded,
             message.probe_id,
-            time.monotonic(),
+            now,
         )
+        if self.gate.heartbeat_at == now and self.gate.session == message.session:
+            self.orin_preflight_passed = message.preflight_passed
+            self.orin_policy_ready = message.policy_ready
+            self.orin_policy_verified = message.policy_verified
+            self.orin_bundle_id = message.bundle_id
         if self.gate.mode == Mode.DEGRADED:
             self.enter_emergency(self.gate.reason)
 
@@ -270,11 +319,27 @@ class RpiSupervisor(Node):
         self.runner.start(self.scripts["emergency"](self.names))
         self.emergency_attempt = time.monotonic()
         # Remote failure cannot delay local IDLE. Both requests are asynchronous.
+        self.stop_policy()
+
+    def stop_policy(self):
         if self.jobs.service_is_ready():
+            self.remote_stop_at = time.monotonic()
             self.jobs.call_async(SupervisorJob.Request(name="policy", start=False))
 
     def tick(self):
         now = time.monotonic()
+        if self.gate.mode == Mode.EMERGENCY and now - self.remote_stop_at >= 1.0:
+            self.stop_policy()
+        if (
+            self.runner.active
+            and self.script_link_required
+            and self.health_sample is not None
+        ):
+            reason = health_reason(
+                self.health_sample, self.min_headroom, self.max_temperature
+            )
+            if reason:
+                self.enter_emergency(reason)
         if self.gate.mode in (Mode.READY, Mode.RUNNING):
             reason = self.local_reason()
             if reason or not self.gate.check(now):
@@ -326,6 +391,10 @@ class RpiSupervisor(Node):
                         "heartbeat_sequence": self.gate.heartbeat_sequence,
                         "orin_action_sequence": self.orin_action_sequence,
                         "orin_policy_active": self.orin_policy_active,
+                        "orin_preflight_passed": self.orin_preflight_passed,
+                        "orin_policy_ready": self.orin_policy_ready,
+                        "orin_policy_verified": self.orin_policy_verified,
+                        "orin_bundle_id": self.orin_bundle_id,
                         "rtt_ms": None
                         if self.gate.rtt is None
                         else self.gate.rtt * 1000,
@@ -354,7 +423,11 @@ class RpiSupervisor(Node):
                     )
                 self.gate.mode = Mode.BOOT
             self.runner.start(self.scripts[request.name](self.names))
-            self.script_link_required = request.name not in ("startup", "shutdown")
+            self.script_link_required = request.name not in (
+                "startup",
+                "shutdown",
+                "restart_policy",
+            )
             self.script_name = request.name
             response.success, response.message = (
                 True,
