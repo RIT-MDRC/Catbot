@@ -50,6 +50,7 @@ root = [
     "./src/foundation/foundation",
     "./src/foundation/foundation/samples",
     "./src/catbot_policy",
+    "./src/catbot_supervisor",
     "./src/ui",
     "./src",
     ".",

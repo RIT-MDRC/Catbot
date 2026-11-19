@@ -2,13 +2,14 @@
 
 import copy
 import hashlib
-import json
 import os
 import sys
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+
+from mapping_fixture import mapping_values
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from catbot_policy.configuration import validate_mapping
@@ -83,11 +84,7 @@ class ConfigurationTests(unittest.TestCase):
                 WorkerLaunchSpec.resolve("cpu", project, "", "invalid")
 
     def test_mapping_rejections(self):
-        mapping = json.loads(
-            (
-                Path(__file__).parents[1] / "catbot_policy/default_mapping.json"
-            ).read_text()
-        )
+        mapping = mapping_values()
         validate_mapping(mapping)
         for key, value in [
             ("actuator_names", ["a"] * 12),

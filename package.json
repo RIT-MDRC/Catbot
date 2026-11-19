@@ -37,6 +37,7 @@
 		"src/**/*.txt",
 		"src/**/*.md",
 		"src/**/*.msg",
+		"src/**/*.srv",
 		"src/**/package.xml",
 		"src/**/CMakeLists.txt",
 		"src/**/setup.cfg",

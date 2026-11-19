@@ -1,0 +1,4 @@
+uint64 id
+builtin_interfaces/Time origin_stamp
+builtin_interfaces/Time received_stamp
+builtin_interfaces/Time reply_stamp

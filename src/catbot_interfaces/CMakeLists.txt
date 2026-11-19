@@ -13,6 +13,17 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/BodyKinematicState.msg"
   "msg/PolicyFeedback.msg"
   "msg/PolicyMetrics.msg"
+  "msg/ClockProbe.msg"
+  "msg/ClockReply.msg"
+  "msg/PolicyReady.msg"
+  "msg/OrinTelemetry.msg"
+  "srv/GetSupervisorStatus.srv"
+  "msg/PolicyAction.msg"
+  "msg/PolicyActionAck.msg"
+  "msg/OrinHeartbeat.msg"
+  "srv/MotorCommand.srv"
+  "srv/RunScript.srv"
+  "srv/SupervisorJob.srv"
   DEPENDENCIES builtin_interfaces
 )
 

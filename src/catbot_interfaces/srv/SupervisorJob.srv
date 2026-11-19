@@ -1,0 +1,8 @@
+# Only jobs registered by the Orin administrator may be started or stopped.
+string name
+bool start
+# Empty preserves legacy start/stop bool; otherwise start, stop, or restart.
+string operation
+---
+bool success
+string message

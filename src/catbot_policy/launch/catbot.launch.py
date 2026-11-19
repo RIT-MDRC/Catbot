@@ -1,12 +1,15 @@
-"""Launch foundation and a selected exported policy together."""
+"""Hardware launches the Pi gateway; simulation keeps its local policy path."""
 
 import os
 from importlib.util import find_spec
 from pathlib import Path
 
+from ament_index_python.packages import get_package_share_directory
 from catbot_policy.configuration import POLICY_DEFAULTS, POLICY_PARAMETERS
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, Shutdown
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, Shutdown
+from launch.conditions import IfCondition
+from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PythonExpression
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
@@ -51,7 +54,31 @@ def generate_launch_description():
                 }.items()
                 if name != "simulation_mode"
             ],
+            DeclareLaunchArgument("network_interface", default_value="eth0"),
+            IncludeLaunchDescription(
+                PythonLaunchDescriptionSource(
+                    os.path.join(
+                        get_package_share_directory("catbot_supervisor"),
+                        "launch",
+                        "rpi.launch.py",
+                    )
+                ),
+                condition=IfCondition(
+                    PythonExpression(
+                        ["'", LaunchConfiguration("backend"), "' == 'hardware'"]
+                    )
+                ),
+                launch_arguments={
+                    "mapping_file": LaunchConfiguration("mapping_file"),
+                    "network_interface": LaunchConfiguration("network_interface"),
+                }.items(),
+            ),
             Node(
+                condition=IfCondition(
+                    PythonExpression(
+                        ["'", LaunchConfiguration("backend"), "' == 'simulation'"]
+                    )
+                ),
                 package="foundation",
                 executable=PythonExpression(
                     [
@@ -66,6 +93,11 @@ def generate_launch_description():
                 on_exit=Shutdown(),
             ),
             Node(
+                condition=IfCondition(
+                    PythonExpression(
+                        ["'", LaunchConfiguration("backend"), "' == 'simulation'"]
+                    )
+                ),
                 package="catbot_policy",
                 executable="policy",
                 output="screen",

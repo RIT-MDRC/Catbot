@@ -8,6 +8,10 @@ import sys
 import time
 from pathlib import Path
 
+if "--preflight" in sys.argv:
+    print(json.dumps({"type": "preflight", "available": True, "device": sys.argv[sys.argv.index("--device") + 1]}), flush=True)
+    sys.exit(0)
+
 mode = os.environ.get("FAKE_WORKER_MODE", "ready")
 if mode == "timeout":
     time.sleep(60)
@@ -33,6 +37,8 @@ else:
         else {
             "version": 1,
             "type": "ready",
+            "verified": True,
+            "bundle_id": fixture["metadata"]["policy_sha256"],
             "metadata": fixture["metadata"],
             "mapping": fixture["mapping"],
             "dt": 0.02,

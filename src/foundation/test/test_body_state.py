@@ -71,6 +71,9 @@ def test_missing_or_stale_kinematics_are_invalid_nan() -> None:
         make_motor(current_velocity=None),
         make_motor(last_encoder_estimate_time=None),
         make_motor(last_encoder_estimate_time=9.0),
+        make_motor(last_encoder_estimate_time=11.0),
+        make_motor(current_position=math.nan),
+        make_motor(current_velocity=math.inf),
     ):
         valid, position, velocity = kinematic_values(motor, 10.0, 0.25)
         assert valid is False

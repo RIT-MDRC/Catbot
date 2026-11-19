@@ -16,7 +16,14 @@ from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from std_msgs.msg import String
 
-from catbot_interfaces.msg import ActuatorPositionCommand, PolicyFeedback, PolicyMetrics
+from catbot_interfaces.msg import (
+    ActuatorPositionCommand,
+    PolicyAction,
+    PolicyActionAck,
+    PolicyFeedback,
+    PolicyMetrics,
+    PolicyReady,
+)
 from catbot_policy.artifacts import available_models, resolve_downloaded
 from catbot_policy.configuration import POLICY_DEFAULTS, POLICY_PARAMETERS
 from catbot_policy.protocol import FEEDBACK_FIELDS, finite_values, validate_feedback
@@ -31,7 +38,57 @@ class PolicyNode(Node):
             name: self.declare_parameter(name, POLICY_DEFAULTS[name]).value
             for name in POLICY_PARAMETERS
         }
+        self.action_session = str(self.declare_parameter("action_session", "").value)
+        if not self.policy_parameters["simulation_mode"] and not self.action_session:
+            raise ValueError(
+                "Hardware policy must be started through Orin Supervisor (action_session required)"
+            )
 
+        self.supervised = bool(
+            self.declare_parameter(
+                "supervised_actions",
+                not bool(self.policy_parameters["simulation_mode"]),
+            ).value
+        )
+        self.requires_contract = bool(
+            self.declare_parameter(
+                "require_provider_contract",
+                bool(self.policy_parameters["simulation_mode"]),
+            ).value
+        )
+        self.provider_contract_topic = str(
+            self.declare_parameter(
+                "provider_contract_topic", "/simulation/contract"
+            ).value
+        )
+        self.ready_publisher = self.create_publisher(
+            PolicyReady,
+            "/orin/policy/ready",
+            QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL),
+        )
+        self._publish_ready(False, "loading")
+        try:
+            self._load()
+        except BaseException as error:
+            self._publish_ready(False, str(error))
+            raise
+
+    def _publish_ready(self, ready, detail):
+        worker = getattr(self, "worker", None)
+        report = worker.ready if worker is not None else {}
+        verified = report.get("verified") is True
+        self.ready_publisher.publish(
+            PolicyReady(
+                stamp=self.get_clock().now().to_msg(),
+                session=self.action_session,
+                bundle_id=str(report.get("bundle_id", "")),
+                verified=verified,
+                ready=bool(ready and verified),
+                detail=detail,
+            )
+        )
+
+    def _load(self):
         def param(name):
             return self.policy_parameters[name]
 
@@ -90,11 +147,18 @@ class PolicyNode(Node):
         self.command = [0.0, 0.0, 0.0]
         self.pending = None
         self.sequence = 0
-        self.contract_ready = not bool(self.policy_parameters["simulation_mode"])
+        self.contract_ready = not self.requires_contract
+        self.action_sequence = 0
         reliable = QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE)
         self.publisher = self.create_publisher(
-            ActuatorPositionCommand, "/body/control/position", reliable
+            PolicyAction if self.supervised else ActuatorPositionCommand,
+            "/orin/policy/action" if self.supervised else "/body/control/position",
+            reliable,
         )
+        if self.supervised:
+            self.create_subscription(
+                PolicyActionAck, "/rpi/supervisor/action_ack", self.action_ack, reliable
+            )
         self.metrics = self.create_publisher(PolicyMetrics, "/policy/metrics", 1)
         self.create_subscription(
             PolicyFeedback,
@@ -107,7 +171,7 @@ class PolicyNode(Node):
         )
         self.create_subscription(
             String,
-            "/simulation/contract",
+            self.provider_contract_topic,
             self.contract_callback,
             QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL),
         )
@@ -125,12 +189,16 @@ class PolicyNode(Node):
         self.create_timer(self.dt, self.tick)
         self.create_timer(0.002, self.poll)
         self.create_timer(5.0, self.report_metrics)
+        self._publish_ready(
+            self.contract_ready,
+            "ready" if self.contract_ready else "waiting for provider contract",
+        )
         self.get_logger().info(
             f"Policy worker ready on Python {self.worker.ready['python_version']}, device {self.worker.ready['device']}; ROS stays on its own interpreter"
         )
 
     def contract_callback(self, message):
-        if not bool(self.get_parameter("simulation_mode").value):
+        if not self.requires_contract:
             return
         value = json.loads(message.data)
         if (
@@ -141,10 +209,12 @@ class PolicyNode(Node):
             or value.get("mapping") != self.mapping
         ):
             self.contract_ready = False
+            self._publish_ready(False, "provider contract mismatch")
             raise ValueError(
                 "Provider model, policy contract, settings or mapping mismatch"
             )
         self.contract_ready = True
+        self._publish_ready(True, "ready")
 
     def feedback_callback(self, message):
         if not self.contract_ready:
@@ -196,6 +266,7 @@ class PolicyNode(Node):
             "epoch": self.epoch,
             "accepted": False,
             "action_seen": False,
+            "stamp": self.get_clock().now().to_msg(),
         }
         self.worker.send(
             {
@@ -265,21 +336,36 @@ class PolicyNode(Node):
                 if accepted:
                     message = ActuatorPositionCommand()
                     message.actuator_names, message.positions_degrees = names, targets
-                    self.publisher.publish(message)
-                    pending["accepted"] = True
-                    self.published += 1
-                    self.samples.append(
-                        (
-                            inference * 1000,
-                            (time.monotonic() - pending["started"]) * 1000,
-                            (now - pending["received"]) * 1000,
+                    if self.supervised:
+                        self.action_sequence += 1
+                        pending["gate_sequence"] = self.action_sequence
+                        pending["gate_acknowledged"] = False
+                        self.publisher.publish(
+                            PolicyAction(
+                                stamp=pending["stamp"],
+                                session=self.action_session,
+                                sequence=self.action_sequence,
+                                command=message,
+                            )
                         )
+                    else:
+                        self.publisher.publish(message)
+                    sample = (
+                        inference * 1000,
+                        (time.monotonic() - pending["started"]) * 1000,
+                        (now - pending["received"]) * 1000,
                     )
+                    pending["sample"] = sample
+                    if not self.supervised:
+                        pending["accepted"] = True
+                        self.published += 1
+                        self.samples.append(sample)
                 else:
                     self.discarded += 1
-                self.worker.send(
-                    {"type": "ack", "id": pending["id"], "published": accepted}
-                )
+                if not (self.supervised and accepted):
+                    self.worker.send(
+                        {"type": "ack", "id": pending["id"], "published": accepted}
+                    )
             elif result["type"] == "done":
                 if result["published"] != pending["accepted"]:
                     raise RuntimeError("Policy action-history acknowledgement mismatch")
@@ -290,6 +376,26 @@ class PolicyNode(Node):
                 self.pending = None
             else:
                 raise RuntimeError("Unknown policy worker response")
+
+    def action_ack(self, message):
+        pending = self.pending
+        if (
+            message.session != self.action_session
+            or pending is None
+            or message.sequence != pending.get("gate_sequence")
+            or pending.get("gate_acknowledged")
+        ):
+            return
+        pending["gate_acknowledged"] = True
+        pending["accepted"] = message.forwarded
+        if message.forwarded:
+            self.published += 1
+            self.samples.append(pending["sample"])
+        else:
+            self.discarded += 1
+        self.worker.send(
+            {"type": "ack", "id": pending["id"], "published": message.forwarded}
+        )
 
     def report_metrics(self):
         elapsed = time.monotonic() - self.metrics_started

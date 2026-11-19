@@ -1,0 +1,338 @@
+"""Orin policy lifecycle, resource telemetry and preflight; Pi owns robot modes."""
+
+import json
+import math
+import subprocess
+import time
+import uuid
+from pathlib import Path
+
+import rclpy
+from catbot_policy.configuration import POLICY_DEFAULTS
+from rclpy.node import Node
+from rclpy.qos import DurabilityPolicy, QoSProfile
+from std_msgs.msg import UInt64
+
+from catbot_interfaces.msg import (
+    ClockProbe,
+    ClockReply,
+    OrinHeartbeat,
+    OrinTelemetry,
+    PolicyAction,
+    PolicyReady,
+)
+from catbot_interfaces.srv import GetSupervisorStatus, SupervisorJob
+from catbot_supervisor.configuration import ORIN_DEFAULTS
+from catbot_supervisor.jobs import Jobs
+from catbot_supervisor.preflight import ClockMonitor, ComputeProbe, seconds, verdict
+from catbot_supervisor.telemetry import Resources
+
+
+class OrinSupervisor(Node):
+    def __init__(self):
+        super().__init__("orin_supervisor")
+
+        def param(name, default):
+            return self.declare_parameter(name, ORIN_DEFAULTS.get(name, default)).value
+
+        self.policy_parameters = {
+            name: param(name, value)
+            for name, value in POLICY_DEFAULTS.items()
+            if name != "simulation_mode"
+        }
+        self.simulation_mode = bool(param("simulation_mode", False))
+        self.timeout = float(param("action_timeout", 0.25))
+        self.lease_timeout = float(param("pi_lease_timeout", 0.5))
+        self.max_temperature = float(param("max_temperature_c", 80.0))
+        self.min_disk = int(param("min_disk_free_bytes", 1073741824))
+        if (
+            not all(
+                math.isfinite(v) and v > 0
+                for v in (self.timeout, self.lease_timeout, self.max_temperature)
+            )
+            or self.min_disk < 0
+        ):
+            raise ValueError("Invalid Orin preflight limits")
+        self.clock = ClockMonitor(float(param("clock_tolerance", 0.02)))
+        self.clock_sequence = time.monotonic_ns()
+        self.resources = Resources(
+            str(param("disk_path", "/")),
+            Path(str(param("resource_proc_root", "/proc"))),
+            Path(str(param("resource_sys_root", "/sys"))),
+        )
+        self.resource_sample = None
+        self.compute = ComputeProbe(
+            self.policy_parameters, float(param("compute_probe_timeout", 30.0))
+        )
+        self.tags = {
+            "run_id": str(param("supervisor_run_id", ""))
+            or str(self.policy_parameters["run_id"])
+            or uuid.uuid4().hex,
+            "scenario": str(param("scenario", "unspecified")),
+            "git_commit": str(param("git_commit", "")),
+        }
+        if not self.tags["git_commit"]:
+            try:
+                self.tags["git_commit"] = subprocess.run(
+                    ["git", "rev-parse", "HEAD"],
+                    capture_output=True,
+                    text=True,
+                    timeout=2,
+                    check=True,
+                ).stdout.strip()
+            except (OSError, subprocess.SubprocessError):
+                self.tags["git_commit"] = "unknown"
+        commands = json.loads(str(param("jobs_json", "{}")))
+        if not isinstance(commands, dict) or "policy" in commands:
+            raise ValueError("jobs_json must be an object; policy is reserved")
+        self.session = uuid.uuid4().hex
+        self.policy_ready = self.policy_verified = False
+        self.bundle_id = self.load_error = ""
+        self.probe_id = self.sequence = self.action_sequence = 0
+        self.action_at = self.probe_at = None
+        self.jobs = Jobs(
+            {**commands, "policy": self.policy_command()},
+            before_start=self.before_start,
+        )
+        self.publisher = self.create_publisher(
+            OrinHeartbeat, "/orin/supervisor/heartbeat", 1
+        )
+        self.telemetry = self.create_publisher(
+            OrinTelemetry, "/orin/supervisor/telemetry", 1
+        )
+        self.clock_publisher = self.create_publisher(
+            ClockProbe, "/orin/supervisor/clock_probe", 1
+        )
+        self.create_subscription(
+            ClockReply, "/rpi/supervisor/clock_reply", self.clock_reply, 1
+        )
+        self.create_subscription(UInt64, "/orin/supervisor/probe", self.probe, 1)
+        self.create_subscription(PolicyAction, "/orin/policy/action", self.action, 1)
+        self.create_subscription(
+            PolicyReady,
+            "/orin/policy/ready",
+            self.readiness,
+            QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL),
+        )
+        self.create_service(SupervisorJob, "/orin/supervisor/job", self.job)
+        self.create_service(
+            GetSupervisorStatus, "/orin/supervisor/get_status", self.get_status
+        )
+        self.create_timer(0.05, self.tick)
+        self.create_timer(0.25, self.clock_probe)
+        self.create_timer(1.0, self.sample_resources)
+        self.sample_resources()
+        self.compute.start(time.monotonic())
+
+    def policy_command(self):
+        command = ["ros2", "run", "catbot_policy", "policy", "--ros-args"]
+        parameters = {
+            **self.policy_parameters,
+            "action_session": self.session,
+            "simulation_mode": self.simulation_mode,
+            "supervised_actions": True,
+            "require_provider_contract": True,
+            "provider_contract_topic": "/policy/contract",
+        }
+        for name, value in parameters.items():
+            command += ["-p", f"{name}:={json.dumps(value)}"]
+        return command
+
+    def preflight_reason(self):
+        return verdict(
+            self.resource_sample,
+            self.clock,
+            self.compute,
+            time.monotonic(),
+            self.max_temperature,
+            self.min_disk,
+        )
+
+    def before_start(self, name):
+        now = time.monotonic()
+        if self.probe_at is None or now - self.probe_at > self.lease_timeout:
+            raise ValueError("No fresh Pi lease")
+        reason = self.preflight_reason()
+        if reason:
+            raise ValueError("Preflight failed: " + reason)
+        if name == "policy":
+            self.session = uuid.uuid4().hex
+            self.sequence = self.action_sequence = 0
+            self.action_at = None
+            self.policy_ready = self.policy_verified = False
+            self.bundle_id, self.load_error = "", "loading"
+            self.jobs.commands["policy"] = self.policy_command()
+
+    def clock_probe(self):
+        self.clock_sequence += 1
+        stamp = self.get_clock().now().to_msg()
+        self.clock.sent(self.clock_sequence, seconds(stamp), time.monotonic())
+        self.clock_publisher.publish(ClockProbe(id=self.clock_sequence, stamp=stamp))
+
+    def clock_reply(self, message):
+        self.clock.reply(
+            message.id,
+            seconds(message.origin_stamp),
+            seconds(message.received_stamp),
+            seconds(message.reply_stamp),
+            self.get_clock().now().nanoseconds * 1e-9,
+            time.monotonic(),
+        )
+
+    def probe(self, message):
+        self.probe_id, self.probe_at = message.data, time.monotonic()
+
+    def readiness(self, message):
+        if message.session != self.session or not self.jobs.running("policy"):
+            return
+        valid_hash = len(message.bundle_id) == 64 and all(
+            c in "0123456789abcdef" for c in message.bundle_id
+        )
+        self.policy_verified = bool(message.verified and valid_hash)
+        self.policy_ready = bool(message.ready and self.policy_verified)
+        self.bundle_id = message.bundle_id if self.policy_verified else ""
+        self.load_error = (
+            "" if self.policy_ready else message.detail or "policy bundle not verified"
+        )
+
+    def action(self, message):
+        if message.session == self.session and message.sequence > self.action_sequence:
+            self.action_sequence, self.action_at = message.sequence, time.monotonic()
+
+    def job(self, request, response):
+        try:
+            operation = request.operation or ("start" if request.start else "stop")
+            if operation not in ("start", "stop", "restart"):
+                raise ValueError("Operation must be start, stop, or restart")
+            self.jobs._known(request.name)
+            if operation != "stop":
+                reason = self.preflight_reason()
+                if reason:
+                    raise ValueError("Preflight failed: " + reason)
+                if (
+                    self.probe_at is None
+                    or time.monotonic() - self.probe_at > self.lease_timeout
+                ):
+                    raise ValueError("No fresh Pi lease")
+            getattr(self.jobs, operation)(request.name, time.monotonic())
+            response.success, response.message = (
+                True,
+                "accepted; query get_status for completion",
+            )
+        except (ValueError, OSError) as error:
+            response.success, response.message = False, str(error)
+        return response
+
+    def get_status(self, request, response):
+        try:
+            value = {
+                "version": 1,
+                "jobs": self.jobs.status(request.name),
+                "policy": {
+                    "session": self.session,
+                    "ready": self.policy_ready and self.jobs.running("policy"),
+                    "verified": self.policy_verified,
+                    "bundle_id": self.bundle_id,
+                    "load_error": self.load_error,
+                },
+                "preflight": {
+                    "passed": not self.preflight_reason(),
+                    "reason": self.preflight_reason(),
+                },
+                "clock": self.clock.status(time.monotonic()),
+                "tags": self.tags,
+                "resources": self.resource_sample,
+            }
+            response.status_json = json.dumps(value, allow_nan=False)
+            response.success, response.message = True, "status"
+        except ValueError as error:
+            response.success, response.message = False, str(error)
+        return response
+
+    def sample_resources(self):
+        self.resource_sample = self.resources.sample()
+        sample = self.resource_sample
+        self.telemetry.publish(
+            OrinTelemetry(
+                stamp=self.get_clock().now().to_msg(),
+                cpu_percent=sample["cpu_percent"]
+                if sample["cpu_percent"] is not None
+                else math.nan,
+                gpu_percent=sample["gpu_percent"]
+                if sample["gpu_percent"] is not None
+                else math.nan,
+                temperature_c=sample["temperature_c"]
+                if sample["temperature_c"] is not None
+                else math.nan,
+                memory_used_bytes=sample["memory_used_bytes"],
+                memory_total_bytes=sample["memory_total_bytes"],
+                disk_free_bytes=sample["disk_free_bytes"],
+                disk_total_bytes=sample["disk_total_bytes"],
+                resources_valid=not bool(sample["errors"]),
+                gpu_available=sample["gpu_percent"] is not None,
+                bundle_id=self.bundle_id,
+                detail="; ".join(sample["errors"]),
+                **self.tags,
+            )
+        )
+
+    def tick(self):
+        now = time.monotonic()
+        self.compute.tick(now)
+        lease_lost = self.probe_at is None or now - self.probe_at > self.lease_timeout
+        if lease_lost:
+            for name in self.jobs.commands:
+                self.jobs.stop(name, now)
+        self.jobs.tick(now)
+        preflight = self.preflight_reason()
+        reason = "Pi probe lease expired" if lease_lost else preflight
+        if not reason:
+            if not self.jobs.running("policy"):
+                reason = self.jobs.errors.get("policy", "policy job not running")
+            elif not self.policy_ready:
+                reason = self.load_error or "policy not ready"
+            elif self.action_at is None or now - self.action_at > self.timeout:
+                reason = "policy action stream unavailable"
+        if not self.jobs.running("policy"):
+            self.policy_ready = False
+            if self.load_error in ("", "loading"):
+                self.load_error = self.jobs.errors.get("policy", self.load_error)
+        self.sequence += 1
+        self.publisher.publish(
+            OrinHeartbeat(
+                stamp=self.get_clock().now().to_msg(),
+                session=self.session,
+                sequence=self.sequence,
+                action_sequence=self.action_sequence,
+                probe_id=self.probe_id,
+                policy_active="policy" in self.jobs.children,
+                degraded=bool(reason),
+                reason=reason,
+                policy_ready=self.policy_ready,
+                policy_verified=self.policy_verified,
+                bundle_id=self.bundle_id,
+                load_error=self.load_error,
+                preflight_passed=not bool(preflight),
+                preflight_reason=preflight,
+            )
+        )
+
+    def destroy_node(self):
+        self.compute.close()
+        self.jobs.close()
+        return super().destroy_node()
+
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = None
+    try:
+        node = OrinSupervisor()
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        if node is not None:
+            node.destroy_node()
+        if rclpy.ok():
+            rclpy.shutdown()
