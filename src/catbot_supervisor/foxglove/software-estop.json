@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "content": {
+    "type": "split",
+    "direction": "column",
+    "items": [
+      {
+        "proportion": 1,
+        "content": {
+          "type": "panel",
+          "panelType": "ServiceCall",
+          "config": {
+            "serviceName": "/rpi/supervisor/emergency",
+            "requestPayload": "{}",
+            "buttonText": "E-STOP \u2014 DISARM",
+            "buttonTooltip": "Latch emergency, stop policy forwarding and request motor IDLE",
+            "buttonColor": "#d32f2f",
+            "editingMode": false,
+            "timeoutSeconds": 3.0
+          },
+          "title": "Software E-STOP",
+          "version": 1
+        }
+      },
+      {
+        "proportion": 2,
+        "content": {
+          "type": "panel",
+          "panelType": "RawMessages",
+          "config": {
+            "expansion": "all",
+            "topicPath": "/rpi/supervisor/status"
+          },
+          "title": "Pi supervisor status",
+          "version": 1
+        }
+      }
+    ]
+  }
+}

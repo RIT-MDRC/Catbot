@@ -224,3 +224,154 @@ Both hosts must rebuild/source the updated generated interfaces together. The Pi
 retains its own launch/config; Orin deployment configuration belongs in the Orin
 repository. Recording/rosbag coordination, capture rotation and offline/shadow
 simulation scheduling remain deferred and are not implemented by these APIs.
+
+## Clickable software e-stop in Foxglove
+
+Import [foxglove/software-estop.json](foxglove/software-estop.json) using
+Foxglove's **Layouts > Import from file**. It provides a red **E-STOP — DISARM**
+button and a supervisor status panel. The layout uses the official Foxglove
+version 1 layout schema. After a colcon build it is also installed under
+`$(ros2 pkg prefix catbot_supervisor)/share/catbot_supervisor/foxglove/`.
+
+Connect to the robot's live Foxglove Bridge. Its `services` capability must be
+enabled and its `service_whitelist` must permit `/rpi/supervisor/emergency`.
+The bridge can run on either host if it can discover the Pi's ROS services.
+No additional e-stop daemon is needed: this calls the existing Pi Supervisor
+`std_srvs/srv/Trigger` service with `{}`. The button has no confirmation dialog.
+
+To add the button to an existing layout (or on a Foxglove version that cannot
+import this schema), add a **Service Call** panel with these settings:
+
+| Setting | Value |
+| --- | --- |
+| Service name | `/rpi/supervisor/emergency` |
+| Request | `{}` |
+| Button title | `E-STOP — DISARM` |
+| Button color | `#d32f2f` |
+| Editing mode | Off, after entering the request |
+| Timeout | 3 seconds |
+
+Clicking latches Pi emergency mode, closes policy forwarding, replaces any
+active script/operator prompt with the disarm sequence, and asynchronously
+requests the Orin policy to stop. The Pi retries disarming until fresh body
+feedback confirms all axes are IDLE. Service acceptance is not confirmation
+that hardware has stopped: inspect `/rpi/supervisor/status` and
+`/body/state/error` for mode, faults and actual axis state.
+
+Recovery is a separate explicit `/rpi/supervisor/recover` Trigger call after
+confirmed IDLE; it does not resume the interrupted script or motion. The layout
+deliberately has no recovery/run button next to the e-stop.
+
+This is a software disarm, not a power cut or a guaranteed physical stop. Motor
+IDLE removes active holding torque, so support the robot. It requires a working
+Foxglove/ROS connection, Pi process and motor communication; retain a physical
+e-stop for failures of those components.
+
+References: [Service Call panel](https://docs.foxglove.dev/docs/visualization/panels/service-call),
+[layout import](https://docs.foxglove.dev/docs/visualization/layouts).
+The JSON was generated against the
+[official SDK layout definitions](https://github.com/foxglove/foxglove-sdk/blob/main/python/foxglove-sdk/python/foxglove/layouts/__init__.py);
+live Foxglove rendering and physical disarm still require target verification.
+
+## Robot homing sequence (`home_robot`)
+
+Call `/rpi/supervisor/script` with `{"name":"home_robot"}` from Foxglove's
+Service Call panel, or use:
+
+```bash
+ros2 service call /rpi/supervisor/script catbot_interfaces/srv/RunScript '{name: home_robot}'
+```
+
+The sequence is implemented in `catbot_supervisor/scripts.py:home_robot`:
+
+0. Reject stale/missing actuator state, missing heartbeats, or any nonzero axis,
+   motor, encoder, sensorless or controller error flags. Never clear errors.
+1. Disarm all axes and confirm IDLE, then home knees: `flk`, `frk`, `blk`, `brk`.
+2. Home flexion/extension: `flf`, `frf`, `blf`, `brf`.
+3. Command `flf` and `frf` to absolute **+30 degrees** in Foundation's logical
+   joint coordinates, using the configured trajectory profiles. Require fresh,
+   valid post-command feedback within 1 degree, with speed at most 1 degree/s,
+   before advancing (15-second timeout).
+4. Prompt: confirm that the front legs are clear. Respond through
+   `/rpi/supervisor/respond` with `{"name":"<current operator_prompt.id>"}`.
+   The prompt appears in `/rpi/supervisor/status` and expires after 120 seconds.
+5. Home abduction/adduction: `fla`, `fra`, `bla`, `bra`.
+
+Each group runs one actuator at a time. For each axis, request homing (controller
+state 11), observe homing then IDLE (30-second completion timeout), configure its
+trajectory, hold measured position, request closed loop, and confirm readiness.
+Each motor is armed immediately after its own homing finishes, before the next
+motor starts. There is a 15-second buffer after each complete homing group,
+after the front joints reach +30 degrees, and after operator confirmation before
+abduction/adduction starts. These five buffers add 75 seconds to the sequence;
+they are pauses after completion, not replacements for feedback checks or
+operation timeouts. Fault/link/health checks and the e-stop remain active during
+every buffer.
+This keeps previously homed axes holding while later axes home. The front
+flexion joints keep their +30-degree targets through the prompt and final group.
+Successful completion leaves all axes holding in READY; policy forwarding needs
+an explicit `run` request.
+
+The complete standard twelve-actuator roster is required; unknown/incomplete
+rosters are rejected. Initial faults reject the request without starting the
+sequence. During execution every tick checks all axes for faults, even while
+waiting for the operator. A fault, stale state, link/health failure, rejected
+operation or timeout aborts to the latched emergency disarm path. Use the
+Foxglove e-stop above to abort manually. There is no automatic retry or error
+clearing. Inspect the fault reason in `/rpi/supervisor/status`.
+
+This uses controller-configured homing/endstops and logical joint calibration;
+it does not establish their physical correctness or write offsets. The Orin
+heartbeat/link and Pi health requirements remain active. Deploy/rebuild the Pi
+package before use; local tests do not validate hardware travel or clearance.
+
+## Example: operator prompted homing/calibration from Foxglove
+
+`sample_home` and `sample_calibrate` are editable examples in
+`catbot_supervisor/scripts.py:prompted_maintenance`. They disarm and clear faults,
+then ask for confirmation before each axis's controller operation. After all
+operations, the existing maintenance sequence holds measured positions and arms
+closed loop. Policy forwarding remains paused until an explicit `run` request.
+They require the same healthy Orin link and Pi/body telemetry as other maintenance
+scripts; these are not standalone offline calibration routines.
+
+`sample_home` requests ODrive state 11 (controller-configured homing).
+`sample_calibrate` requests state 4 (motor calibration). Neither measures a joint
+zero, writes encoder offsets, saves controller configuration, or verifies physical
+homing/endstop setup. Adapt the procedure and prompts before hardware use.
+
+1. Rebuild/source `catbot_supervisor` on the Pi and launch the supervisors as above.
+2. Connect Foxglove through Foxglove Bridge with service calls enabled and the
+   supervisor services permitted by its service whitelist.
+3. Add a **Service Call** panel for `/rpi/supervisor/script`. Enter the JSON request
+   `{"name":"sample_home"}` (or `{"name":"sample_calibrate"}`). Acceptance means
+   the sequence started, not that calibration completed.
+4. Add a **Raw Messages** panel for `/rpi/supervisor/status`. Expand the String
+   message's JSON `data`; `operator_prompt` contains `id` and `text` while waiting.
+5. After checking the requested setup, use another **Service Call** panel for
+   `/rpi/supervisor/respond`, entering `{"name":"<current operator_prompt.id>"}`.
+   Each ID works once for that prompt only. Early, duplicate, expired and replaced
+   prompts are rejected. The next tick continues the script.
+6. To abort, call `/rpi/supervisor/emergency` with `{}`. This preempts the prompt,
+   closes the gate and requests IDLE. A 120-second unanswered prompt also fails
+   into the existing latched emergency path. Existing link/health watchdogs remain
+   active while waiting.
+
+The same response works from a Pi terminal, without blocking a ROS callback:
+
+```bash
+ros2 service call /rpi/supervisor/script catbot_interfaces/srv/RunScript '{name: sample_home}'
+ros2 topic echo /rpi/supervisor/status std_msgs/msg/String
+# Copy the current prompt ID after checking the setup:
+ros2 service call /rpi/supervisor/respond catbot_interfaces/srv/RunScript '{name: REPLACE_WITH_CURRENT_PROMPT_ID}'
+```
+
+This reuses `RunScript.name` as the response ID so no generated interface rebuild
+is needed. Operator input currently supports confirmation; abort uses emergency.
+For numerical offsets or multiple choices, add a dedicated typed response service
+with prompt ID and validated values when the physical procedure is defined.
+A future custom Foxglove panel can render prompt text and a Confirm button using
+these same endpoints, avoiding manual ID copying. A terminal helper could likewise
+use `input()` in its own process and call the response service afterwards.
+
+Foxglove reference: [Service Call panel](https://docs.foxglove.dev/docs/visualization/panels/service-call).

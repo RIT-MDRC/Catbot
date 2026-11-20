@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from importlib.metadata import entry_points
+from uuid import uuid4
 
 
 @dataclass(frozen=True)
@@ -11,6 +12,7 @@ class Step:
     names: tuple[str, ...] = ()
     state: int = 0
     timeout: float = 3.0
+    positions: tuple[float, ...] = ()
 
 
 def maintenance(names, state=None):
@@ -71,12 +73,78 @@ def registry():
         "calibrate": lambda names: maintenance(names, 4),
         "full_calibrate": lambda names: maintenance(names, 3),
         "clear_errors": lambda names: maintenance(names),
+        "sample_home": lambda names: prompted_maintenance(names, 11),
+        "sample_calibrate": lambda names: prompted_maintenance(names, 4),
+        "home_robot": home_robot,
     }
     for plugin in entry_points(group="catbot_supervisor.scripts"):
         if plugin.name in scripts:
             raise ValueError(f"Script already registered: {plugin.name}")
         scripts[plugin.name] = plugin.load()
     return scripts
+
+
+def home_robot(names):
+    """Home knees, flexion, then operator-approved abduction. Never clear faults."""
+    groups = (
+        ("flk", "frk", "blk", "brk"),
+        ("flf", "frf", "blf", "brf"),
+        ("fla", "fra", "bla", "bra"),
+    )
+    if set(names) != {name for group in groups for name in group}:
+        raise ValueError("home_robot requires the complete standard 12-actuator roster")
+    steps = [Step("motor", "idle"), Step("wait_state", state=1)]
+    for index, group in enumerate(groups):
+        if index == 2:
+            front = ("flf", "frf")
+            steps += [
+                Step("position", names=front, positions=(30.0, 30.0)),
+                Step(
+                    "wait_position", names=front, positions=(30.0, 30.0), timeout=15.0
+                ),
+                Step("delay", timeout=15.0),
+                Step(
+                    "wait_operator",
+                    "Confirm that the front legs are clear before "
+                    "abduction/adduction homing. Confirming allows the motors to move.",
+                    timeout=120.0,
+                ),
+                Step("delay", timeout=15.0),
+            ]
+        for name in group:
+            steps += [
+                Step("motor", "state", (name,), 11),
+                Step("wait_state", names=(name,), state=11),
+                Step("wait_state", names=(name,), state=1, timeout=30.0),
+                Step("motor", "trajectory", (name,)),
+                Step("motor", "hold", (name,)),
+                Step("motor", "state", (name,), 8),
+                Step("wait_ready", names=(name,)),
+            ]
+        steps.append(Step("delay", timeout=15.0))
+    return steps
+
+
+def prompted_maintenance(names, state):
+    """Example: confirm the setup, then approve each axis before it can move.
+
+    State 11 is controller homing; state 4 is motor calibration, not joint-zero
+    measurement. Adapt prompts and axis selection to the physical procedure.
+    Existing maintenance finishes by holding/arming each axis.
+    """
+    steps = []
+    for step in maintenance(names, state):
+        if step.kind == "motor" and step.operation == "state" and step.state == state:
+            steps.append(
+                Step(
+                    "wait_operator",
+                    f"Support the robot and check clearance for {step.names[0]}. "
+                    f"Confirm to request controller state {state}; this can move the motor.",
+                    timeout=120.0,
+                )
+            )
+        steps.append(step)
+    return steps
 
 
 class ScriptRunner:
@@ -89,6 +157,7 @@ class ScriptRunner:
         self.deadline = None
         self.future = None
         self.error = ""
+        self.prompt = None
 
     @property
     def active(self):
@@ -98,6 +167,15 @@ class ScriptRunner:
         self.steps, self.index = list(steps), 0
         self.deadline = self.future = None
         self.error = ""
+        self.prompt = None
+
+    def respond(self, token, now):
+        if not self.active or self.prompt is None or token != self.prompt["id"]:
+            raise ValueError("No matching operator prompt")
+        if self.deadline is None or now >= self.deadline:
+            raise ValueError("Operator prompt expired")
+        self.index += 1
+        self.deadline = self.future = self.prompt = None
 
     def tick(self, now):
         if not self.active:
@@ -106,10 +184,19 @@ class ScriptRunner:
         try:
             if self.deadline is None:
                 self.deadline = now + step.timeout
+            if step.kind == "delay":
+                if now >= self.deadline:
+                    self.index += 1
+                    self.deadline = None
+                return
             if now >= self.deadline:
                 raise RuntimeError(
                     f"Script step timed out: {step.kind} {step.operation}"
                 )
+            if step.kind == "wait_operator":
+                if self.prompt is None:
+                    self.prompt = {"id": uuid4().hex, "text": step.operation}
+                return
             if not step.kind.startswith("wait_") and self.future is None:
                 self.future = self.dispatch(step)
             done = (
@@ -127,3 +214,4 @@ class ScriptRunner:
             self.deadline = self.future = None
         except (RuntimeError, ValueError, OSError, KeyError) as error:
             self.error = str(error)
+            self.prompt = None

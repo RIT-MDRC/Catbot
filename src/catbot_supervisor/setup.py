@@ -10,6 +10,7 @@ setup(
         ("share/ament_index/resource_index/packages", ["resource/catbot_supervisor"]),
         ("share/catbot_supervisor", ["package.xml"]),
         ("share/catbot_supervisor/launch", glob("launch/*.launch.py")),
+        ("share/catbot_supervisor/foxglove", glob("foxglove/*.json")),
     ],
     install_requires=["setuptools"],
     zip_safe=True,

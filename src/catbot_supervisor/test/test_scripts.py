@@ -118,3 +118,71 @@ def test_plugins_cannot_replace_emergency(monkeypatch):
     )
     with pytest.raises(ValueError):
         registry()
+
+
+def test_operator_confirmation_is_specific_and_consumed_once():
+    dispatch = Mock(return_value=Future())
+    runner = ScriptRunner(dispatch, Mock())
+    runner.start([Step("wait_operator", "Check clearance"), Step("motor", "hold")])
+    with pytest.raises(ValueError):
+        runner.respond("early", 0)
+    runner.tick(0)
+    token = runner.prompt["id"]
+    runner.tick(0.1)
+    dispatch.assert_not_called()
+    with pytest.raises(ValueError):
+        runner.respond("stale", 0.2)
+    runner.respond(token, 0.2)
+    with pytest.raises(ValueError):
+        runner.respond(token, 0.3)
+    runner.tick(0.3)
+    dispatch.assert_called_once_with(Step("motor", "hold"))
+
+
+def test_prompt_timeout_and_preemption_reject_old_confirmation():
+    runner = ScriptRunner(Mock(), Mock())
+    prompt = Step("wait_operator", "Check setup", timeout=1)
+    runner.start([prompt])
+    runner.tick(0)
+    token = runner.prompt["id"]
+    with pytest.raises(ValueError, match="expired"):
+        runner.respond(token, 1)
+    runner.tick(1)
+    assert not runner.active
+    assert runner.prompt is None
+    runner.start([prompt])
+    runner.tick(2)
+    assert runner.prompt["id"] != token
+    runner.start(registry()["emergency"](()))
+    with pytest.raises(ValueError):
+        runner.respond(token, 2.1)
+    assert runner.prompt is None
+
+
+@pytest.mark.parametrize("script,state", [("sample_home", 11), ("sample_calibrate", 4)])
+def test_sample_requires_confirmation_before_each_axis_operation(script, state):
+    steps = registry()[script](("a", "b"))
+    operations = [
+        i for i, s in enumerate(steps) if s.operation == "state" and s.state == state
+    ]
+    assert [steps[i].names for i in operations] == [("a",), ("b",)]
+    assert all(steps[i - 1].kind == "wait_operator" for i in operations)
+    assert len([s for s in steps if s.kind == "wait_operator"]) == 2
+
+
+def test_buffer_waits_full_duration_without_dispatch_and_can_be_preempted():
+    dispatch = Mock(return_value=Future())
+    runner = ScriptRunner(dispatch, Mock())
+    runner.start([Step("delay", timeout=15.0), Step("motor", "hold")])
+    runner.tick(10)
+    runner.tick(24.99)
+    dispatch.assert_not_called()
+    runner.tick(25)
+    assert not runner.error
+    runner.tick(25.01)
+    dispatch.assert_called_once_with(Step("motor", "hold"))
+    runner.start([Step("delay", timeout=15.0)])
+    runner.tick(30)
+    runner.start([Step("motor", "idle")])
+    runner.tick(30.01)
+    assert dispatch.call_args == call(Step("motor", "idle"))

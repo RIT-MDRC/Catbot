@@ -17,8 +17,10 @@ from std_srvs.srv import Trigger
 
 from catbot_interfaces.msg import (
     ActuatorErrorState,
+    ActuatorKinematicState,
     ActuatorPositionCommand,
     BodyErrorState,
+    BodyKinematicState,
     PolicyFeedback,
 )
 from catbot_interfaces.srv import (
@@ -79,6 +81,8 @@ def test_managed_orin_policy_pi_gate_scripts_and_stale_emergency(tmp_path):
         orin.resource_sample = dict(resources)
         body = Node("supervisor_test_body", use_global_arguments=False)
         states = dict.fromkeys(names, 1)
+        positions = dict.fromkeys(names, 0.0)
+        faults = dict.fromkeys(names, 0)
         operations, received, completing = [], [], {}
         state_pub = body.create_publisher(
             BodyErrorState,
@@ -86,6 +90,9 @@ def test_managed_orin_policy_pi_gate_scripts_and_stale_emergency(tmp_path):
             QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL),
         )
         feedback_pub = body.create_publisher(PolicyFeedback, "/policy/feedback", 1)
+        position_pub = body.create_publisher(
+            BodyKinematicState, "/body/state/position", 1
+        )
         sensors_enabled = [True]
         contract_pub = body.create_publisher(
             String,
@@ -103,14 +110,19 @@ def test_managed_orin_policy_pi_gate_scripts_and_stale_emergency(tmp_path):
                     completing.pop(name, None)
                 elif request.operation == "state":
                     states[name] = request.state
-                    if request.state == 4:
+                    if request.state in (4, 11):
                         completing[name] = time.monotonic() + 0.15
             response.success, response.message = True, "sent"
             return response
 
         body.create_service(MotorCommand, "/body/control/motor", motor)
+
+        def position_command(message):
+            received.append(message)
+            positions.update(zip(message.actuator_names, message.positions_degrees))
+
         body.create_subscription(
-            ActuatorPositionCommand, "/body/control/position", received.append, 1
+            ActuatorPositionCommand, "/body/control/position", position_command, 1
         )
 
         def publish():
@@ -129,9 +141,22 @@ def test_managed_orin_policy_pi_gate_scripts_and_stale_emergency(tmp_path):
                             heartbeat_available=True,
                             ready=states[name] == 8,
                             axis_state=states[name],
+                            encoder_error_flags=faults[name],
                         )
                         for index, name in enumerate(names)
                     ],
+                )
+            )
+            position_pub.publish(
+                BodyKinematicState(
+                    actuators=[
+                        ActuatorKinematicState(
+                            actuator_name=name,
+                            valid=True,
+                            position_degrees=positions[name],
+                        )
+                        for name in names
+                    ]
                 )
             )
             contract_pub.publish(
@@ -195,6 +220,47 @@ def test_managed_orin_policy_pi_gate_scripts_and_stale_emergency(tmp_path):
             and status["policy"]["bundle_id"] == fixture["metadata"]["policy_sha256"]
         )
         assert pi.orin_preflight_passed and pi.orin_policy_verified
+        # A subcomponent fault rejects homing without issuing any motor commands.
+        faults["flk"] = 4
+        until(lambda: pi.body["flk"].encoder_error_flags == 4)
+        before = len(operations)
+        result = pi.run_script(
+            RunScript.Request(name="home_robot"), RunScript.Response()
+        )
+        assert not result.success and "encoder_error_flags" in result.message
+        assert len(operations) == before
+        faults["flk"] = 0
+        until(lambda: pi.body["flk"].encoder_error_flags == 0)
+        call(RunScript, "/rpi/supervisor/script", RunScript.Request(name="home_robot"))
+        until(lambda: pi.runner.prompt is not None, timeout=60)
+        assert positions["flf"] == positions["frf"] == 30.0
+        assert [
+            ns for op, state, ns in operations if op == "state" and state == 11
+        ] == [[n] for n in ("flk", "frk", "blk", "brk", "flf", "frf", "blf", "brf")]
+        # No abduction operation may precede the operator's current confirmation.
+        token = pi.runner.prompt["id"]
+        call(RunScript, "/rpi/supervisor/respond", RunScript.Request(name=token))
+        until(lambda: pi.gate.mode == Mode.READY, timeout=60)
+        assert [
+            ns for op, state, ns in operations if op == "state" and state == 11
+        ] == [
+            [n]
+            for n in (
+                "flk",
+                "frk",
+                "blk",
+                "brk",
+                "flf",
+                "frf",
+                "blf",
+                "brf",
+                "fla",
+                "fra",
+                "bla",
+                "bra",
+            )
+        ]
+        received.clear()
         call(Trigger, "/rpi/supervisor/run", Trigger.Request())
         until(lambda: len(received) >= 5)
         assert list(received[-1].actuator_names) == names

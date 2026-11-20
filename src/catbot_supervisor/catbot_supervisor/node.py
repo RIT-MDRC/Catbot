@@ -3,16 +3,19 @@
 import json
 import math
 import time
+from concurrent.futures import Future
+from types import SimpleNamespace
 
 import rclpy
 from rclpy.node import Node
-from rclpy.qos import DurabilityPolicy, QoSProfile
+from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from std_msgs.msg import String, UInt64
 from std_srvs.srv import Trigger
 
 from catbot_interfaces.msg import (
     ActuatorPositionCommand,
     BodyErrorState,
+    BodyKinematicState,
     ClockProbe,
     ClockReply,
     OrinHeartbeat,
@@ -22,6 +25,7 @@ from catbot_interfaces.msg import (
 from catbot_interfaces.srv import MotorCommand, RunScript, SupervisorJob
 from catbot_supervisor.core import ActionGate, Limits, Mode
 from catbot_supervisor.health import PiHealth, health_reason
+from catbot_supervisor.homing import at_position, fault_reason
 from catbot_supervisor.scripts import ScriptRunner, Step, registry
 
 
@@ -64,6 +68,8 @@ class RpiSupervisor(Node):
         )
         self.health_sample = None
         self.body, self.body_at = {}, float("-inf")
+        self.positions, self.positions_at = {}, float("-inf")
+        self.script_position_at = float("inf")
         self.scripts = registry()
         self.script_name = ""
         self.script_link_required = False
@@ -107,6 +113,13 @@ class RpiSupervisor(Node):
             QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL),
         )
         self.create_service(RunScript, "/rpi/supervisor/script", self.run_script)
+        self.create_subscription(
+            BodyKinematicState,
+            "/body/state/position",
+            self.position_state,
+            QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT),
+        )
+        self.create_service(RunScript, "/rpi/supervisor/respond", self.respond)
         for name, callback in (
             ("run", self.run),
             ("idle", self.idle),
@@ -132,7 +145,52 @@ class RpiSupervisor(Node):
     def body_fresh(self):
         return bool(self.body) and time.monotonic() - self.body_at <= self.body_timeout
 
+    def position_state(self, message):
+        names = [a.actuator_name for a in message.actuators]
+        if len(names) != len(set(names)) or set(names) != set(self.names):
+            self.positions, self.positions_at = {}, float("-inf")
+            return
+        self.positions = {a.actuator_name: a for a in message.actuators}
+        self.positions_at = time.monotonic()
+
+    def homing_fault(self):
+        if not self.body_fresh():
+            return "Homing requires fresh Foundation state"
+        return fault_reason(self.body, self.names)
+
     def dispatch(self, step):
+        if self.script_name == "home_robot":
+            reason = self.homing_fault()
+            if reason:
+                raise RuntimeError(reason)
+        if step.kind == "position":
+            if not self.gate.check(time.monotonic(), require_action=False):
+                raise RuntimeError(self.gate.reason)
+            reason = (
+                health_reason(
+                    self.health_sample, self.min_headroom, self.max_temperature
+                )
+                if self.health_sample is not None
+                else "Pi health not sampled"
+            )
+            if reason:
+                raise RuntimeError(reason)
+            if not self.body_fresh() or not all(
+                self.body[n].ready and self.body[n].axis_state == 8 for n in step.names
+            ):
+                raise RuntimeError("Position move requires fresh closed-loop axes")
+            if not self.output.get_subscription_count():
+                return None
+            self.script_position_at = time.monotonic()
+            self.output.publish(
+                ActuatorPositionCommand(
+                    actuator_names=list(step.names),
+                    positions_degrees=list(step.positions),
+                )
+            )
+            future = Future()
+            future.set_result(SimpleNamespace(success=True))
+            return future
         if step.kind == "motor":
             if step.operation not in ("idle", "clear_errors"):
                 if not self.gate.check(time.monotonic(), require_action=False):
@@ -163,6 +221,12 @@ class RpiSupervisor(Node):
         raise ValueError(f"Unknown script step: {step.kind}")
 
     def satisfied(self, step):
+        if step.kind == "wait_position":
+            return (
+                self.positions_at > self.script_position_at
+                and time.monotonic() - self.positions_at <= self.body_timeout
+                and at_position(self.positions, step.names, step.positions)
+            )
         if step.kind in ("wait_preflight", "wait_policy_ready"):
             fresh = (
                 self.gate.heartbeat_at is not None
@@ -328,6 +392,10 @@ class RpiSupervisor(Node):
 
     def tick(self):
         now = time.monotonic()
+        if self.runner.active and self.script_name == "home_robot":
+            reason = self.homing_fault()
+            if reason:
+                self.enter_emergency(reason)
         if self.gate.mode == Mode.EMERGENCY and now - self.remote_stop_at >= 1.0:
             self.stop_policy()
         if (
@@ -386,6 +454,7 @@ class RpiSupervisor(Node):
                         "script": self.script_name,
                         "script_step": self.runner.index,
                         "script_error": self.runner.error,
+                        "operator_prompt": self.runner.prompt,
                         "session": self.gate.session,
                         "action_sequence": self.gate.action_sequence,
                         "heartbeat_sequence": self.gate.heartbeat_sequence,
@@ -406,12 +475,25 @@ class RpiSupervisor(Node):
             )
         )
 
+    def respond(self, request, response):
+        try:
+            self.runner.respond(request.name, time.monotonic())
+            response.success, response.message = True, "operator confirmation accepted"
+        except ValueError as error:
+            response.success, response.message = False, str(error)
+        return response
+
     def run_script(self, request, response):
         try:
             if request.name not in self.scripts or request.name == "emergency":
                 raise ValueError("Unknown script; emergency uses its dedicated service")
             if request.name == "startup" and self.gate.mode != Mode.IDLE:
                 raise ValueError("Startup requires idle mode")
+            steps = self.scripts[request.name](self.names)
+            if request.name == "home_robot":
+                reason = self.homing_fault()
+                if reason:
+                    raise ValueError(reason)
             if request.name == "shutdown":
                 # Shutdown preempts every script and closes the gate immediately.
                 self.gate.mode = Mode.SHUTDOWN
@@ -422,7 +504,7 @@ class RpiSupervisor(Node):
                         "Scripts require idle or ready mode and no active script"
                     )
                 self.gate.mode = Mode.BOOT
-            self.runner.start(self.scripts[request.name](self.names))
+            self.runner.start(steps)
             self.script_link_required = request.name not in (
                 "startup",
                 "shutdown",
