@@ -9,6 +9,7 @@ class Mode(str, Enum):
     BOOT = "boot"
     IDLE = "idle"
     READY = "ready"
+    HOLDING = "holding"
     RUNNING = "running"
     DEGRADED = "degraded"
     EMERGENCY = "emergency"
@@ -55,7 +56,7 @@ class ActionGate:
         return self.probe_sequence
 
     def trip(self, reason):
-        if self.mode not in (Mode.EMERGENCY, Mode.SHUTDOWN):
+        if self.mode not in (Mode.EMERGENCY, Mode.SHUTDOWN, Mode.HOLDING):
             self.reason = reason
         if self.mode in (Mode.READY, Mode.RUNNING):
             self.mode = Mode.DEGRADED
@@ -114,7 +115,7 @@ class ActionGate:
         return True
 
     def action(self, session, sequence, stamp, wall_now, now, names, positions):
-        if self.mode in (Mode.EMERGENCY, Mode.SHUTDOWN, Mode.DEGRADED):
+        if self.mode in (Mode.EMERGENCY, Mode.SHUTDOWN, Mode.DEGRADED, Mode.HOLDING):
             return False
         if not self.check(now, require_action=False):
             return False

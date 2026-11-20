@@ -78,6 +78,7 @@ ros2 service call /rpi/supervisor/script catbot_interfaces/srv/RunScript "{name:
 | boot | Disarm at boot, or execute an explicitly requested startup/maintenance script; gate closed |
 | idle | Disarmed, awaiting an explicit script |
 | ready | Healthy link/body/Pi, axes armed; proposals checked, forwarding paused |
+| holding | Local homing complete, axes armed; Pi/body checks active, policy forwarding disabled, no Orin required |
 | running | Only fresh, consecutive actions for the current session and complete roster are forwarded |
 | degraded | Pi link verdict immediately transitions to latched emergency |
 | emergency | Gate closed; IDLE all axes and request Orin policy stop; retry local disarm until confirmed |
@@ -309,21 +310,31 @@ operation timeouts. Fault/link/health checks and the e-stop remain active during
 every buffer.
 This keeps previously homed axes holding while later axes home. The front
 flexion joints keep their +30-degree targets through the prompt and final group.
-Successful completion leaves all axes holding in READY; policy forwarding needs
-an explicit `run` request.
+Successful completion leaves all axes in local `holding` mode, with policy
+forwarding disabled. `run` is rejected from this mode. Use an explicit
+`restart_policy` script to transition through policy readiness, or emergency and
+recover to return to disarmed idle before startup.
 
 The complete standard twelve-actuator roster is required; unknown/incomplete
 rosters are rejected. Initial faults reject the request without starting the
 sequence. During execution every tick checks all axes for faults, even while
-waiting for the operator. A fault, stale state, link/health failure, rejected
+waiting for the operator. A fault, stale state, Pi health failure, rejected
 operation or timeout aborts to the latched emergency disarm path. Use the
 Foxglove e-stop above to abort manually. There is no automatic retry or error
 clearing. Inspect the fault reason in `/rpi/supervisor/status`.
 
 This uses controller-configured homing/endstops and logical joint calibration;
-it does not establish their physical correctness or write offsets. The Orin
-heartbeat/link and Pi health requirements remain active. Deploy/rebuild the Pi
+it does not establish their physical correctness or write offsets. Pi health and
+Foundation freshness/fault checks remain active. This script does not require an
+Orin supervisor, policy worker, simulator or camera. Deploy/rebuild the Pi
 package before use; local tests do not validate hardware travel or clearance.
+
+For local homing, run `ros2 launch catbot_supervisor rpi.launch.py` on the Pi.
+On Orin, source ROS and the workspace, then run only
+`ros2 launch foxglove_bridge foxglove_bridge_launch.xml`. Both hosts must share
+the ROS domain/discovery configuration. Connect Foxglove to `ws://<ORIN-IP>:8765`
+and call `home_robot` as above. The physical scenario launcher is unnecessary
+for this test and starts a kinematics worker that depends on saved policy files.
 
 ## Example: operator prompted homing/calibration from Foxglove
 

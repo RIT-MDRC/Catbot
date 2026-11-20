@@ -240,7 +240,7 @@ def test_managed_orin_policy_pi_gate_scripts_and_stale_emergency(tmp_path):
         # No abduction operation may precede the operator's current confirmation.
         token = pi.runner.prompt["id"]
         call(RunScript, "/rpi/supervisor/respond", RunScript.Request(name=token))
-        until(lambda: pi.gate.mode == Mode.READY, timeout=60)
+        until(lambda: pi.gate.mode == Mode.HOLDING, timeout=60)
         assert [
             ns for op, state, ns in operations if op == "state" and state == 11
         ] == [
@@ -261,6 +261,12 @@ def test_managed_orin_policy_pi_gate_scripts_and_stale_emergency(tmp_path):
             )
         ]
         received.clear()
+        call(
+            RunScript,
+            "/rpi/supervisor/script",
+            RunScript.Request(name="restart_policy"),
+        )
+        until(lambda: pi.gate.mode == Mode.READY, timeout=30)
         call(Trigger, "/rpi/supervisor/run", Trigger.Request())
         until(lambda: len(received) >= 5)
         assert list(received[-1].actuator_names) == names
@@ -310,6 +316,155 @@ def test_managed_orin_policy_pi_gate_scripts_and_stale_emergency(tmp_path):
     finally:
         executor.shutdown()
         for node in (pi, orin, body):
+            if node is not None:
+                node.destroy_node()
+        rclpy.shutdown()
+
+
+@pytest.mark.ros
+def test_local_homing_without_orin_or_policy():
+    names = json.loads((FIXTURES / "contract.json").read_text())["mapping"][
+        "actuator_names"
+    ]
+    rclpy.init(args=["--ros-args", "-p", "actuator_names:=" + json.dumps(names)])
+    executor = SingleThreadedExecutor()
+    pi = body = None
+    try:
+        pi = RpiSupervisor()
+        pi.health_sample = {
+            "errors": [],
+            "interface_state": "up",
+            "temperature_c": 50.0,
+            "system_cpu_headroom_percent": 80.0,
+            "foundation_cpu_percent_one_core": 10.0,
+        }
+        pi.health.sample = lambda now: dict(pi.health_sample)
+        body = Node("local_homing_test_body", use_global_arguments=False)
+        states, positions, faults = (
+            dict.fromkeys(names, 1),
+            dict.fromkeys(names, 0.0),
+            dict.fromkeys(names, 0),
+        )
+        operations, completing = [], {}
+        state_pub = body.create_publisher(
+            BodyErrorState,
+            "/body/state/error",
+            QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL),
+        )
+        position_pub = body.create_publisher(
+            BodyKinematicState, "/body/state/position", 1
+        )
+
+        def motor(request, response):
+            operations.append(
+                (request.operation, request.state, list(request.actuator_names))
+            )
+            for name in request.actuator_names or names:
+                if request.operation == "idle":
+                    states[name] = 1
+                    completing.pop(name, None)
+                elif request.operation == "state":
+                    states[name] = request.state
+                    if request.state == 11:
+                        completing[name] = time.monotonic() + 0.1
+            response.success = True
+            return response
+
+        body.create_service(MotorCommand, "/body/control/motor", motor)
+        body.create_subscription(
+            ActuatorPositionCommand,
+            "/body/control/position",
+            lambda msg: positions.update(
+                zip(msg.actuator_names, msg.positions_degrees)
+            ),
+            1,
+        )
+
+        def publish():
+            for name, deadline in list(completing.items()):
+                if time.monotonic() >= deadline:
+                    states[name] = 1
+                    del completing[name]
+            state_pub.publish(
+                BodyErrorState(
+                    actuators=[
+                        ActuatorErrorState(
+                            actuator_name=name,
+                            heartbeat_available=True,
+                            ready=states[name] == 8,
+                            axis_state=states[name],
+                            controller_error_flags=faults[name],
+                        )
+                        for name in names
+                    ]
+                )
+            )
+            position_pub.publish(
+                BodyKinematicState(
+                    actuators=[
+                        ActuatorKinematicState(
+                            actuator_name=name,
+                            valid=True,
+                            position_degrees=positions[name],
+                        )
+                        for name in names
+                    ]
+                )
+            )
+
+        body.create_timer(0.02, publish)
+        executor.add_node(pi)
+        executor.add_node(body)
+
+        def until(predicate, timeout=10):
+            deadline = time.monotonic() + timeout
+            while not predicate() and time.monotonic() < deadline:
+                executor.spin_once(timeout_sec=0.01)
+            assert predicate(), pi.gate.reason
+
+        def script():
+            result = pi.run_script(
+                RunScript.Request(name="home_robot"), RunScript.Response()
+            )
+            assert result.success, result.message
+
+        until(lambda: pi.gate.mode == Mode.IDLE and pi.body_fresh())
+        # A fault still aborts a local sequence during its buffer, without Orin.
+        script()
+        until(
+            lambda: (
+                pi.runner.active and pi.runner.steps[pi.runner.index].kind == "delay"
+            )
+        )
+        faults["flk"] = 4
+        until(lambda: pi.gate.mode == Mode.EMERGENCY)
+        until(lambda: not pi.runner.active and all(s == 1 for s in states.values()))
+        faults["flk"] = 0
+        until(lambda: pi.body["flk"].controller_error_flags == 0)
+        assert pi.recover(Trigger.Request(), Trigger.Response()).success
+        operations.clear()
+        script()
+        until(lambda: pi.runner.prompt is not None, timeout=60)
+        assert positions["flf"] == positions["frf"] == 30.0
+        assert not any(
+            op == "state" and state == 11 and ns == ["fla"]
+            for op, state, ns in operations
+        )
+        assert pi.respond(
+            RunScript.Request(name=pi.runner.prompt["id"]), RunScript.Response()
+        ).success
+        until(lambda: pi.gate.mode == Mode.HOLDING, timeout=60)
+        assert all(s == 8 for s in states.values())
+        assert pi.gate.heartbeat_at is None
+        assert not pi.run(Trigger.Request(), Trigger.Response()).success
+        assert not pi.jobs.service_is_ready()
+        # All subcomponent faults continue to trigger disarm while locally holding.
+        faults["fra"] = 8
+        until(lambda: pi.gate.mode == Mode.EMERGENCY)
+        until(lambda: not pi.runner.active and all(s == 1 for s in states.values()))
+    finally:
+        executor.shutdown()
+        for node in (pi, body):
             if node is not None:
                 node.destroy_node()
         rclpy.shutdown()

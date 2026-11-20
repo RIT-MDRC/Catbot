@@ -154,6 +154,13 @@ class RpiSupervisor(Node):
         self.positions_at = time.monotonic()
 
     def homing_fault(self):
+        if self.health_sample is None:
+            return "Pi health not sampled"
+        reason = health_reason(
+            self.health_sample, self.min_headroom, self.max_temperature
+        )
+        if reason:
+            return reason
         if not self.body_fresh():
             return "Homing requires fresh Foundation state"
         return fault_reason(self.body, self.names)
@@ -164,7 +171,9 @@ class RpiSupervisor(Node):
             if reason:
                 raise RuntimeError(reason)
         if step.kind == "position":
-            if not self.gate.check(time.monotonic(), require_action=False):
+            if self.script_name != "home_robot" and not self.gate.check(
+                time.monotonic(), require_action=False
+            ):
                 raise RuntimeError(self.gate.reason)
             reason = (
                 health_reason(
@@ -193,7 +202,9 @@ class RpiSupervisor(Node):
             return future
         if step.kind == "motor":
             if step.operation not in ("idle", "clear_errors"):
-                if not self.gate.check(time.monotonic(), require_action=False):
+                if self.script_name != "home_robot" and not self.gate.check(
+                    time.monotonic(), require_action=False
+                ):
                     raise RuntimeError(self.gate.reason)
                 if self.health_sample is None or health_reason(
                     self.health_sample, self.min_headroom, self.max_temperature
@@ -392,8 +403,12 @@ class RpiSupervisor(Node):
 
     def tick(self):
         now = time.monotonic()
-        if self.runner.active and self.script_name == "home_robot":
+        if (
+            self.runner.active and self.script_name == "home_robot"
+        ) or self.gate.mode == Mode.HOLDING:
             reason = self.homing_fault()
+            if not reason and self.gate.mode == Mode.HOLDING:
+                reason = self.local_reason()
             if reason:
                 self.enter_emergency(reason)
         if self.gate.mode == Mode.EMERGENCY and now - self.remote_stop_at >= 1.0:
@@ -439,6 +454,15 @@ class RpiSupervisor(Node):
             elif name == "shutdown":
                 self.gate.mode = Mode.SHUTDOWN
                 self.gate.reason = "shutdown complete"
+            elif name == "home_robot":
+                reason = self.local_reason()
+                if reason:
+                    self.enter_emergency(reason)
+                else:
+                    self.gate.mode = Mode.HOLDING
+                    self.gate.reason = (
+                        "homing complete; local hold, policy forwarding disabled"
+                    )
             elif name != "emergency":
                 reason = self.local_reason()
                 if reason or not self.gate.check(now):
@@ -499,9 +523,13 @@ class RpiSupervisor(Node):
                 self.gate.mode = Mode.SHUTDOWN
                 self.gate.reason = "shutdown requested"
             else:
-                if self.runner.active or self.gate.mode not in (Mode.IDLE, Mode.READY):
+                if self.runner.active or self.gate.mode not in (
+                    Mode.IDLE,
+                    Mode.READY,
+                    Mode.HOLDING,
+                ):
                     raise ValueError(
-                        "Scripts require idle or ready mode and no active script"
+                        "Scripts require idle, ready or holding mode and no active script"
                     )
                 self.gate.mode = Mode.BOOT
             self.runner.start(steps)
@@ -509,6 +537,7 @@ class RpiSupervisor(Node):
                 "startup",
                 "shutdown",
                 "restart_policy",
+                "home_robot",
             )
             self.script_name = request.name
             response.success, response.message = (
