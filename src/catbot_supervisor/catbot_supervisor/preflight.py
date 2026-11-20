@@ -13,6 +13,17 @@ from catbot_policy.configuration import inference_python
 from catbot_policy.worker_launch import WorkerLaunchSpec
 
 
+def policy_fault(*, running, error, ready, action_at, now, timeout):
+    """An intentionally stopped policy is standby; failures remain visible."""
+    if not running:
+        return error
+    if not ready:
+        return "policy not ready"
+    if action_at is None or not 0 <= now - action_at <= timeout:
+        return "policy action stream unavailable"
+    return ""
+
+
 def seconds(stamp):
     return stamp.sec + stamp.nanosec * 1e-9
 

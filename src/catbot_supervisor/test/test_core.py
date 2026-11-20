@@ -174,11 +174,18 @@ def test_running_requires_ready_and_fresh_action():
         gate.start(10.02)
 
 
-def test_local_holding_never_forwards_policy_or_allows_run():
+def test_local_holding_requires_explicit_run_and_fresh_policy():
     gate = healthy(Mode.HOLDING)
-    assert not action(gate)
-    with pytest.raises(ValueError, match="ready"):
+    with pytest.raises(ValueError, match="fresh"):
         gate.start(10.02)
+    assert not action(gate)
+    assert gate.mode == Mode.HOLDING
+    gate.start(10.03)
+    assert gate.mode == Mode.RUNNING
+
+
+def test_idle_or_degraded_orin_does_not_interrupt_local_hold():
+    gate = healthy(Mode.HOLDING)
     # Missing/degraded Orin is irrelevant to local holding; never enters RUNNING.
     gate.heartbeat("session", 2, True, 0, 10.03)
     assert gate.mode == Mode.HOLDING

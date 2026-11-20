@@ -9,6 +9,7 @@ import rclpy
 from catbot_supervisor.core import Mode
 from catbot_supervisor.node import RpiSupervisor
 from catbot_supervisor.orin import OrinSupervisor
+from catbot_supervisor.scripts import Step
 from rclpy.executors import SingleThreadedExecutor
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile
@@ -197,7 +198,9 @@ def test_managed_orin_policy_pi_gate_scripts_and_stale_emergency(tmp_path):
             return result
 
         until(lambda: pi.gate.mode == Mode.IDLE)
+        until(lambda: not orin.preflight_reason() and not pi.gate.orin_degraded)
         assert not received and not orin.jobs.running("policy")
+        assert not pi.runner.active and not pi.script_name
         call(RunScript, "/rpi/supervisor/script", RunScript.Request(name="startup"))
         until(lambda: pi.gate.mode == Mode.READY, timeout=30)
         assert not received, "Policy proposals must not cross the gate before RUNNING"
@@ -261,12 +264,23 @@ def test_managed_orin_policy_pi_gate_scripts_and_stale_emergency(tmp_path):
             )
         ]
         received.clear()
+        call(Trigger, "/rpi/supervisor/policy_stop", Trigger.Request())
+        until(lambda: not orin.jobs.children and not pi.gate.orin_degraded)
+        assert pi.gate.mode == Mode.HOLDING and all(s == 8 for s in states.values())
         call(
-            RunScript,
-            "/rpi/supervisor/script",
-            RunScript.Request(name="restart_policy"),
+            SupervisorJob,
+            "/orin/supervisor/job",
+            SupervisorJob.Request(name="policy", operation="start"),
         )
-        until(lambda: pi.gate.mode == Mode.READY, timeout=30)
+        until(
+            lambda: (
+                orin.policy_ready
+                and pi.gate.action_at is not None
+                and time.monotonic() - pi.gate.action_at < pi.gate.limits.action_age
+            ),
+            timeout=25,
+        )
+        assert not received and all(s == 8 for s in states.values())
         call(Trigger, "/rpi/supervisor/run", Trigger.Request())
         until(lambda: len(received) >= 5)
         assert list(received[-1].actuator_names) == names
@@ -365,7 +379,7 @@ def test_local_homing_without_orin_or_policy():
                     completing.pop(name, None)
                 elif request.operation == "state":
                     states[name] = request.state
-                    if request.state == 11:
+                    if request.state in (4, 11):
                         completing[name] = time.monotonic() + 0.1
             response.success = True
             return response
@@ -429,6 +443,37 @@ def test_local_homing_without_orin_or_policy():
             assert result.success, result.message
 
         until(lambda: pi.gate.mode == Mode.IDLE and pi.body_fresh())
+        statuses = []
+        body.create_subscription(
+            String,
+            "/rpi/supervisor/status",
+            lambda msg: statuses.append(json.loads(msg.data)),
+            1,
+        )
+        pi.scripts["future_check"] = lambda names: [
+            Step("wait_operator", "Future script prompt")
+        ]
+        until(lambda: statuses and "future_check" in statuses[-1]["available_scripts"])
+        assert not pi.runner.active
+        result = pi.run_script(
+            RunScript.Request(name="future_check"), RunScript.Response()
+        )
+        assert result.success
+        until(lambda: pi.runner.prompt is not None)
+        assert pi.runner.prompt["text"] == "Future script prompt"
+        pi.emergency(Trigger.Request(), Trigger.Response())
+        until(lambda: not pi.runner.active)
+        assert pi.recover(Trigger.Request(), Trigger.Response()).success
+        # Calibration is independently requested and does not need a policy peer.
+        result = pi.run_script(
+            RunScript.Request(name="calibrate"), RunScript.Response()
+        )
+        assert result.success
+        until(lambda: pi.gate.mode == Mode.HOLDING)
+        assert [ns for op, state, ns in operations if op == "state" and state == 4] == [
+            [n] for n in names
+        ]
+        assert not pi.jobs.service_is_ready()
         # A fault still aborts a local sequence during its buffer, without Orin.
         script()
         until(

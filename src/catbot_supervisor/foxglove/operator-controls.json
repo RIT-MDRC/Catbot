@@ -1,128 +1,169 @@
 {
-  "version": 1,
-  "content": {
-    "type": "split",
-    "direction": "column",
-    "items": [
-      {
-        "proportion": 1,
-        "content": {
-          "type": "panel",
-          "panelType": "ServiceCall",
-          "config": {
-            "serviceName": "/rpi/supervisor/emergency",
-            "requestPayload": "{}",
-            "buttonText": "E-STOP \u2014 DISARM",
-            "buttonTooltip": "Latch emergency, disarm all motors, stop policy",
-            "buttonColor": "#d32f2f",
-            "editingMode": false,
-            "timeoutSeconds": 3.0
+  "configById": {
+    "CallService!estop": {
+      "serviceName": "/rpi/supervisor/emergency",
+      "requestPayload": "{}",
+      "buttonText": "E-STOP \u2014 DISARM",
+      "buttonColor": "#d32f2f",
+      "buttonTooltip": "Latch emergency and disarm all motors",
+      "editingMode": false,
+      "timeoutSeconds": 3.0,
+      "foxglovePanelTitle": "E-STOP \u2014 DISARM"
+    },
+    "CallService!home": {
+      "serviceName": "/rpi/supervisor/script",
+      "requestPayload": "{\"name\": \"home_robot\"}",
+      "buttonText": "Home robot",
+      "buttonColor": "#546e7a",
+      "buttonTooltip": "Home and arm using the operator-approved sequence",
+      "editingMode": false,
+      "timeoutSeconds": 3.0,
+      "foxglovePanelTitle": "Home robot"
+    },
+    "CallService!calibrate": {
+      "serviceName": "/rpi/supervisor/script",
+      "requestPayload": "{\"name\": \"calibrate\"}",
+      "buttonText": "Motor calibration",
+      "buttonColor": "#546e7a",
+      "buttonTooltip": "Can move motors; clears errors and runs motor calibration, then arms",
+      "editingMode": false,
+      "timeoutSeconds": 3.0,
+      "foxglovePanelTitle": "Motor calibration"
+    },
+    "CallService!policyStart": {
+      "serviceName": "/orin/supervisor/job",
+      "requestPayload": "{\"name\": \"policy\", \"operation\": \"start\"}",
+      "buttonText": "Start policy (no motor commands)",
+      "buttonColor": "#1565c0",
+      "buttonTooltip": "Start inference only; does not arm, calibrate or enable forwarding",
+      "editingMode": false,
+      "timeoutSeconds": 3.0,
+      "foxglovePanelTitle": "Start policy (no motor commands)"
+    },
+    "CallService!policyStop": {
+      "serviceName": "/rpi/supervisor/policy_stop",
+      "requestPayload": "{}",
+      "buttonText": "Stop policy \u2014 keep holding",
+      "buttonColor": "#546e7a",
+      "buttonTooltip": "Close forwarding before stopping the policy; motors remain armed",
+      "editingMode": false,
+      "timeoutSeconds": 3.0,
+      "foxglovePanelTitle": "Stop policy \u2014 keep holding"
+    },
+    "CallService!run": {
+      "serviceName": "/rpi/supervisor/run",
+      "requestPayload": "{}",
+      "buttonText": "RUN \u2014 ENABLE POLICY MOTION",
+      "buttonColor": "#ed6c02",
+      "buttonTooltip": "Requires homed/armed motors and a healthy fresh policy stream",
+      "editingMode": false,
+      "timeoutSeconds": 3.0,
+      "foxglovePanelTitle": "RUN \u2014 ENABLE POLICY MOTION"
+    },
+    "CallService!pause": {
+      "serviceName": "/rpi/supervisor/idle",
+      "requestPayload": "{}",
+      "buttonText": "Pause policy motion \u2014 hold",
+      "buttonColor": "#546e7a",
+      "buttonTooltip": "",
+      "editingMode": false,
+      "timeoutSeconds": 3.0,
+      "foxglovePanelTitle": "Pause policy motion \u2014 hold"
+    },
+    "CallService!custom": {
+      "serviceName": "/rpi/supervisor/script",
+      "requestPayload": "{\"name\": \"YOUR_SCRIPT_NAME\"}",
+      "buttonText": "Run named script",
+      "buttonColor": "#546e7a",
+      "buttonTooltip": "Choose a name from available_scripts in Pi status",
+      "editingMode": true,
+      "timeoutSeconds": 3.0,
+      "foxglovePanelTitle": "Run named script"
+    },
+    "CallService!confirm": {
+      "serviceName": "/rpi/supervisor/respond",
+      "requestPayload": "{\"name\": \"COPY_CURRENT_PROMPT_ID\"}",
+      "buttonText": "Confirm current operator prompt",
+      "buttonColor": "#546e7a",
+      "buttonTooltip": "",
+      "editingMode": true,
+      "timeoutSeconds": 3.0,
+      "foxglovePanelTitle": "Confirm current operator prompt"
+    },
+    "RawMessages!piStatus": {
+      "topicPath": "/rpi/supervisor/status",
+      "diffEnabled": false,
+      "diffMethod": "custom",
+      "diffTopicPath": "",
+      "showFullMessageForDiff": false,
+      "foxglovePanelTitle": "Pi status / available scripts"
+    },
+    "CallService!orinStatus": {
+      "serviceName": "/orin/supervisor/get_status",
+      "requestPayload": "{\"name\": \"\"}",
+      "buttonText": "Refresh Orin status",
+      "buttonColor": "#546e7a",
+      "buttonTooltip": "",
+      "editingMode": true,
+      "timeoutSeconds": 3.0,
+      "foxglovePanelTitle": "Refresh Orin status"
+    }
+  },
+  "globalVariables": {},
+  "userNodes": {},
+  "linkedGlobalVariables": [],
+  "playbackConfig": {
+    "speed": 1
+  },
+  "layout": {
+    "direction": "row",
+    "first": {
+      "direction": "column",
+      "first": "CallService!estop",
+      "second": {
+        "direction": "column",
+        "first": "CallService!home",
+        "second": {
+          "direction": "column",
+          "first": "CallService!calibrate",
+          "second": {
+            "direction": "column",
+            "first": "CallService!policyStart",
+            "second": {
+              "direction": "column",
+              "first": "CallService!policyStop",
+              "second": {
+                "direction": "column",
+                "first": "CallService!run",
+                "second": "CallService!pause",
+                "splitPercentage": 50.0
+              },
+              "splitPercentage": 33.333333333333336
+            },
+            "splitPercentage": 25.0
           },
-          "title": "E-STOP \u2014 DISARM",
-          "version": 1
-        }
+          "splitPercentage": 20.0
+        },
+        "splitPercentage": 16.666666666666668
       },
-      {
-        "proportion": 1,
-        "content": {
-          "type": "panel",
-          "panelType": "ServiceCall",
-          "config": {
-            "serviceName": "/rpi/supervisor/script",
-            "requestPayload": "{\"name\": \"home_robot\"}",
-            "buttonText": "Home robot",
-            "buttonTooltip": "Local homing can move motors; ends armed in local holding mode",
-            "buttonColor": "#546e7a",
-            "editingMode": false,
-            "timeoutSeconds": 3.0
-          },
-          "title": "Home robot",
-          "version": 1
-        }
+      "splitPercentage": 14.285714285714286
+    },
+    "second": {
+      "direction": "column",
+      "first": "RawMessages!piStatus",
+      "second": {
+        "direction": "column",
+        "first": "CallService!confirm",
+        "second": {
+          "direction": "column",
+          "first": "CallService!custom",
+          "second": "CallService!orinStatus",
+          "splitPercentage": 50.0
+        },
+        "splitPercentage": 33.333333333333336
       },
-      {
-        "proportion": 1,
-        "content": {
-          "type": "panel",
-          "panelType": "ServiceCall",
-          "config": {
-            "serviceName": "/rpi/supervisor/script",
-            "requestPayload": "{\"name\": \"restart_policy\"}",
-            "buttonText": "Start / restart policy + arm (paused)",
-            "buttonTooltip": "Disarm, start/restart managed Orin policy, verify readiness, hold and arm; forwarding stays paused",
-            "buttonColor": "#1565c0",
-            "editingMode": false,
-            "timeoutSeconds": 3.0
-          },
-          "title": "Start / restart policy + arm (paused)",
-          "version": 1
-        }
-      },
-      {
-        "proportion": 1,
-        "content": {
-          "type": "panel",
-          "panelType": "ServiceCall",
-          "config": {
-            "serviceName": "/rpi/supervisor/run",
-            "requestPayload": "{}",
-            "buttonText": "RUN \u2014 ENABLE POLICY MOTION",
-            "buttonTooltip": "Enable trained-policy motion only after READY",
-            "buttonColor": "#ed6c02",
-            "editingMode": false,
-            "timeoutSeconds": 3.0
-          },
-          "title": "RUN \u2014 ENABLE POLICY MOTION",
-          "version": 1
-        }
-      },
-      {
-        "proportion": 1,
-        "content": {
-          "type": "panel",
-          "panelType": "ServiceCall",
-          "config": {
-            "serviceName": "/rpi/supervisor/idle",
-            "requestPayload": "{}",
-            "buttonText": "Pause policy motion \u2014 hold",
-            "buttonTooltip": "Pause forwarding, keep motors armed at their last targets",
-            "buttonColor": "#546e7a",
-            "editingMode": false,
-            "timeoutSeconds": 3.0
-          },
-          "title": "Pause policy motion \u2014 hold",
-          "version": 1
-        }
-      },
-      {
-        "proportion": 3,
-        "content": {
-          "type": "panel",
-          "panelType": "RawMessages",
-          "config": {
-            "expansion": "all",
-            "topicPath": "/rpi/supervisor/status"
-          },
-          "title": "Pi supervisor status and operator prompt",
-          "version": 1
-        }
-      },
-      {
-        "proportion": 1,
-        "content": {
-          "type": "panel",
-          "panelType": "ServiceCall",
-          "config": {
-            "serviceName": "/rpi/supervisor/respond",
-            "requestPayload": "{\"name\":\"COPY_CURRENT_PROMPT_ID\"}",
-            "buttonText": "Confirm clearance",
-            "editingMode": true,
-            "timeoutSeconds": 3.0
-          },
-          "title": "Confirm current operator prompt",
-          "version": 1
-        }
-      }
-    ]
+      "splitPercentage": 25.0
+    },
+    "splitPercentage": 45
   }
 }

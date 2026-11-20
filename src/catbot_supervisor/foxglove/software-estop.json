@@ -1,40 +1,34 @@
 {
-  "version": 1,
-  "content": {
-    "type": "split",
+  "configById": {
+    "CallService!estop": {
+      "serviceName": "/rpi/supervisor/emergency",
+      "requestPayload": "{}",
+      "buttonText": "E-STOP \u2014 DISARM",
+      "buttonColor": "#d32f2f",
+      "buttonTooltip": "Latch emergency and disarm all motors",
+      "editingMode": false,
+      "timeoutSeconds": 3.0,
+      "foxglovePanelTitle": "E-STOP \u2014 DISARM"
+    },
+    "RawMessages!piStatus": {
+      "topicPath": "/rpi/supervisor/status",
+      "diffEnabled": false,
+      "diffMethod": "custom",
+      "diffTopicPath": "",
+      "showFullMessageForDiff": false,
+      "foxglovePanelTitle": "Pi status / available scripts"
+    }
+  },
+  "globalVariables": {},
+  "userNodes": {},
+  "linkedGlobalVariables": [],
+  "playbackConfig": {
+    "speed": 1
+  },
+  "layout": {
     "direction": "column",
-    "items": [
-      {
-        "proportion": 1,
-        "content": {
-          "type": "panel",
-          "panelType": "ServiceCall",
-          "config": {
-            "serviceName": "/rpi/supervisor/emergency",
-            "requestPayload": "{}",
-            "buttonText": "E-STOP \u2014 DISARM",
-            "buttonTooltip": "Latch emergency, stop policy forwarding and request motor IDLE",
-            "buttonColor": "#d32f2f",
-            "editingMode": false,
-            "timeoutSeconds": 3.0
-          },
-          "title": "Software E-STOP",
-          "version": 1
-        }
-      },
-      {
-        "proportion": 2,
-        "content": {
-          "type": "panel",
-          "panelType": "RawMessages",
-          "config": {
-            "expansion": "all",
-            "topicPath": "/rpi/supervisor/status"
-          },
-          "title": "Pi supervisor status",
-          "version": 1
-        }
-      }
-    ]
+    "first": "CallService!estop",
+    "second": "RawMessages!piStatus",
+    "splitPercentage": 30
   }
 }

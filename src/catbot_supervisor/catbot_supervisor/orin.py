@@ -24,7 +24,13 @@ from catbot_interfaces.msg import (
 from catbot_interfaces.srv import GetSupervisorStatus, SupervisorJob
 from catbot_supervisor.configuration import ORIN_DEFAULTS
 from catbot_supervisor.jobs import Jobs
-from catbot_supervisor.preflight import ClockMonitor, ComputeProbe, seconds, verdict
+from catbot_supervisor.preflight import (
+    ClockMonitor,
+    ComputeProbe,
+    policy_fault,
+    seconds,
+    verdict,
+)
 from catbot_supervisor.telemetry import Resources
 
 
@@ -215,6 +221,10 @@ class OrinSupervisor(Node):
                 ):
                     raise ValueError("No fresh Pi lease")
             getattr(self.jobs, operation)(request.name, time.monotonic())
+            if request.name == "policy" and operation == "stop":
+                self.policy_ready = self.policy_verified = False
+                self.load_error = self.bundle_id = ""
+                self.jobs.errors.pop("policy", None)
             response.success, response.message = (
                 True,
                 "accepted; query get_status for completion",
@@ -229,6 +239,7 @@ class OrinSupervisor(Node):
                 "version": 1,
                 "jobs": self.jobs.status(request.name),
                 "policy": {
+                    "state": self.jobs.status("policy")["policy"]["state"],
                     "session": self.session,
                     "ready": self.policy_ready and self.jobs.running("policy"),
                     "verified": self.policy_verified,
@@ -287,12 +298,14 @@ class OrinSupervisor(Node):
         preflight = self.preflight_reason()
         reason = "Pi probe lease expired" if lease_lost else preflight
         if not reason:
-            if not self.jobs.running("policy"):
-                reason = self.jobs.errors.get("policy", "policy job not running")
-            elif not self.policy_ready:
-                reason = self.load_error or "policy not ready"
-            elif self.action_at is None or now - self.action_at > self.timeout:
-                reason = "policy action stream unavailable"
+            reason = policy_fault(
+                running=self.jobs.running("policy"),
+                error=self.jobs.errors.get("policy", ""),
+                ready=self.policy_ready,
+                action_at=self.action_at,
+                now=now,
+                timeout=self.timeout,
+            )
         if not self.jobs.running("policy"):
             self.policy_ready = False
             if self.load_error in ("", "loading"):
@@ -307,7 +320,8 @@ class OrinSupervisor(Node):
                 probe_id=self.probe_id,
                 policy_active="policy" in self.jobs.children,
                 degraded=bool(reason),
-                reason=reason,
+                reason=reason
+                or ("policy running" if self.jobs.running("policy") else "standby"),
                 policy_ready=self.policy_ready,
                 policy_verified=self.policy_verified,
                 bundle_id=self.bundle_id,

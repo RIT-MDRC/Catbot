@@ -232,15 +232,21 @@ For homing and policy controls together, import
 [foxglove/operator-controls.json](foxglove/operator-controls.json). It includes:
 
 - **Home robot**: runs local `home_robot`; no policy or Orin supervisor required.
-- **Start / restart policy + arm (paused)**: calls the Pi's `restart_policy`
-  script. It disarms, waits for Orin preflight, starts/restarts the managed policy,
-  verifies readiness/link, holds measured positions and arms. It performs no
-  homing or calibration and requires already calibrated/homed motors. Wait for
-  status `ready` before enabling motion. Acceptance is not completion.
-- **RUN — ENABLE POLICY MOTION**: explicitly enables policy forwarding from READY.
+- **Motor calibration**: explicitly runs the existing motor calibration script.
+  It can move hardware, clears faults, and arms on completion. `home_robot` is the
+  custom ordered homing script and never clears faults.
+- **Start policy (no motor commands)**: calls the Orin job service with
+  `{"name":"policy","operation":"start"}`. It loads/starts inference only;
+  it does not start any Pi script, arm motors or enable policy forwarding.
+- **Stop policy — keep holding**: the Pi closes forwarding before requesting
+  policy stop. Armed motors stay in local holding mode.
+- **RUN — ENABLE POLICY MOTION**: explicitly enables forwarding from READY or
+  local HOLDING, only with fresh healthy policy actions and ready body/Pi.
 - **Pause policy motion — hold**: pauses forwarding but keeps motors armed.
 - **E-STOP — DISARM**: aborts and disarms; also requests policy stop.
-- A status/prompt panel and editable confirmation service panel.
+- A status/prompt panel, editable confirmation, Orin status query, and
+  **Run named script** panel. `available_scripts` in Pi status lists built-ins
+  and installed entry-point scripts; enter any registered name to start it.
 
 Starting policy from Foxglove requires the Orin Supervisor and its normal
 sensing/kinematics providers to be launched and healthy. A bridge-only launch
@@ -275,8 +281,10 @@ alone needs only Foxglove Bridge and does not need this repair.
 
 Import [foxglove/software-estop.json](foxglove/software-estop.json) using
 Foxglove's **Layouts > Import from file**. It provides a red **E-STOP — DISARM**
-button and a supervisor status panel. The layout uses the official Foxglove
-version 1 layout schema. After a colcon build it is also installed under
+button and a supervisor status panel. Both files use Foxglove's exported
+`configById` / `layout` format, with `CallService` panel IDs. The programmatic
+SDK's `version` / `content` format is not a layout-import file. After a colcon
+build the files are also installed under
 `$(ros2 pkg prefix catbot_supervisor)/share/catbot_supervisor/foxglove/`.
 
 Connect to the robot's live Foxglove Bridge. Its `services` capability must be
@@ -315,9 +323,9 @@ e-stop for failures of those components.
 
 References: [Service Call panel](https://docs.foxglove.dev/docs/visualization/panels/service-call),
 [layout import](https://docs.foxglove.dev/docs/visualization/layouts).
-The JSON was generated against the
-[official SDK layout definitions](https://github.com/foxglove/foxglove-sdk/blob/main/python/foxglove-sdk/python/foxglove/layouts/__init__.py);
-live Foxglove rendering and physical disarm still require target verification.
+The JSON follows the shape of Foxglove's
+[exported example layouts](https://github.com/foxglove/tutorials/blob/main/integrations/ros1/transforms/foxglove_layouts/Transforms.json).
+Live Foxglove rendering and physical disarm still require target verification.
 
 On Ctrl-C or launch SIGTERM, the Pi supervisor keeps ROS alive for a bounded
 disarm attempt before destroying the node/context. Foundation independently
@@ -363,9 +371,9 @@ every buffer.
 This keeps previously homed axes holding while later axes home. The front
 flexion joints keep their +30-degree targets through the prompt and final group.
 Successful completion leaves all axes in local `holding` mode, with policy
-forwarding disabled. `run` is rejected from this mode. Use an explicit
-`restart_policy` script to transition through policy readiness, or emergency and
-recover to return to disarmed idle before startup.
+forwarding disabled. Starting policy through the Orin job service does not arm
+or move anything. Once a verified policy produces fresh actions, an explicit
+`run` request may transition from HOLDING to RUNNING after local/link checks.
 
 The complete standard twelve-actuator roster is required; unknown/incomplete
 rosters are rejected. Initial faults reject the request without starting the
@@ -395,8 +403,8 @@ for this test and starts a kinematics worker that depends on saved policy files.
 then ask for confirmation before each axis's controller operation. After all
 operations, the existing maintenance sequence holds measured positions and arms
 closed loop. Policy forwarding remains paused until an explicit `run` request.
-They require the same healthy Orin link and Pi/body telemetry as other maintenance
-scripts; these are not standalone offline calibration routines.
+They require healthy Pi/body telemetry but no Orin policy. Completion leaves
+local holding mode; policy forwarding remains disabled until explicitly enabled.
 
 `sample_home` requests ODrive state 11 (controller-configured homing).
 `sample_calibrate` requests state 4 (motor calibration). Neither measures a joint

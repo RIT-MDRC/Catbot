@@ -115,7 +115,7 @@ class ActionGate:
         return True
 
     def action(self, session, sequence, stamp, wall_now, now, names, positions):
-        if self.mode in (Mode.EMERGENCY, Mode.SHUTDOWN, Mode.DEGRADED, Mode.HOLDING):
+        if self.mode in (Mode.EMERGENCY, Mode.SHUTDOWN, Mode.DEGRADED):
             return False
         if not self.check(now, require_action=False):
             return False
@@ -144,9 +144,13 @@ class ActionGate:
         return self.mode == Mode.RUNNING
 
     def start(self, now):
-        if self.mode != Mode.READY:
-            raise ValueError("Robot must be ready before running")
+        if self.mode not in (Mode.READY, Mode.HOLDING):
+            raise ValueError("Robot must be ready or holding before running")
         if not self.check(now):
+            if self.mode == Mode.HOLDING:
+                raise ValueError(
+                    "Policy control requires a healthy Orin link and fresh actions"
+                )
             raise ValueError(self.reason)
         self.mode = Mode.RUNNING
 

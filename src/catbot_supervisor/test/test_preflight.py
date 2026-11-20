@@ -46,3 +46,30 @@ def test_preflight_rejects_temperature_disk_device_and_unknown():
     assert "disk" in verdict(resources, clock, compute, 10.01, 80, 101)
     compute.available = False
     assert "CUDA" in verdict(resources, clock, compute, 10.01, 80, 10)
+
+
+@pytest.mark.parametrize(
+    "running,error,ready,action_at,reason",
+    [
+        (False, "", False, None, ""),
+        (False, "job exited (1)", False, None, "job exited"),
+        (True, "", False, None, "not ready"),
+        (True, "", True, None, "stream unavailable"),
+        (True, "", True, 9.0, "stream unavailable"),
+        (True, "", True, 10.0, ""),
+    ],
+)
+def test_policy_standby_is_healthy_but_failures_are_not(
+    running, error, ready, action_at, reason
+):
+    from catbot_supervisor.preflight import policy_fault
+
+    result = policy_fault(
+        running=running,
+        error=error,
+        ready=ready,
+        action_at=action_at,
+        now=10.1,
+        timeout=0.25,
+    )
+    assert (reason in result) if reason else result == ""

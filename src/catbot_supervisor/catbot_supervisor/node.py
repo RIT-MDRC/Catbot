@@ -128,6 +128,7 @@ class RpiSupervisor(Node):
             ("idle", self.idle),
             ("emergency", self.emergency),
             ("recover", self.recover),
+            ("policy_stop", self.policy_stop),
         ):
             self.create_service(Trigger, "/rpi/supervisor/" + name, callback)
         self.create_timer(0.02, self.tick)
@@ -168,13 +169,23 @@ class RpiSupervisor(Node):
             return "Homing requires fresh Foundation state"
         return fault_reason(self.body, self.names)
 
+    def local_script(self):
+        return self.script_name not in (
+            "",
+            "boot",
+            "emergency",
+            "shutdown",
+            "startup",
+            "restart_policy",
+        )
+
     def dispatch(self, step):
         if self.script_name == "home_robot":
             reason = self.homing_fault()
             if reason:
                 raise RuntimeError(reason)
         if step.kind == "position":
-            if self.script_name != "home_robot" and not self.gate.check(
+            if self.script_link_required and not self.gate.check(
                 time.monotonic(), require_action=False
             ):
                 raise RuntimeError(self.gate.reason)
@@ -205,7 +216,7 @@ class RpiSupervisor(Node):
             return future
         if step.kind == "motor":
             if step.operation not in ("idle", "clear_errors"):
-                if self.script_name != "home_robot" and not self.gate.check(
+                if self.script_link_required and not self.gate.check(
                     time.monotonic(), require_action=False
                 ):
                     raise RuntimeError(self.gate.reason)
@@ -414,6 +425,16 @@ class RpiSupervisor(Node):
                 reason = self.local_reason()
             if reason:
                 self.enter_emergency(reason)
+        if self.runner.active and self.local_script():
+            reason = (
+                health_reason(
+                    self.health_sample, self.min_headroom, self.max_temperature
+                )
+                if self.health_sample is not None
+                else "Pi health not sampled"
+            )
+            if reason or not self.body_fresh():
+                self.enter_emergency(reason or "Foundation state stream stale")
         if self.gate.mode == Mode.EMERGENCY and now - self.remote_stop_at >= 1.0:
             self.stop_policy()
         if (
@@ -457,14 +478,17 @@ class RpiSupervisor(Node):
             elif name == "shutdown":
                 self.gate.mode = Mode.SHUTDOWN
                 self.gate.reason = "shutdown complete"
-            elif name == "home_robot":
+            elif (
+                name not in ("startup", "restart_policy", "emergency")
+                and not self.script_link_required
+            ):
                 reason = self.local_reason()
                 if reason:
                     self.enter_emergency(reason)
                 else:
                     self.gate.mode = Mode.HOLDING
                     self.gate.reason = (
-                        "homing complete; local hold, policy forwarding disabled"
+                        f"{name} complete; local hold, policy forwarding disabled"
                     )
             elif name != "emergency":
                 reason = self.local_reason()
@@ -482,6 +506,9 @@ class RpiSupervisor(Node):
                         "script_step": self.runner.index,
                         "script_error": self.runner.error,
                         "operator_prompt": self.runner.prompt,
+                        "available_scripts": sorted(
+                            name for name in self.scripts if name != "emergency"
+                        ),
                         "session": self.gate.session,
                         "action_sequence": self.gate.action_sequence,
                         "heartbeat_sequence": self.gate.heartbeat_sequence,
@@ -536,12 +563,8 @@ class RpiSupervisor(Node):
                     )
                 self.gate.mode = Mode.BOOT
             self.runner.start(steps)
-            self.script_link_required = request.name not in (
-                "startup",
-                "shutdown",
-                "restart_policy",
-                "home_robot",
-            )
+            # Scripts opt into the Orin watchdog explicitly with wait_link.
+            self.script_link_required = False
             self.script_name = request.name
             response.success, response.message = (
                 True,
@@ -560,6 +583,24 @@ class RpiSupervisor(Node):
             response.success, response.message = True, "running"
         except ValueError as error:
             response.success, response.message = False, str(error)
+        return response
+
+    def policy_stop(self, request, response):
+        # Close forwarding before the asynchronous stop request. Keep local hold.
+        if self.gate.mode in (Mode.READY, Mode.RUNNING):
+            self.gate.mode = Mode.HOLDING
+            self.gate.reason = "policy stop requested; holding locally"
+        if not self.jobs.service_is_ready():
+            response.success, response.message = (
+                False,
+                "Orin job service unavailable; forwarding closed",
+            )
+        else:
+            self.stop_policy()
+            response.success, response.message = (
+                True,
+                "policy stop requested; inspect Orin status",
+            )
         return response
 
     def idle(self, request, response):
