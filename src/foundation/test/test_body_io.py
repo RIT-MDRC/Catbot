@@ -16,6 +16,12 @@ def body_io(monkeypatch):
     modules = {
         "rclpy": {},
         "rclpy.node": {"Node": object},
+        "rclpy.executors": {
+            "ExternalShutdownException": type(
+                "ExternalShutdownException", (Exception,), {}
+            )
+        },
+        "rclpy.signals": {"SignalHandlerOptions": SimpleNamespace(NO=0)},
         "rclpy.qos": dict.fromkeys(
             ("DurabilityPolicy", "HistoryPolicy", "QoSProfile", "ReliabilityPolicy"),
             object,
@@ -158,3 +164,57 @@ def test_send_failures_are_reported_without_any_followup_sequence(body_io):
     assert module.motor_actions.set_axis_state.call_count == 2
     module.motor_actions.hold_current_position.assert_not_called()
     module.actuator_actions.configure_trajectory.assert_not_called()
+
+
+@pytest.mark.parametrize("exit_kind", ["SIGINT", "SIGTERM", "external_shutdown"])
+def test_main_disarms_and_closes_can_before_context_shutdown(
+    body_io, monkeypatch, exit_kind
+):
+    module, node, _ = body_io
+    body_type = module.BodyControlNode
+    events = []
+    context = {"ok": True}
+    node.destroy_node = lambda: events.append("destroy")
+    node.shutdown_hardware = lambda: body_type.shutdown_hardware(node)
+    monkeypatch.setattr(module, "BodyControlNode", lambda: node)
+    monkeypatch.setattr(
+        module.motor_actions,
+        "set_axis_state",
+        lambda name, state: events.append(("idle", name, state, context["ok"])),
+    )
+    monkeypatch.setattr(module.can_actions, "get_names", lambda: ("can0",))
+    monkeypatch.setattr(
+        module.can_actions, "close", lambda name: events.append(("close", name))
+    )
+    monkeypatch.setattr(module.rclpy, "init", Mock(), raising=False)
+
+    def spin(_):
+        if exit_kind == "external_shutdown":
+            context["ok"] = False
+            raise module.ExternalShutdownException()
+        module.signal.raise_signal(getattr(module.signal, exit_kind))
+
+    def shutdown():
+        assert events[-1] == "destroy"
+        events.append("context_shutdown")
+        context["ok"] = False
+
+    monkeypatch.setattr(module.rclpy, "spin", spin, raising=False)
+    monkeypatch.setattr(module.rclpy, "try_shutdown", shutdown, raising=False)
+    previous = {
+        sig: module.signal.getsignal(sig)
+        for sig in (module.signal.SIGINT, module.signal.SIGTERM)
+    }
+    module.main()
+    was_live = exit_kind != "external_shutdown"
+    assert events == [
+        ("idle", "a", module.MotorState.IDLE, was_live),
+        ("idle", "b", module.MotorState.IDLE, was_live),
+        ("close", "can0"),
+        "destroy",
+        "context_shutdown",
+    ]
+    assert {sig: module.signal.getsignal(sig) for sig in previous} == previous
+    module.rclpy.init.assert_called_once_with(
+        args=None, signal_handler_options=module.SignalHandlerOptions.NO
+    )

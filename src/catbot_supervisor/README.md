@@ -228,6 +228,51 @@ simulation scheduling remain deferred and are not implemented by these APIs.
 
 ## Clickable software e-stop in Foxglove
 
+For homing and policy controls together, import
+[foxglove/operator-controls.json](foxglove/operator-controls.json). It includes:
+
+- **Home robot**: runs local `home_robot`; no policy or Orin supervisor required.
+- **Start / restart policy + arm (paused)**: calls the Pi's `restart_policy`
+  script. It disarms, waits for Orin preflight, starts/restarts the managed policy,
+  verifies readiness/link, holds measured positions and arms. It performs no
+  homing or calibration and requires already calibrated/homed motors. Wait for
+  status `ready` before enabling motion. Acceptance is not completion.
+- **RUN — ENABLE POLICY MOTION**: explicitly enables policy forwarding from READY.
+- **Pause policy motion — hold**: pauses forwarding but keeps motors armed.
+- **E-STOP — DISARM**: aborts and disarms; also requests policy stop.
+- A status/prompt panel and editable confirmation service panel.
+
+Starting policy from Foxglove requires the Orin Supervisor and its normal
+sensing/kinematics providers to be launched and healthy. A bridge-only launch
+supports local homing but does not provide policy services or observations.
+The CPU worker must match the selected training run's configuration before
+using the physical scenario; the button cannot repair a failed provider.
+The Pi `run` service retains all existing readiness/fresh-action checks.
+
+If the physical scenario's worker reports
+`Catbot config must contain exactly the CatbotConfig settings`, stop that launch
+and align the CPU rollout environment to the selected run's recorded training
+revision. From the Orin workspace after sourcing its ROS overlay:
+
+```bash
+/usr/bin/python3 - <<'PY'
+from pathlib import Path
+from catbot_policy.rollout_setup import prepare_rollout
+workspace = Path.cwd()
+prepare_rollout(
+    workspace / "external/catbot_sim_rollout",
+    workspace / "external/Catbot/src/catbot_policy/artifacts/selected",
+)
+PY
+```
+
+Use the actual run directory if launching an explicit run instead of `selected`.
+This existing helper pins/locks/syncs the simulator's `.venv` from the manifest,
+then validates the saved config; it does not modify policy `.venv-cuda`. After it
+succeeds, launch `catbot_launcher physical_orin.launch.py` with the correct
+`workspace` argument to provide the Orin Supervisor and observations. Homing
+alone needs only Foxglove Bridge and does not need this repair.
+
 Import [foxglove/software-estop.json](foxglove/software-estop.json) using
 Foxglove's **Layouts > Import from file**. It provides a red **E-STOP — DISARM**
 button and a supervisor status panel. The layout uses the official Foxglove
@@ -273,6 +318,13 @@ References: [Service Call panel](https://docs.foxglove.dev/docs/visualization/pa
 The JSON was generated against the
 [official SDK layout definitions](https://github.com/foxglove/foxglove-sdk/blob/main/python/foxglove-sdk/python/foxglove/layouts/__init__.py);
 live Foxglove rendering and physical disarm still require target verification.
+
+On Ctrl-C or launch SIGTERM, the Pi supervisor keeps ROS alive for a bounded
+disarm attempt before destroying the node/context. Foundation independently
+requests motor IDLE and closes CAN before shutting down its context. Repeated
+termination signals are ignored during this bounded cleanup; SIGKILL still
+cannot run cleanup. An externally invalidated ROS context is not used for
+supervisor service calls.
 
 ## Robot homing sequence (`home_robot`)
 

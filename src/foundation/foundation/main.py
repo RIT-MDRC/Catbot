@@ -1,6 +1,7 @@
 """Catbot ROS node for sparse, position-controlled body actuation."""
 
 import os
+import signal
 import time
 
 import rclpy
@@ -26,8 +27,10 @@ from component.motor.odrive_enums import (
     MotorState,
     SensorlessError,
 )
+from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy
+from rclpy.signals import SignalHandlerOptions
 from state_management import configure_device
 
 from catbot_interfaces.msg import (
@@ -271,18 +274,33 @@ class BodyControlNode(Node):
 
 def main(args=None):
     """Run the Catbot body-control node."""
-    rclpy.init(args=args)
+    # Keep ROS usable until hardware cleanup finishes, including on launch SIGTERM.
+    rclpy.init(args=args, signal_handler_options=SignalHandlerOptions.NO)
+    handlers = {
+        sig: signal.signal(sig, signal.default_int_handler)
+        for sig in (signal.SIGINT, signal.SIGTERM)
+    }
     node = None
     try:
         node = BodyControlNode()
         rclpy.spin(node)
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
-        if node is not None:
-            node.shutdown_hardware()
-            node.destroy_node()
-        rclpy.shutdown()
+        for sig in handlers:
+            signal.signal(sig, signal.SIG_IGN)
+        try:
+            if node is not None:
+                try:
+                    node.shutdown_hardware()
+                finally:
+                    node.destroy_node()
+        finally:
+            try:
+                rclpy.try_shutdown()
+            finally:
+                for sig, handler in handlers.items():
+                    signal.signal(sig, handler)
 
 
 if __name__ == "__main__":

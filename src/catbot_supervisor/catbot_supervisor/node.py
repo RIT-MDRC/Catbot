@@ -2,13 +2,16 @@
 
 import json
 import math
+import signal
 import time
 from concurrent.futures import Future
 from types import SimpleNamespace
 
 import rclpy
+from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
+from rclpy.signals import SignalHandlerOptions
 from std_msgs.msg import String, UInt64
 from std_srvs.srv import Trigger
 
@@ -592,20 +595,40 @@ class RpiSupervisor(Node):
 
 
 def main(args=None):
-    rclpy.init(args=args)
+    rclpy.init(args=args, signal_handler_options=SignalHandlerOptions.NO)
+    handlers = {
+        sig: signal.signal(sig, signal.default_int_handler)
+        for sig in (signal.SIGINT, signal.SIGTERM)
+    }
     node = None
     try:
         node = RpiSupervisor()
         rclpy.spin(node)
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
-        if node is not None:
-            # Keep ROS alive briefly to dispatch and confirm local IDLE on normal exit.
-            node.enter_emergency("RPi Supervisor exiting")
-            deadline = time.monotonic() + 3.0
-            while rclpy.ok() and node.runner.active and time.monotonic() < deadline:
-                rclpy.spin_once(node, timeout_sec=0.02)
-            node.destroy_node()
-        if rclpy.ok():
-            rclpy.shutdown()
+        for sig in handlers:
+            signal.signal(sig, signal.SIG_IGN)
+        try:
+            if node is not None:
+                try:
+                    # No ROS calls if another owner already shut down the context.
+                    if rclpy.ok():
+                        node.enter_emergency("RPi Supervisor exiting")
+                        deadline = time.monotonic() + 3.0
+                        while (
+                            rclpy.ok()
+                            and node.runner.active
+                            and time.monotonic() < deadline
+                        ):
+                            rclpy.spin_once(node, timeout_sec=0.02)
+                except ExternalShutdownException:
+                    pass
+                finally:
+                    node.destroy_node()
+        finally:
+            try:
+                rclpy.try_shutdown()
+            finally:
+                for sig, handler in handlers.items():
+                    signal.signal(sig, handler)

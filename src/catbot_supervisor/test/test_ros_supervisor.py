@@ -468,3 +468,72 @@ def test_local_homing_without_orin_or_policy():
             if node is not None:
                 node.destroy_node()
         rclpy.shutdown()
+
+
+@pytest.mark.ros
+@pytest.mark.parametrize("signal_name", ["SIGINT", "SIGTERM"])
+def test_pi_process_keeps_ros_live_for_signal_cleanup(tmp_path, signal_name):
+    import signal
+    import subprocess
+    import sys
+
+    ready = tmp_path / "ready"
+    events = tmp_path / "events"
+    code = r"""
+import sys
+from pathlib import Path
+from types import SimpleNamespace
+import rclpy
+from rclpy.node import Node
+import catbot_supervisor.node as target
+ready, events = map(Path, sys.argv[1:])
+def record(value):
+    with events.open('a') as stream:
+        stream.write(value + '\n')
+class Fake(Node):
+    def __init__(self):
+        super().__init__('shutdown_test_pi')
+        self.runner = SimpleNamespace(active=True)
+        self.create_timer(.02, self.tick)
+    def tick(self):
+        ready.touch()
+        if events.exists():
+            self.runner.active = False
+    def enter_emergency(self, reason):
+        assert rclpy.ok(), 'ROS shut down before emergency cleanup'
+        record('emergency')
+    def destroy_node(self):
+        assert rclpy.ok(), 'ROS shut down before node destruction'
+        record('destroy')
+        return super().destroy_node()
+target.RpiSupervisor = Fake
+target.main()
+assert not rclpy.ok()
+record('context_shutdown')
+"""
+    child = subprocess.Popen(
+        [sys.executable, "-c", code, str(ready), str(events)],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        deadline = time.monotonic() + 15
+        while (
+            not ready.exists() and child.poll() is None and time.monotonic() < deadline
+        ):
+            time.sleep(0.02)
+        assert ready.exists(), "Child did not start spinning"
+        child.send_signal(getattr(signal, signal_name))
+        stdout, stderr = child.communicate(timeout=10)
+        assert child.returncode == 0, stdout + stderr
+        assert events.read_text().splitlines() == [
+            "emergency",
+            "destroy",
+            "context_shutdown",
+        ]
+        assert "Traceback" not in stderr
+    finally:
+        if child.poll() is None:
+            child.kill()
+            child.communicate()
