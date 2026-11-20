@@ -42,7 +42,7 @@ jobs:
         shell: bash
         run: |
           source /opt/ros/humble/setup.bash
-          colcon build --base-paths src/catbot_interfaces src/catbot_policy src/foundation src/catbot_supervisor --cmake-args -DBUILD_TESTING=OFF
+          colcon build --base-paths src --cmake-args -DBUILD_TESTING=OFF
       - name: ROS integration tests (required, no import skips)
         shell: bash
         env:

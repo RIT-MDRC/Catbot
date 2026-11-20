@@ -23,6 +23,11 @@ catbot setup
 For development from the current checkout, use `catbot setup -D` and pass `-D`
 to later commands.
 
+On the Pi, setup builds every ROS package under `src/`, including interfaces,
+Foundation, policy, supervisor and UI, into `~/.local/share/catbot/ros/install`.
+For direct `ros2` commands, source `/opt/ros/humble/setup.bash` and that install's
+`setup.bash`. See [CLI setup](cli/README.md) for the XDG path override.
+
 ### Local macOS ROS IntelliSense
 
 For editor completion and basic type checking without opening the ROS dev

@@ -16,8 +16,21 @@ On an Ubuntu 22.04 Raspberry Pi with ROS Humble, `catbot setup` creates
 `~/.local/share/catbot/.venv` from `/usr/bin/python3` so the apt-installed ROS
 Python bindings remain ABI compatible. On macOS it uses uv-managed Python 3.10.
 The command is safe to rerun after dependency updates.
-On the Pi, setup also builds the `catbot_interfaces` ROS message package.
+On the Pi, setup also builds every ROS package discovered under the selected
+Catbot project's `src/` directory, in dependency order. This includes
+`catbot_interfaces`, `foundation`, `catbot_policy`, `catbot_supervisor`, and `ui`;
+new packages under `src/` are picked up automatically. Build/install/log output
+stays under `~/.local/share/catbot/ros` (or `$XDG_DATA_HOME/catbot/ros`).
 Use `catbot setup --reset` only when the environment itself must be recreated.
+
+For direct ROS commands after setup, source the CLI-managed overlay in that
+terminal:
+
+```bash
+source /opt/ros/humble/setup.bash
+source "${XDG_DATA_HOME:-$HOME/.local/share}/catbot/ros/install/setup.bash"
+ros2 pkg prefix catbot_supervisor
+```
 
 Use `-D` or `--dev` with any command to run the current checkout rather than
 the globally installed package:
@@ -34,9 +47,9 @@ Start the ROS foundation node:
 catbot start
 ```
 
-On the Pi, `catbot start` sources ROS Humble and the user-local generated
-interfaces so the custom body-control messages are available. If the interface
-package has not been built, rerun `catbot setup`.
+On the Pi, `catbot start` sources ROS Humble and the user-local ROS overlay so
+the generated messages and built packages are available. If the packages have
+not been built, rerun `catbot setup`.
 
 Run a sample:
 
