@@ -107,12 +107,19 @@ class BodyControlNode(Node):
         self.create_timer(STATE_CHECK_PERIOD_SECONDS, self._update_error_state)
 
     def _ready_motor_names(self, *, allow_idle=False) -> set[str]:
-        now = time.monotonic()
-        return {
-            name
-            for name in self.ordered_motor_names
-            for motor in (motor_actions.get_state_snapshot(name),)
-            if heartbeat_available(motor, now, HEARTBEAT_STALE_SECONDS)
+        ready = set()
+        for name in self.ordered_motor_names:
+            motor = motor_actions.get_state_snapshot(name)
+            # CAN updates run on another thread. Read the clock after capturing
+            # state so a newly received estimate cannot appear to be in the future.
+            now = time.monotonic()
+            if self._motor_ready(name, motor, now, allow_idle=allow_idle):
+                ready.add(name)
+        return ready
+
+    def _motor_ready(self, name, motor, now, *, allow_idle=False) -> bool:
+        return (
+            heartbeat_available(motor, now, HEARTBEAT_STALE_SECONDS)
             and motor.current_state
             in (
                 (MotorState.IDLE, MotorState.CLOSED_LOOP_CONTROL)
@@ -121,8 +128,8 @@ class BodyControlNode(Node):
             )
             and not motor_actions.has_fault(motor)
             and encoder_available(motor, now, ENCODER_STALE_SECONDS)
-            and kinematic_values(name, now, ENCODER_STALE_SECONDS)[0]
-        }
+            and kinematic_values(name, now, ENCODER_STALE_SECONDS, motor_state=motor)[0]
+        )
 
     def _motor_command(self, request, response):
         names = list(request.actuator_names) or self.ordered_motor_names
@@ -241,14 +248,14 @@ class BodyControlNode(Node):
         return response
 
     def _publish_position_state(self) -> None:
-        now = time.monotonic()
         message = BodyKinematicState()
         message.stamp = self.get_clock().now().to_msg()
         invalid_kinematics = set()
         for name in self.ordered_motor_names:
             motor = motor_actions.get_state_snapshot(name)
+            now = time.monotonic()
             valid, position, velocity = kinematic_values(
-                name, now, ENCODER_STALE_SECONDS
+                name, now, ENCODER_STALE_SECONDS, motor_state=motor
             )
             if not valid and encoder_available(motor, now, ENCODER_STALE_SECONDS):
                 invalid_kinematics.add(name)
@@ -270,18 +277,13 @@ class BodyControlNode(Node):
         self.position_state_publisher.publish(message)
 
     def _update_error_state(self) -> None:
-        now = time.monotonic()
         message = BodyErrorState()
         message.stamp = self.get_clock().now().to_msg()
-        ready_names = self._ready_motor_names()
         for name in self.ordered_motor_names:
             motor = motor_actions.get_state_snapshot(name)
+            now = time.monotonic()
             heartbeat_ok = heartbeat_available(motor, now, HEARTBEAT_STALE_SECONDS)
-            ready = (
-                heartbeat_ok
-                and name in ready_names
-                and motor.current_state == MotorState.CLOSED_LOOP_CONTROL
-            )
+            ready = self._motor_ready(name, motor, now)
             axis_messages = flag_messages(motor.axis_error, AxisError)
             motor_messages = flag_messages(motor.motor_error, MotorError)
             encoder_messages = flag_messages(motor.encoder_error, EncoderError)
