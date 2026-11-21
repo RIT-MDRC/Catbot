@@ -62,6 +62,7 @@ class BodyControlNode(Node):
         self.emergency_disarm = False
         self.ordered_motor_names = actuator_names_by_axis_id(self.actuator_names)
         self.last_error_request_times = {}
+        self.invalid_kinematics = set()
 
         position_qos = QoSProfile(
             history=HistoryPolicy.KEEP_LAST,
@@ -120,6 +121,7 @@ class BodyControlNode(Node):
             )
             and not motor_actions.has_fault(motor)
             and encoder_available(motor, now, ENCODER_STALE_SECONDS)
+            and kinematic_values(name, now, ENCODER_STALE_SECONDS)[0]
         }
 
     def _motor_command(self, request, response):
@@ -242,11 +244,21 @@ class BodyControlNode(Node):
         now = time.monotonic()
         message = BodyKinematicState()
         message.stamp = self.get_clock().now().to_msg()
+        invalid_kinematics = set()
         for name in self.ordered_motor_names:
             motor = motor_actions.get_state_snapshot(name)
             valid, position, velocity = kinematic_values(
                 name, now, ENCODER_STALE_SECONDS
             )
+            if not valid and encoder_available(motor, now, ENCODER_STALE_SECONDS):
+                invalid_kinematics.add(name)
+                if name not in self.invalid_kinematics:
+                    self.get_logger().error(
+                        f'Actuator "{name}" encoder feedback cannot be converted '
+                        f"to logical coordinates: position={motor.current_position} "
+                        f"motor turns, velocity={motor.current_velocity} turns/s; "
+                        "publishing invalid feedback. Check encoder zero and motion profile."
+                    )
             actuator = ActuatorKinematicState()
             actuator.actuator_name = name
             actuator.axis_id = motor.axis_id
@@ -254,6 +266,7 @@ class BodyControlNode(Node):
             actuator.position_degrees = position
             actuator.velocity_degrees_per_second = velocity
             message.actuators.append(actuator)
+        self.invalid_kinematics = invalid_kinematics
         self.position_state_publisher.publish(message)
 
     def _update_error_state(self) -> None:

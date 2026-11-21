@@ -30,15 +30,20 @@ def kinematic_values(actuator, now: float, stale_seconds: float) -> tuple:
         or not encoder_available(motor, now, stale_seconds)
     ):
         return False, math.nan, math.nan
-    return (
-        True,
-        actuator_actions.motor_turns_to_position(actuator, position),
-        actuator_actions.motor_turns_to_velocity(
+    try:
+        logical_position = actuator_actions.motor_turns_to_position(actuator, position)
+        logical_velocity = actuator_actions.motor_turns_to_velocity(
             actuator,
             velocity,
             position_motor_turns=position,
-        ),
-    )
+        )
+    except ValueError:
+        # Raw feedback can remain fresh while its configured linkage cannot
+        # represent it, for example before a correct encoder zero is restored.
+        return False, math.nan, math.nan
+    if not all(math.isfinite(v) for v in (logical_position, logical_velocity)):
+        return False, math.nan, math.nan
+    return True, logical_position, logical_velocity
 
 
 def heartbeat_available(motor, now: float, stale_seconds: float) -> bool:

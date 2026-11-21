@@ -50,6 +50,7 @@ def body_io(monkeypatch):
     spec.loader.exec_module(module)
     snapshots = {
         name: SimpleNamespace(
+            axis_id=axis_id,
             current_state=module.MotorState.IDLE,
             axis_error=0,
             last_heartbeat_time=10.0,
@@ -57,7 +58,7 @@ def body_io(monkeypatch):
             current_velocity=0.0,
             last_encoder_estimate_time=10.0,
         )
-        for name in ("a", "b")
+        for axis_id, name in enumerate(("a", "b"))
     }
     monkeypatch.setattr(module.time, "monotonic", lambda: 10.1)
     monkeypatch.setattr(module, "HEARTBEAT_STALE_SECONDS", 0.4)
@@ -78,11 +79,14 @@ def body_io(monkeypatch):
         ordered_motor_names=["a", "b"],
         motion_inhibited=False,
         emergency_disarm=False,
+        invalid_kinematics=set(),
     )
     node._ready_motor_names = lambda **kwargs: (
         module.BodyControlNode._ready_motor_names(node, **kwargs)
     )
-    node.get_logger = lambda: SimpleNamespace(error=Mock())
+    logger = SimpleNamespace(error=Mock())
+    node.get_logger = lambda: logger
+    monkeypatch.setattr(module, "kinematic_values", Mock(return_value=(True, 0.0, 0.0)))
     monkeypatch.setattr(
         module.actuator_actions, "validate_target_position", Mock(return_value=0.0)
     )
@@ -90,6 +94,58 @@ def body_io(monkeypatch):
         module.actuator_actions, "set_target_position", Mock(return_value=True)
     )
     return module, node, snapshots
+
+
+def test_unconvertible_feedback_blocks_position_control_without_motor_writes(body_io):
+    module, node, snapshots = body_io
+    for motor in snapshots.values():
+        motor.current_state = module.MotorState.CLOSED_LOOP_CONTROL
+    module.kinematic_values.side_effect = lambda name, *_: (
+        (False, float("nan"), float("nan")) if name == "b" else (True, 0.0, 0.0)
+    )
+    assert node._ready_motor_names() == {"a"}
+    module.BodyControlNode._position_callback(
+        node, SimpleNamespace(actuator_names=["b"], positions_degrees=[0.0])
+    )
+    module.actuator_actions.set_target_position.assert_not_called()
+    module.motor_actions.set_axis_state.assert_not_called()
+
+
+def test_position_publisher_keeps_roster_and_logs_conversion_failure_once(
+    body_io, monkeypatch
+):
+    import math
+
+    module, node, _ = body_io
+    monkeypatch.setattr(
+        module, "BodyKinematicState", lambda: SimpleNamespace(actuators=[])
+    )
+    monkeypatch.setattr(module, "ActuatorKinematicState", SimpleNamespace)
+    node.get_clock = lambda: SimpleNamespace(
+        now=lambda: SimpleNamespace(to_msg=lambda: "stamp")
+    )
+    node.position_state_publisher = Mock()
+    module.kinematic_values.side_effect = lambda name, *_: (
+        (False, math.nan, math.nan) if name == "b" else (True, 12.0, 3.0)
+    )
+    for _ in range(2):
+        module.BodyControlNode._publish_position_state(node)
+    message = node.position_state_publisher.publish.call_args.args[0]
+    assert [a.actuator_name for a in message.actuators] == ["a", "b"]
+    assert message.actuators[0].valid and message.actuators[0].position_degrees == 12.0
+    assert not message.actuators[1].valid and math.isnan(
+        message.actuators[1].position_degrees
+    )
+    assert math.isnan(message.actuators[1].velocity_degrees_per_second)
+    node.get_logger().error.assert_called_once()
+    assert '"b"' in node.get_logger().error.call_args.args[0]
+    module.kinematic_values.side_effect = None
+    module.kinematic_values.return_value = (True, 0.0, 0.0)
+    module.BodyControlNode._publish_position_state(node)
+    assert all(
+        a.valid
+        for a in node.position_state_publisher.publish.call_args.args[0].actuators
+    )
 
 
 def command(body_io, operation, names=(), state=0):
