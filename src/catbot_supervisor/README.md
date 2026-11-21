@@ -319,6 +319,10 @@ if any actuator is still homing. Pi health, fresh complete Foundation feedback,
 and all reported fault fields remain checked during the sequence and operator
 pause. Actuator faults preempt into latched emergency while healthy closed-loop
 axes hold; active homing/calibration axes receive IDLE. Timeouts IDLE all axes.
+Actuator fault, missing-heartbeat, and not-ready errors include the reported
+axis state, heartbeat availability, and all five raw fault masks with Foundation's
+decoded flag names. Zero masks show `[NONE]`; a nonzero mask with no decoded names
+shows `[UNDECODED]`. These details also appear in the supervisor status reason.
 Motor commands are sent over CAN individually within a batch; their controller
 operations overlap rather than being serialized by per-axis completion waits.
 

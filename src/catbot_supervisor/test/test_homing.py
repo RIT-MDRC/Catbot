@@ -1,7 +1,13 @@
 from types import SimpleNamespace
 
 import pytest
-from catbot_supervisor.homing import ERROR_FIELDS, StateCycle, at_position, fault_reason
+from catbot_supervisor.homing import (
+    ERROR_FIELDS,
+    StateCycle,
+    at_position,
+    fault_reason,
+    readiness_reason,
+)
 from catbot_supervisor.scripts import Step, calibrate_robot, home_robot, registry
 
 NAMES = tuple(
@@ -34,6 +40,50 @@ def test_missing_axis_or_heartbeat_blocks_homing():
     assert "flk" in fault_reason(body, NAMES)
     del body["flk"]
     assert fault_reason(body, NAMES)
+
+
+def test_readiness_error_reports_each_unready_axis_and_zero_fault_masks():
+    body = healthy()
+    for state in body.values():
+        state.ready = True
+    assert readiness_reason(body) == ""
+    for name in ("brk", "flf"):
+        body[name].ready = False
+    body["flf"].axis_state = 8
+    reason = readiness_reason(body)
+    assert reason.startswith("Foundation actuator not ready: ")
+    assert "brk (axis_state=1, heartbeat_available=True" in reason
+    assert "flf (axis_state=8, heartbeat_available=True" in reason
+    assert "fla (" not in reason
+    for field in ERROR_FIELDS:
+        assert f"{field}=0 [NONE]" in reason
+
+
+def test_fault_error_includes_all_reported_decoded_masks_not_just_first_fault():
+    body = healthy()
+    state = body["brk"]
+    state.axis_error_flags = 576
+    state.axis_error_messages = ["MOTOR_FAILED", "CONTROLLER_FAILED"]
+    state.motor_error_flags = 2
+    state.motor_error_messages = ["PHASE_INDUCTANCE_OUT_OF_RANGE"]
+    state.controller_error_flags = 32
+    state.controller_error_messages = ["INVALID_ESTIMATE"]
+    reason = fault_reason(body, NAMES)
+    assert "brk" in reason
+    assert "axis_error_flags=576 [MOTOR_FAILED, CONTROLLER_FAILED]" in reason
+    assert "motor_error_flags=2 [PHASE_INDUCTANCE_OUT_OF_RANGE]" in reason
+    assert "controller_error_flags=32 [INVALID_ESTIMATE]" in reason
+
+
+def test_undecoded_and_unknown_fault_bits_are_preserved_in_readiness_error():
+    state = healthy()["brk"]
+    state.ready = False
+    state.motor_error_flags = 1 << 50
+    state.axis_error_flags = 1 << 60
+    state.axis_error_messages = ["UNKNOWN_BITS_0x1000000000000000"]
+    reason = readiness_reason({"brk": state})
+    assert f"motor_error_flags={1 << 50} [UNDECODED]" in reason
+    assert f"axis_error_flags={1 << 60} [UNKNOWN_BITS_0x1000000000000000]" in reason
 
 
 @pytest.mark.parametrize(

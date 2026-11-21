@@ -515,6 +515,10 @@ def test_local_homing_without_orin_or_policy():
 
         until(lambda: pi.gate.mode == Mode.IDLE and pi.body_fresh())
         # An explicit script move can start from idle without separate arm steps.
+        reason = pi.local_reason()
+        assert reason.startswith("Foundation actuator not ready: ")
+        assert "brk (axis_state=1, heartbeat_available=True" in reason
+        assert "motor_error_flags=0 [NONE]" in reason
         pi.scripts["move_check"] = lambda names: [
             Step("position", names=("flf",), positions=(12.0,)),
             Step("wait_position", names=("flf",), positions=(12.0,)),
@@ -605,6 +609,8 @@ def test_local_homing_without_orin_or_policy():
         assert states["bra"] == 1
         assert all(states[n] == 8 for n in names if n != "bra")
         assert "bra" in pi.gate.reason
+        assert "controller_error_flags=256 [UNDECODED]" in pi.gate.reason
+        assert "motor_error_flags=0 [NONE]" in pi.gate.reason
         assert not pi.recover(Trigger.Request(), Trigger.Response()).success
         faults["bra"] = 0
         until(lambda: pi.body["bra"].controller_error_flags == 0)

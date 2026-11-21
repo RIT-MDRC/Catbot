@@ -11,18 +11,45 @@ ERROR_FIELDS = (
 )
 
 
+def actuator_details(state):
+    """Keep the raw masks and Foundation's decoded flags in supervisor errors."""
+    details = [
+        f"axis_state={state.axis_state}",
+        f"heartbeat_available={state.heartbeat_available}",
+    ]
+    for field in ERROR_FIELDS:
+        value = getattr(state, field)
+        messages = getattr(state, field.replace("_flags", "_messages"), ())
+        labels = (messages or ("UNDECODED",)) if value else ("NONE",)
+        details.append(f"{field}={value} [{', '.join(labels)}]")
+    return ", ".join(details)
+
+
+def readiness_reason(body):
+    unavailable = [
+        f"{name} ({actuator_details(state)})"
+        for name, state in body.items()
+        if not state.ready
+    ]
+    return (
+        "Foundation actuator not ready: " + "; ".join(unavailable)
+        if unavailable
+        else ""
+    )
+
+
 def fault_reason(body, names):
     if set(body) != set(names):
         return "Foundation requires the complete actuator state roster"
     for name in names:
         state = body[name]
         if not state.heartbeat_available:
-            return f"Foundation actuator heartbeat unavailable: {name}"
-        for field in ERROR_FIELDS:
-            if getattr(state, field):
-                return (
-                    f"Foundation actuator fault: {name} {field}={getattr(state, field)}"
-                )
+            return (
+                f"Foundation actuator heartbeat unavailable: {name} "
+                f"({actuator_details(state)})"
+            )
+        if any(getattr(state, field) for field in ERROR_FIELDS):
+            return f"Foundation actuator fault: {name} ({actuator_details(state)})"
     return ""
 
 

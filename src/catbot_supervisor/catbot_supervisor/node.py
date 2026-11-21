@@ -28,7 +28,12 @@ from catbot_interfaces.msg import (
 from catbot_interfaces.srv import MotorCommand, RunScript, SupervisorJob
 from catbot_supervisor.core import ActionGate, Limits, Mode
 from catbot_supervisor.health import PiHealth, health_reason
-from catbot_supervisor.homing import StateCycle, at_position, fault_reason
+from catbot_supervisor.homing import (
+    StateCycle,
+    at_position,
+    fault_reason,
+    readiness_reason,
+)
 from catbot_supervisor.scripts import ScriptRunner, Step, registry
 
 
@@ -443,12 +448,7 @@ class RpiSupervisor(Node):
         reason = fault_reason(self.body, self.names)
         if reason:
             return reason
-        unavailable = [name for name, a in self.body.items() if not a.ready]
-        return (
-            "Foundation actuator not ready: " + ", ".join(unavailable)
-            if unavailable
-            else ""
-        )
+        return readiness_reason(self.body)
 
     def enter_local_emergency(self, reason):
         self.enter_emergency(reason, hold_healthy=not self.system_reason())
