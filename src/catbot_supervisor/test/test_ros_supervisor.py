@@ -472,12 +472,14 @@ def test_local_homing_without_orin_or_policy():
         pi.scripts["move_check"] = lambda names: [
             Step("position", names=("flf",), positions=(12.0,)),
             Step("wait_position", names=("flf",), positions=(12.0,)),
+            Step("wait_operator", "Move complete; keep the remaining axes idle"),
         ]
         assert pi.run_script(
             RunScript.Request(name="move_check"), RunScript.Response()
         ).success
-        until(lambda: pi.gate.mode == Mode.HOLDING)
+        until(lambda: pi.runner.prompt is not None)
         assert positions["flf"] == 12.0 and states["flf"] == 8
+        assert all(states[name] == 1 for name in names if name != "flf")
         assert not any(op == "state" and state == 8 for op, state, ns in operations)
         pi.emergency(Trigger.Request(), Trigger.Response())
         until(lambda: not pi.runner.active and all(s == 1 for s in states.values()))
