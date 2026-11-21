@@ -294,20 +294,24 @@ for the same robot sequence. It does not start policy or enable forwarding:
    in one batch, without waiting on individual motors. Track each actuator's
    calibration substates and require every actuator to return to fault-free IDLE
    before continuing (60-second timeout).
-3. Home all knees and flexion/extension actuators together:
+3. Request closed loop for all four abduction/adduction actuators:
+   `fla, fra, bla, bra`, confirming readiness for each. They hold while the
+   following homing stages run, until their own homing stage is requested.
+4. Home all knees and flexion/extension actuators together:
    `flk, frk, blk, brk, flf, frf, blf, brf`. Wait for all eight to finish homing
    and return to IDLE, then request closed loop for
    each member, confirming closed-loop readiness before continuing.
-4. Repeat that homing/completion/arming barrier for `bla, bra`.
-5. Command the already armed `flf, frf` to absolute logical **+30 degrees** and
+5. Repeat that homing/completion/arming barrier for `bla, bra`.
+6. Command the already armed `flf, frf` to absolute logical **+30 degrees** and
    wait for valid, settled measured feedback (15-second timeout).
-6. Pause for the operator's clearance confirmation. Use the current prompt ID
+7. Pause for the operator's clearance confirmation. Use the current prompt ID
    from `/rpi/supervisor/status` with the layout's confirmation control. No front
    abduction homing is issued before that confirmation (120-second timeout).
-7. Home `fla, fra` together, wait until both have finished and returned to IDLE,
+8. Home `fla, fra` together, wait until both have finished and returned to IDLE,
    then arm/confirm them as above.
-8. Move `flf, frf` together back to **0 degrees** and wait for valid, settled
-   feedback (15-second timeout). Finish in local `holding`, with forwarding off.
+9. Move **all 12 actuators** together to absolute logical **0 degrees** and wait
+   for valid, settled feedback from every actuator (15-second timeout). Finish
+   in local `holding`, with forwarding off.
 
 Each homing group has a 30-second completion timeout. Faster axes cannot advance
 the group barrier; each must be observed active and then IDLE. Arming is rejected

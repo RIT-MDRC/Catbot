@@ -381,11 +381,12 @@ def test_local_homing_without_orin_or_policy():
         body = Node("local_homing_test_body", use_global_arguments=False)
         states, positions, faults = (
             dict.fromkeys(names, 1),
-            dict.fromkeys(names, 0.0),
+            dict.fromkeys(names, 7.0),
             dict.fromkeys(names, 0),
         )
         operations, completing = [], {}
         calibrating = set()
+        zero_moves = []
         state_pub = body.create_publisher(
             BodyErrorState,
             "/body/state/error",
@@ -403,9 +404,21 @@ def test_local_homing_without_orin_or_policy():
                 (request.operation, request.state, list(request.actuator_names))
             )
             if request.operation == "state" and request.state == 8:
+                assert not calibrating, "Arming before every axis finished calibration"
                 assert all(state != 11 for state in states.values()), (
                     "Arming before the complete homing group finished"
                 )
+            if (
+                request.operation == "state"
+                and request.state == 11
+                and any(op == "state" and state == 3 for op, state, _ in operations)
+                and not any(
+                    op == "state" and state == 11 for op, state, _ in operations[:-1]
+                )
+            ):
+                assert all(
+                    states[name] == 8 for name in ("fla", "fra", "bla", "bra")
+                ), "Abduction axes must be armed after calibration and before homing"
             for index, name in enumerate(request.actuator_names or names):
                 if request.operation in ("idle", "emergency"):
                     states[name] = 1
@@ -427,11 +440,16 @@ def test_local_homing_without_orin_or_policy():
         body.create_service(MotorCommand, "/body/control/motor", motor)
 
         def explicit_move(msg):
-            if list(msg.positions_degrees) == [0.0, 0.0]:
-                assert all(states[name] == 8 for name in ("fla", "fra")), (
-                    "Front flexion returned before front abduction was homed and armed"
-                )
-            positions.update(zip(msg.actuator_names, msg.positions_degrees))
+            targets = dict(zip(msg.actuator_names, msg.positions_degrees))
+            if targets == dict.fromkeys(names, 0.0):
+                assert all(state == 8 for state in states.values())
+                assert [
+                    ns for op, state, ns in operations if op == "state" and state == 11
+                ][-1] == ["fla", "fra"]
+                zero_moves.append(dict(targets))
+                # One joint has not reached its target: holding must wait for it.
+                targets.pop(names[-1])
+            positions.update(targets)
             for name in msg.actuator_names:
                 states[name] = 8
 
@@ -556,20 +574,29 @@ def test_local_homing_without_orin_or_policy():
             ["bla", "bra"],
         ]
         assert positions["flf"] == positions["frf"] == 30.0
-        assert states["fla"] == states["fra"] == 1
-        assert all(states[name] == 8 for name in names if name not in ("fla", "fra"))
+        assert all(state == 8 for state in states.values())
+        assert positions["flk"] == positions["brk"] == 7.0
         for _ in range(10):
             executor.spin_once(timeout_sec=0.01)
-        assert states["fla"] == states["fra"] == 1  # Confirmation remains necessary.
+        assert not any(
+            op == "state" and state == 11 and ns == ["fla", "fra"]
+            for op, state, ns in operations
+        )  # Confirmation remains necessary even though these axes are holding.
         assert pi.respond(
             RunScript.Request(name=pi.runner.prompt["id"]), RunScript.Response()
         ).success
+        until(lambda: bool(zero_moves))
+        assert zero_moves == [dict.fromkeys(names, 0.0)]
+        for _ in range(20):
+            executor.spin_once(timeout_sec=0.01)
+        assert pi.runner.active and pi.gate.mode != Mode.HOLDING
+        positions[names[-1]] = 0.0
         until(lambda: pi.gate.mode == Mode.HOLDING)
         assert [ns for op, state, ns in operations if op == "state" and state == 11][
             -1
         ] == ["fla", "fra"]
         assert all(state == 8 for state in states.values())
-        assert positions["flf"] == positions["frf"] == 0.0
+        assert all(position == 0.0 for position in positions.values())
         assert not pi.jobs.service_is_ready()
         # A single actuator fault holds every other healthy axis, with no peer.
         faults["bra"] = 256

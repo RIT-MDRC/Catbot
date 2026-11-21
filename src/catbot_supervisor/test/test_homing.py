@@ -93,6 +93,16 @@ def test_robot_calibration_batches_full_calibration_and_orders_homing_with_group
         ("fla", "fra"),
     ]
     assert [s.names for s in steps if s.kind == "motor" and s.state == 11] == groups
+    calibration_barrier = next(
+        i for i, s in enumerate(steps) if s.kind == "wait_cycle" and s.state == 3
+    )
+    first_home = next(i for i, s in enumerate(steps) if s.state == 11)
+    early_arms = steps[calibration_barrier + 1 : first_home]
+    assert [(s.kind, s.names, s.state) for s in early_arms] == [
+        item
+        for name in ("fla", "fra", "bla", "bra")
+        for item in (("motor", (name,), 8), ("wait_ready", (name,), 0))
+    ]
     for group in groups:
         start = next(
             i
@@ -104,7 +114,10 @@ def test_robot_calibration_batches_full_calibration_and_orders_homing_with_group
             arm = next(
                 i
                 for i, s in enumerate(steps)
-                if s.kind == "motor" and s.state == 8 and s.names == (name,)
+                if i > start
+                and s.kind == "motor"
+                and s.state == 8
+                and s.names == (name,)
             )
             assert arm > start + 1
     move = next(i for i, s in enumerate(steps) if s.kind == "position")
@@ -117,14 +130,14 @@ def test_robot_calibration_batches_full_calibration_and_orders_homing_with_group
     ]
     assert steps[move + 3].names == ("fla", "fra")
     assert steps[-2:] == [
-        Step("position", names=("flf", "frf"), positions=(0.0, 0.0)),
-        Step("wait_position", names=("flf", "frf"), positions=(0.0, 0.0), timeout=15.0),
+        Step("position", names=NAMES, positions=(0.0,) * len(NAMES)),
+        Step("wait_position", names=NAMES, positions=(0.0,) * len(NAMES), timeout=15.0),
     ]
     assert (
         next(
             i
             for i, s in enumerate(steps)
-            if s.kind == "wait_ready" and s.names == ("fra",)
+            if i > first_home and s.kind == "wait_ready" and s.names == ("fra",)
         )
         < len(steps) - 2
     )

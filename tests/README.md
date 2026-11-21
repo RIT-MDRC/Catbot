@@ -54,10 +54,12 @@ this does not establish physical motor behavior or measured Pi CPU headroom.
 
 The local calibration ROS test requests full calibration as one batch, simulates
 different per-axis completion times and calibration substates, and checks that
-no arming request occurs while any actuator remains in homing. It checks the
-ordered homing groups, settled +30-degree front-flexion move, required operator
-confirmation before front-abduction homing, the settled return of front flexion
-to zero after front-abduction arming, and final holding without policy.
+no arming request occurs while any actuator remains in calibration or homing.
+It checks all four abduction/adduction axes are armed before the first homing
+group, the ordered homing groups, settled +30-degree front-flexion move,
+required operator confirmation before front-abduction homing, the final move of
+all 12 actuators to zero, and final holding without policy. Completion waits for
+settled measured feedback from every actuator, including a delayed final joint.
 Both real-adapter ROS tests reject trajectory/hold commands from the supervisor
 to verify that arming requests only closed loop and preserves existing controller
 configuration and targets. The explicit +30-degree position command is retained.
