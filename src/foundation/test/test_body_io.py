@@ -69,6 +69,7 @@ def body_io(monkeypatch):
         (module.motor_actions, "set_axis_state"),
         (module.motor_actions, "clear_error_message"),
         (module.motor_actions, "hold_current_position"),
+        (module.motor_actions, "hold_after_fault"),
         (module.actuator_actions, "configure_trajectory"),
     ):
         monkeypatch.setattr(owner, name, Mock(return_value=True))
@@ -76,6 +77,7 @@ def body_io(monkeypatch):
         actuator_names=("a", "b"),
         ordered_motor_names=["a", "b"],
         motion_inhibited=False,
+        emergency_disarm=False,
     )
     node._ready_motor_names = lambda **kwargs: (
         module.BodyControlNode._ready_motor_names(node, **kwargs)
@@ -253,14 +255,102 @@ def test_emergency_latch_blocks_queued_moves_and_arm_until_idle_recovery(body_io
     module.actuator_actions.set_target_position.assert_called_once()
 
 
-def test_partial_emergency_or_recovery_cannot_change_the_global_latch(body_io):
+@pytest.mark.parametrize("operation", ["emergency", "fault_stop", "recover"])
+def test_partial_emergency_or_recovery_cannot_change_the_global_latch(
+    body_io, operation
+):
     module, node, _ = body_io
-    assert not command(body_io, "emergency", names=["a"]).success
+    assert not command(body_io, operation, names=["a"]).success
     assert not node.motion_inhibited
     node.motion_inhibited = True
     assert not command(body_io, "recover", names=["a"]).success
     assert node.motion_inhibited
     module.motor_actions.set_axis_state.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "problem", ["fault", "heartbeat", "encoder", "homing", "calibrating"]
+)
+def test_actuator_fault_stop_preserves_healthy_closed_loop_and_blocks_motion(
+    body_io, problem
+):
+    module, node, states = body_io
+    for motor in states.values():
+        motor.current_state = module.MotorState.CLOSED_LOOP_CONTROL
+    if problem == "fault":
+        states["b"].encoder_error = 256
+    elif problem == "heartbeat":
+        states["b"].last_heartbeat_time = 0.0
+    elif problem == "encoder":
+        states["b"].last_encoder_estimate_time = 0.0
+    else:
+        states["b"].current_state = (
+            module.MotorState.HOMING
+            if problem == "homing"
+            else module.MotorState.FULL_CALIBRATION_SEQUENCE
+        )
+    assert command(body_io, "fault_stop").success
+    assert node.motion_inhibited
+    module.motor_actions.hold_after_fault.assert_called_once_with("a")
+    module.motor_actions.set_axis_state.assert_called_once_with(
+        "b", module.MotorState.IDLE
+    )
+    assert not command(body_io, "state", ["a"], 8).success
+    module.BodyControlNode._position_callback(
+        node,
+        SimpleNamespace(actuator_names=["a"], positions_degrees=[10.0]),
+        auto_arm=True,
+    )
+    module.actuator_actions.set_target_position.assert_not_called()
+
+
+def test_fault_recovery_keeps_healthy_axes_armed_and_requires_fault_clear(body_io):
+    module, node, states = body_io
+    states["a"].current_state = module.MotorState.CLOSED_LOOP_CONTROL
+    states["b"].encoder_error = 256
+    assert command(body_io, "fault_stop").success
+    assert not command(body_io, "recover").success
+    assert node.motion_inhibited
+    states["b"].encoder_error = 0
+    module.motor_actions.set_axis_state.reset_mock()
+    module.motor_actions.hold_after_fault.reset_mock()
+    assert command(body_io, "recover").success
+    assert not node.motion_inhibited
+    module.motor_actions.set_axis_state.assert_not_called()
+    module.motor_actions.hold_after_fault.assert_not_called()
+
+
+def test_failed_hold_idles_only_affected_axis_and_attempts_other_holds(body_io):
+    module, _, states = body_io
+    for motor in states.values():
+        motor.current_state = module.MotorState.CLOSED_LOOP_CONTROL
+    module.motor_actions.hold_after_fault.side_effect = [False, True]
+    result = command(body_io, "fault_stop")
+    assert not result.success and "a" in result.message
+    assert module.motor_actions.hold_after_fault.call_args_list == [
+        call("a"),
+        call("b"),
+    ]
+    module.motor_actions.set_axis_state.assert_called_once_with(
+        "a", module.MotorState.IDLE
+    )
+
+
+def test_explicit_estop_overrides_fault_stop_and_cannot_be_downgraded(body_io):
+    module, node, states = body_io
+    states["a"].current_state = module.MotorState.CLOSED_LOOP_CONTROL
+    assert command(body_io, "fault_stop").success
+    assert command(body_io, "emergency").success
+    module.motor_actions.set_axis_state.reset_mock()
+    module.motor_actions.hold_after_fault.reset_mock()
+    assert command(body_io, "fault_stop").success
+    assert node.emergency_disarm
+    module.motor_actions.hold_after_fault.assert_not_called()
+    assert module.motor_actions.set_axis_state.call_args_list == [
+        call("a", module.MotorState.IDLE),
+        call("b", module.MotorState.IDLE),
+    ]
+    assert not command(body_io, "recover").success
 
 
 def test_failed_explicit_move_disarms_the_selected_batch(body_io):

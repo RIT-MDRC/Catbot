@@ -109,7 +109,11 @@ def test_managed_orin_policy_pi_gate_scripts_and_stale_emergency(tmp_path):
                 (request.operation, request.state, list(request.actuator_names))
             )
             for name in request.actuator_names or names:
-                if request.operation in ("idle", "emergency"):
+                if (
+                    request.operation in ("idle", "emergency")
+                    or request.operation == "fault_stop"
+                    and (states[name] != 8 or faults[name])
+                ):
                     states[name] = 1
                     completing.pop(name, None)
                 elif request.operation == "state":
@@ -290,6 +294,27 @@ def test_managed_orin_policy_pi_gate_scripts_and_stale_emergency(tmp_path):
         call(Trigger, "/rpi/supervisor/run", Trigger.Request())
         until(lambda: len(received) >= 5)
         assert list(received[-1].actuator_names) == names
+        faults["bra"] = 256
+        until(lambda: pi.gate.mode == Mode.EMERGENCY and not pi.runner.active)
+        count = len(received)
+        assert pi.hold_healthy and states["bra"] == 1
+        assert all(states[n] == 8 for n in names if n != "bra")
+        until(lambda: not orin.jobs.running("policy"))
+        assert len(received) == count, "Actuator fault forwarded an action"
+        faults["bra"] = 0
+        until(lambda: pi.body["bra"].encoder_error_flags == 0)
+        assert pi.gate.mode == Mode.EMERGENCY
+        call(Trigger, "/rpi/supervisor/recover", Trigger.Request())
+        until(lambda: pi.gate.mode == Mode.IDLE)
+        assert len(received) == count
+        call(
+            RunScript,
+            "/rpi/supervisor/script",
+            RunScript.Request(name="restart_policy"),
+        )
+        until(lambda: pi.gate.mode == Mode.READY, timeout=25)
+        call(Trigger, "/rpi/supervisor/run", Trigger.Request())
+        until(lambda: len(received) >= count + 5)
         sensors_enabled[0] = False
         until(lambda: pi.gate.mode == Mode.EMERGENCY)
         count = len(received)
@@ -397,6 +422,11 @@ def test_local_homing_without_orin_or_policy():
                         calibrating.add(name)
                     if request.state in (3, 4, 11):
                         completing[name] = time.monotonic() + 0.1 + index * 0.04
+                elif request.operation == "fault_stop" and (
+                    states[name] != 8 or faults[name]
+                ):
+                    states[name] = 1
+                    completing.pop(name, None)
             response.success = True
             return response
 
@@ -548,7 +578,27 @@ def test_local_homing_without_orin_or_policy():
         assert all(state == 8 for state in states.values())
         assert positions["flf"] == positions["frf"] == 0.0
         assert not pi.jobs.service_is_ready()
-        # A fault still aborts a local sequence during its buffer, without Orin.
+        # A single actuator fault holds every other healthy axis, with no peer.
+        faults["bra"] = 256
+        until(lambda: pi.gate.mode == Mode.EMERGENCY and not pi.runner.active)
+        assert pi.hold_healthy
+        assert states["bra"] == 1
+        assert all(states[n] == 8 for n in names if n != "bra")
+        assert "bra" in pi.gate.reason
+        assert not pi.recover(Trigger.Request(), Trigger.Response()).success
+        faults["bra"] = 0
+        until(lambda: pi.body["bra"].controller_error_flags == 0)
+        assert pi.gate.mode == Mode.EMERGENCY
+        assert pi.recover(Trigger.Request(), Trigger.Response()).success
+        until(lambda: pi.gate.mode == Mode.IDLE)
+        assert all(states[n] == 8 for n in names if n != "bra")
+        # Explicit e-stop still disarms every motor.
+        pi.emergency(Trigger.Request(), Trigger.Response())
+        until(lambda: not pi.runner.active and all(s == 1 for s in states.values()))
+        assert not pi.hold_healthy
+        assert pi.recover(Trigger.Request(), Trigger.Response()).success
+        until(lambda: pi.gate.mode == Mode.IDLE)
+        # A fault also aborts a local sequence, retaining the healthy homed knees.
         script()
         until(
             lambda: (
@@ -557,7 +607,9 @@ def test_local_homing_without_orin_or_policy():
         )
         faults["flk"] = 4
         until(lambda: pi.gate.mode == Mode.EMERGENCY)
-        until(lambda: not pi.runner.active and all(s == 1 for s in states.values()))
+        until(lambda: not pi.runner.active)
+        assert states["flk"] == 1
+        assert all(states[n] == 8 for n in ("frk", "blk", "brk"))
         faults["flk"] = 0
         until(lambda: pi.body["flk"].controller_error_flags == 0)
         assert pi.recover(Trigger.Request(), Trigger.Response()).success
@@ -578,10 +630,15 @@ def test_local_homing_without_orin_or_policy():
         assert pi.gate.heartbeat_at is None
         assert not pi.run(Trigger.Request(), Trigger.Response()).success
         assert not pi.jobs.service_is_ready()
-        # All subcomponent faults continue to trigger disarm while locally holding.
+        # A later local fault retains holds; explicit e-stop overrides it.
         faults["fra"] = 8
         until(lambda: pi.gate.mode == Mode.EMERGENCY)
+        until(lambda: not pi.runner.active)
+        assert pi.hold_healthy and states["fra"] == 1
+        assert all(states[n] == 8 for n in names if n != "fra")
+        pi.emergency(Trigger.Request(), Trigger.Response())
         until(lambda: not pi.runner.active and all(s == 1 for s in states.values()))
+        assert not pi.hold_healthy
     finally:
         executor.shutdown()
         for node in (pi, body):

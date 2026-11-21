@@ -59,6 +59,7 @@ class BodyControlNode(Node):
 
         self.actuator_names = actuator_actions.get_names()
         self.motion_inhibited = False
+        self.emergency_disarm = False
         self.ordered_motor_names = actuator_names_by_axis_id(self.actuator_names)
         self.last_error_request_times = {}
 
@@ -127,30 +128,65 @@ class BodyControlNode(Node):
             validate_motor_command(
                 names, self.actuator_names, request.operation, request.state
             )
-            if request.operation in ("emergency", "recover") and set(names) != set(
-                self.actuator_names
-            ):
-                raise ValueError(
-                    "Emergency/recovery requires the complete actuator roster"
-                )
+            if request.operation in ("emergency", "fault_stop", "recover") and set(
+                names
+            ) != set(self.actuator_names):
+                raise ValueError("Stop/recovery requires the complete actuator roster")
             if request.operation == "emergency":
                 self.motion_inhibited = True
+                self.emergency_disarm = True
+            if request.operation == "fault_stop":
+                self.motion_inhibited = True
+                # Never downgrade an explicit e-stop to a holding stop.
+                keep = set() if self.emergency_disarm else self._ready_motor_names()
+                failed = []
+                for name in names:
+                    sent = (
+                        motor_actions.hold_after_fault(name)
+                        if name in keep
+                        else motor_actions.set_axis_state(name, MotorState.IDLE)
+                    )
+                    if not sent:
+                        # Feedback may have changed since the readiness snapshot.
+                        motor_actions.set_axis_state(name, MotorState.IDLE)
+                        failed.append(name)
+                response.success = not failed
+                response.message = (
+                    "motion inhibited; healthy closed-loop axes retained"
+                    if not failed
+                    else "Send failed: " + ", ".join(failed)
+                )
+                return response
             if request.operation == "recover":
+                allow_hold = not self.emergency_disarm
+                ready = self._ready_motor_names() if allow_hold else set()
                 if any(
                     not heartbeat_available(
                         motor_actions.get_state_snapshot(name),
                         time.monotonic(),
                         HEARTBEAT_STALE_SECONDS,
                     )
-                    or motor_actions.get_state_snapshot(name).current_state
-                    != MotorState.IDLE
+                    or (
+                        motor_actions.get_state_snapshot(name).current_state
+                        != MotorState.IDLE
+                        and name not in ready
+                    )
+                    or (
+                        allow_hold
+                        and motor_actions.has_fault(
+                            motor_actions.get_state_snapshot(name)
+                        )
+                    )
                     for name in names
                 ):
-                    raise ValueError("Recovery requires confirmed idle axes")
+                    raise ValueError(
+                        "Recovery requires fresh stopped axes; clear actuator faults first"
+                    )
                 self.motion_inhibited = False
+                self.emergency_disarm = False
                 response.success, response.message = (
                     True,
-                    "motion latch cleared; axes remain idle",
+                    "motion latch cleared; axis states and targets unchanged",
                 )
                 return response
             if self.motion_inhibited and (

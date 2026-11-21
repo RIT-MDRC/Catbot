@@ -1,7 +1,9 @@
 # Immediate body I/O only; no waiting, ordering, scripts, or automatic re-arming.
 # Empty names selects every configured actuator (including unresponsive axes).
 string[] actuator_names
-# idle, emergency (latches motion off), recover (unlatches while idle),
+# idle, emergency (latches motion off and idles all),
+# fault_stop (latches motion off, retains healthy closed-loop axes),
+# recover (unlatches without changing states or targets),
 # clear_errors, trajectory, hold, state
 string operation
 uint8 state

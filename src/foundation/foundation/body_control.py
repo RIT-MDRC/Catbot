@@ -20,6 +20,7 @@ def validate_motor_command(names, configured, operation, state):
     if operation not in {
         "idle",
         "emergency",
+        "fault_stop",
         "recover",
         "clear_errors",
         "trajectory",

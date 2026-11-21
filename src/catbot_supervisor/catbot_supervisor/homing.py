@@ -13,14 +13,16 @@ ERROR_FIELDS = (
 
 def fault_reason(body, names):
     if set(body) != set(names):
-        return "Homing requires the complete actuator state roster"
+        return "Foundation requires the complete actuator state roster"
     for name in names:
         state = body[name]
         if not state.heartbeat_available:
-            return f"Homing requires a fresh heartbeat for {name}"
+            return f"Foundation actuator heartbeat unavailable: {name}"
         for field in ERROR_FIELDS:
             if getattr(state, field):
-                return f"Homing stopped: {name} {field}={getattr(state, field)}"
+                return (
+                    f"Foundation actuator fault: {name} {field}={getattr(state, field)}"
+                )
     return ""
 
 

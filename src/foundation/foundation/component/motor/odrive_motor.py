@@ -637,6 +637,21 @@ def reboot(motor: ODriveMotor) -> bool:
 
 
 @device_action(ctx)
+def hold_after_fault(motor: ODriveMotor) -> bool:
+    """Cancel queued motion and hold measured position, without arming or limits."""
+    motor.pending_motion = None
+    motor.last_motion_arm_request_time = None
+    return _send_motion(
+        motor,
+        "Set_Input_Pos",
+        {"Input_Pos": motor.current_position, "Vel_FF": 0.0, "Torque_FF": 0.0},
+        ControlMode.POSITION_CONTROL,
+        InputMode.TRAP_TRAJ,
+        auto_arm=False,
+    )
+
+
+@device_action(ctx)
 def set_axis_state(motor: ODriveMotor, state: MotorState) -> bool:
     logger.info(f"Motor {motor.axisID} is being set to state {state}")
     if state != MotorState.CLOSED_LOOP_CONTROL:

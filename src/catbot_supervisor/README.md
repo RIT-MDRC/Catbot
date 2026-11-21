@@ -68,7 +68,7 @@ ros2 service call /rpi/supervisor/run std_srvs/srv/Trigger '{}'
 ros2 service call /rpi/supervisor/idle std_srvs/srv/Trigger '{}'
 # Disarm immediately through the emergency script:
 ros2 service call /rpi/supervisor/emergency std_srvs/srv/Trigger '{}'
-# Recovery requires confirmed idle axes. It does not restart motion.
+# Recovery requires confirmed stopped axes. It does not restart motion.
 ros2 service call /rpi/supervisor/recover std_srvs/srv/Trigger '{}'
 ros2 service call /rpi/supervisor/script catbot_interfaces/srv/RunScript "{name: shutdown}"
 ```
@@ -76,12 +76,12 @@ ros2 service call /rpi/supervisor/script catbot_interfaces/srv/RunScript "{name:
 | Mode | Behavior |
 | --- | --- |
 | boot | Disarm at boot, or execute an explicitly requested startup/maintenance script; gate closed |
-| idle | Disarmed, awaiting an explicit script |
+| idle | Awaiting an explicit script; fault recovery preserves existing holds |
 | ready | Healthy link/body/Pi, axes armed; proposals checked, forwarding paused |
 | holding | Local homing complete, axes armed; Pi/body checks active, policy forwarding disabled, no Orin required |
 | running | Only fresh, consecutive actions for the current session and complete roster are forwarded |
 | degraded | Pi link verdict immediately transitions to latched emergency |
-| emergency | Gate closed; IDLE all axes and request Orin policy stop; retry local disarm until confirmed |
+| emergency | Gate closed and policy stopped; actuator faults hold healthy axes, other emergencies IDLE all axes; explicit recovery required |
 | shutdown | Gate closed; disarm and stop policy; terminal until node restart |
 
 Unsafe action timestamps, duplicates/reordering/gaps, session changes, missing
@@ -90,6 +90,27 @@ state, axis unavailability, or unhealthy Pi readings trigger emergency in ready
 or running. No automatic recovery resumes motion. A link failure during an active
 linked script also aborts into emergency. Shutdown preempts a pending script.
 Orin stops all registered jobs if its Pi probe lease expires.
+
+An actuator-readiness or detailed motor/encoder fault with fresh Foundation state
+and healthy Pi readings sets `stop_behavior: hold_healthy`. Foundation inhibits
+new moves/arming, discards queued targets, and commands each healthy closed-loop
+axis to hold its measured position in position/trapezoidal mode. It leaves speed
+and acceleration limits unchanged and never re-arms an axis. Faulted, unavailable,
+homing and calibrating axes receive IDLE. Status names the unavailable actuator
+or the actuator and raw fault flags. Hardware may independently drop a faulted
+axis out of closed loop.
+
+After clearing the underlying fault/errors, call `/rpi/supervisor/recover`.
+Recovery requires fresh feedback, no actuator faults, and every axis either IDLE
+or healthy in closed loop. It clears the command latch without changing states
+or targets; status becomes `idle`, and scripts/policy require explicit requests.
+Returning healthy feedback alone never resumes them.
+
+The explicit e-stop, link/action watchdogs, stale Foundation stream, unhealthy Pi,
+script timeouts and process exit retain `stop_behavior: idle_all`. An e-stop
+overrides a holding fault immediately and requires every axis IDLE before
+recovery. A holding fault also escalates to all-axis IDLE if the Pi or Foundation
+state stream becomes unhealthy.
 
 Defaults: 250 ms action age, 500 ms heartbeat/probe/body age, 150 ms RTT, 50 ms
 jitter, 20 ms future-clock tolerance, 10% aggregate idle CPU headroom, 80 C Pi
@@ -292,7 +313,8 @@ Each homing group has a 30-second completion timeout. Faster axes cannot advance
 the group barrier; each must be observed active and then IDLE. Arming is rejected
 if any actuator is still homing. Pi health, fresh complete Foundation feedback,
 and all reported fault fields remain checked during the sequence and operator
-pause. Faults/timeouts preempt into latched emergency and IDLE the full roster.
+pause. Actuator faults preempt into latched emergency while healthy closed-loop
+axes hold; active homing/calibration axes receive IDLE. Timeouts IDLE all axes.
 Motor commands are sent over CAN individually within a batch; their controller
 operations overlap rather than being serialized by per-axis completion waits.
 

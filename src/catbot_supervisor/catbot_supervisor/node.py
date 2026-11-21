@@ -85,6 +85,7 @@ class RpiSupervisor(Node):
         self.orin_bundle_id = ""
         self.remote_stop_at = float("-inf")
         self.emergency_attempt = float("-inf")
+        self.hold_healthy = False
         self.recovery_generation = 0
         self.recovery_deadline = None
         self.motor = self.create_client(MotorCommand, "/body/control/motor")
@@ -317,6 +318,12 @@ class RpiSupervisor(Node):
         if not self.body_fresh():
             return False
         values = [self.body[n] for n in step.names or self.names]
+        if step.kind == "wait_fault_stop":
+            return all(
+                a.heartbeat_available
+                and (a.axis_state == 1 or a.axis_state == 8 and a.ready)
+                for a in values
+            )
         if step.kind == "wait_cycle":
             return (
                 self.state_cycle is not None
@@ -411,13 +418,13 @@ class RpiSupervisor(Node):
             # Check local health/body again at the final publication boundary.
             reason = self.local_reason()
             if reason:
-                self.enter_emergency(reason)
+                self.enter_local_emergency(reason)
             else:
                 self.output.publish(command)
                 return True
         return False
 
-    def local_reason(self):
+    def system_reason(self):
         if self.health_sample is None:
             return "Pi health not sampled"
         reason = health_reason(
@@ -427,25 +434,53 @@ class RpiSupervisor(Node):
             return reason
         if not self.body_fresh():
             return "Foundation state stream stale"
-        if not all(
-            a.ready and a.heartbeat_available and not a.axis_error_flags
-            for a in self.body.values()
-        ):
-            return "Foundation actuator unavailable or not ready"
         return ""
+
+    def local_reason(self):
+        reason = self.system_reason()
+        if reason:
+            return reason
+        reason = fault_reason(self.body, self.names)
+        if reason:
+            return reason
+        unavailable = [name for name, a in self.body.items() if not a.ready]
+        return (
+            "Foundation actuator not ready: " + ", ".join(unavailable)
+            if unavailable
+            else ""
+        )
+
+    def enter_local_emergency(self, reason):
+        self.enter_emergency(reason, hold_healthy=not self.system_reason())
+
+    def emergency_steps(self):
+        if self.hold_healthy:
+            return [Step("motor", "fault_stop"), Step("wait_fault_stop")]
+        return self.scripts["emergency"](self.names)
+
+    def emergency_stopped(self):
+        return self.satisfied(
+            Step("wait_fault_stop")
+            if self.hold_healthy
+            else Step("wait_state", state=1)
+        )
 
     def sample_health(self):
         self.health_sample = self.health.sample(time.monotonic())
 
-    def enter_emergency(self, reason):
+    def enter_emergency(self, reason, *, hold_healthy=False):
         self.recovery_generation += 1
         self.recovery_deadline = None
         # Record degraded verdict before the immediate transition to emergency.
         self.get_logger().error(f"Emergency: {reason}")
+        # A subsequent actuator fault cannot weaken an all-axis e-stop.
+        self.hold_healthy = hold_healthy and (
+            self.gate.mode != Mode.EMERGENCY or self.hold_healthy
+        )
         self.gate.emergency(reason)
         self.script_link_required = False
         self.script_name = "emergency"
-        self.runner.start(self.scripts["emergency"](self.names))
+        self.runner.start(self.emergency_steps())
         self.emergency_attempt = time.monotonic()
         # Remote failure cannot delay local IDLE. Both requests are asynchronous.
         self.stop_policy()
@@ -459,6 +494,10 @@ class RpiSupervisor(Node):
         now = time.monotonic()
         if self.recovery_deadline is not None and now >= self.recovery_deadline:
             self.enter_emergency("Foundation recovery timed out")
+        if self.gate.mode == Mode.EMERGENCY and self.hold_healthy:
+            reason = self.system_reason()
+            if reason:
+                self.enter_emergency(reason)
         if (
             self.runner.active
             and (
@@ -473,7 +512,7 @@ class RpiSupervisor(Node):
             if not reason and self.gate.mode == Mode.HOLDING:
                 reason = self.local_reason()
             if reason:
-                self.enter_emergency(reason)
+                self.enter_local_emergency(reason)
         if self.runner.active and self.local_script():
             reason = (
                 health_reason(
@@ -498,8 +537,10 @@ class RpiSupervisor(Node):
                 self.enter_emergency(reason)
         if self.gate.mode in (Mode.READY, Mode.RUNNING):
             reason = self.local_reason()
-            if reason or not self.gate.check(now):
-                self.enter_emergency(reason or self.gate.reason)
+            if reason:
+                self.enter_local_emergency(reason)
+            elif not self.gate.check(now):
+                self.enter_emergency(self.gate.reason)
         elif self.runner.active and self.script_link_required:
             if not self.gate.check(now, require_action=False) or not self.body_fresh():
                 self.enter_emergency(
@@ -509,17 +550,20 @@ class RpiSupervisor(Node):
             self.gate.mode == Mode.EMERGENCY
             and not self.runner.active
             and now - self.emergency_attempt >= 1.0
-        ) and not self.satisfied(Step("wait_state", state=1)):
+        ) and not self.emergency_stopped():
             self.emergency_attempt = now
             self.script_name = "emergency"
-            self.runner.start(self.scripts["emergency"](self.names))
+            self.runner.start(self.emergency_steps())
         self.runner.tick(now)
         if self.runner.error:
             if self.gate.mode != Mode.EMERGENCY:
-                self.enter_emergency(self.runner.error)
+                if not self.system_reason() and fault_reason(self.body, self.names):
+                    self.enter_local_emergency(self.runner.error)
+                else:
+                    self.enter_emergency(self.runner.error)
             elif now - self.emergency_attempt >= 1.0:
                 self.emergency_attempt = now
-                self.runner.start(self.scripts["emergency"](self.names))
+                self.runner.start(self.emergency_steps())
         elif not self.runner.active and self.script_name:
             name, self.script_name = self.script_name, ""
             if name == "boot":
@@ -533,7 +577,7 @@ class RpiSupervisor(Node):
             ):
                 reason = self.local_reason()
                 if reason:
-                    self.enter_emergency(reason)
+                    self.enter_local_emergency(reason)
                 else:
                     self.gate.mode = Mode.HOLDING
                     self.gate.reason = (
@@ -541,8 +585,10 @@ class RpiSupervisor(Node):
                     )
             elif name != "emergency":
                 reason = self.local_reason()
-                if reason or not self.gate.check(now):
-                    self.enter_emergency(reason or self.gate.reason)
+                if reason:
+                    self.enter_local_emergency(reason)
+                elif not self.gate.check(now):
+                    self.enter_emergency(self.gate.reason)
                 else:
                     self.gate.mode = Mode.READY
         self.status.publish(
@@ -551,6 +597,9 @@ class RpiSupervisor(Node):
                     {
                         "mode": self.gate.mode.value,
                         "reason": self.gate.reason,
+                        "stop_behavior": "hold_healthy"
+                        if self.hold_healthy
+                        else "idle_all",
                         "script": self.script_name,
                         "script_step": self.runner.index,
                         "script_error": self.runner.error,
@@ -673,11 +722,12 @@ class RpiSupervisor(Node):
         if (
             self.gate.mode != Mode.EMERGENCY
             or self.runner.active
-            or not self.satisfied(Step("wait_state", state=1))
+            or not self.emergency_stopped()
+            or (self.hold_healthy and bool(fault_reason(self.body, self.names)))
         ):
             response.success, response.message = (
                 False,
-                "Recovery requires confirmed idle axes after emergency script",
+                "Recovery requires confirmed stopped axes and cleared actuator faults",
             )
         else:
             if not self.motor.service_is_ready():
@@ -704,12 +754,17 @@ class RpiSupervisor(Node):
                     if (
                         self.gate.mode != Mode.EMERGENCY
                         or self.runner.active
-                        or not self.satisfied(Step("wait_state", state=1))
+                        or not self.emergency_stopped()
+                        or (
+                            self.hold_healthy
+                            and bool(fault_reason(self.body, self.names))
+                        )
                     ):
-                        raise RuntimeError("Recovery lost confirmed idle axes")
+                        raise RuntimeError("Recovery lost confirmed stopped axes")
                     self.gate.recover()
+                    self.hold_healthy = False
                 except (OSError, RuntimeError, ValueError) as error:
-                    self.enter_emergency(str(error))
+                    self.enter_emergency(str(error), hold_healthy=self.hold_healthy)
 
             future.add_done_callback(complete)
             response.success, response.message = (

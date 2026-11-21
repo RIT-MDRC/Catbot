@@ -101,6 +101,31 @@ def heartbeat(motor, state=MotorState.CLOSED_LOOP_CONTROL, error=0):
     )
 
 
+def test_fault_hold_cancels_pending_target_without_arming_or_limit_writes(motion_motor):
+    motor, send, _ = motion_motor
+    motor.current_state = MotorState.CLOSED_LOOP_CONTROL
+    motor.current_position = 80.0  # Measured hold also works before logical zeroing.
+    motor.pending_motion = (
+        "Set_Input_Pos",
+        {"Input_Pos": 20.0},
+        ControlMode.POSITION_CONTROL,
+        InputMode.TRAP_TRAJ,
+    )
+    assert motor_actions.hold_after_fault(motor)
+    assert motor.pending_motion is None
+    assert [c.args[1] for c in send.call_args_list] == [
+        "Set_Controller_Mode",
+        "Set_Input_Pos",
+    ]
+    assert send.call_args_list[-1].args[2]["Input_Pos"] == 80.0
+    send.reset_mock()
+    heartbeat(motor)
+    send.assert_not_called()
+    motor.current_state = MotorState.IDLE
+    assert not motor_actions.hold_after_fault(motor)
+    send.assert_not_called()
+
+
 @pytest.mark.parametrize("kind", ["position", "velocity"])
 def test_move_selects_mode_and_waits_for_closed_loop_before_target(motion_motor, kind):
     motor, send, _ = motion_motor
