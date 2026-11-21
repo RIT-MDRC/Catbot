@@ -51,3 +51,9 @@ stdlib fake inference worker. It checks sequential startup, a closed gate before
 running, forwarding acknowledgements, stale-stream emergency disarm, explicit
 recovery, and shutdown. Foundation hardware and Pi health readings are doubled;
 this does not establish physical motor behavior or measured Pi CPU headroom.
+
+The local calibration ROS test requests full calibration as one batch, simulates
+different per-axis completion times and calibration substates, and checks that
+no arming request occurs while any actuator remains in homing. It checks the
+ordered homing groups, settled +30-degree front-flexion move, required operator
+confirmation before front-abduction homing, and final holding without policy.

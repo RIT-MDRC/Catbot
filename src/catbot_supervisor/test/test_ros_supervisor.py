@@ -360,6 +360,7 @@ def test_local_homing_without_orin_or_policy():
             dict.fromkeys(names, 0),
         )
         operations, completing = [], {}
+        calibrating = set()
         state_pub = body.create_publisher(
             BodyErrorState,
             "/body/state/error",
@@ -373,14 +374,20 @@ def test_local_homing_without_orin_or_policy():
             operations.append(
                 (request.operation, request.state, list(request.actuator_names))
             )
-            for name in request.actuator_names or names:
+            if request.operation == "state" and request.state == 8:
+                assert all(state != 11 for state in states.values()), (
+                    "Arming before the complete homing group finished"
+                )
+            for index, name in enumerate(request.actuator_names or names):
                 if request.operation == "idle":
                     states[name] = 1
                     completing.pop(name, None)
                 elif request.operation == "state":
-                    states[name] = request.state
-                    if request.state in (4, 11):
-                        completing[name] = time.monotonic() + 0.1
+                    states[name] = 4 if request.state == 3 else request.state
+                    if request.state == 3:
+                        calibrating.add(name)
+                    if request.state in (3, 4, 11):
+                        completing[name] = time.monotonic() + 0.1 + index * 0.04
             response.success = True
             return response
 
@@ -397,7 +404,12 @@ def test_local_homing_without_orin_or_policy():
         def publish():
             for name, deadline in list(completing.items()):
                 if time.monotonic() >= deadline:
+                    if name in calibrating and states[name] == 4:
+                        states[name] = 7
+                        completing[name] = time.monotonic() + 0.08
+                        continue
                     states[name] = 1
+                    calibrating.discard(name)
                     del completing[name]
             state_pub.publish(
                 BodyErrorState(
@@ -469,10 +481,31 @@ def test_local_homing_without_orin_or_policy():
             RunScript.Request(name="calibrate"), RunScript.Response()
         )
         assert result.success
-        until(lambda: pi.gate.mode == Mode.HOLDING)
-        assert [ns for op, state, ns in operations if op == "state" and state == 4] == [
-            [n] for n in names
+        until(lambda: pi.runner.prompt is not None)
+        assert [ns for op, state, ns in operations if op == "state" and state == 3] == [
+            names
         ]
+        assert [
+            ns for op, state, ns in operations if op == "state" and state == 11
+        ] == [
+            ["flk", "frk", "blk", "brk"],
+            ["flf", "frf", "blf", "brf"],
+            ["bla", "bra"],
+        ]
+        assert positions["flf"] == positions["frf"] == 30.0
+        assert states["fla"] == states["fra"] == 1
+        assert all(states[name] == 8 for name in names if name not in ("fla", "fra"))
+        for _ in range(10):
+            executor.spin_once(timeout_sec=0.01)
+        assert states["fla"] == states["fra"] == 1  # Confirmation remains necessary.
+        assert pi.respond(
+            RunScript.Request(name=pi.runner.prompt["id"]), RunScript.Response()
+        ).success
+        until(lambda: pi.gate.mode == Mode.HOLDING)
+        assert [ns for op, state, ns in operations if op == "state" and state == 11][
+            -1
+        ] == ["fla", "fra"]
+        assert all(state == 8 for state in states.values())
         assert not pi.jobs.service_is_ready()
         # A fault still aborts a local sequence during its buffer, without Orin.
         script()

@@ -29,6 +29,11 @@ def maintenance(names, state=None):
                 Step("wait_state", names=(name,), state=state),
                 Step("wait_state", names=(name,), state=1, timeout=30.0),
             ]
+    return steps + arm_steps(names)
+
+
+def arm_steps(names):
+    steps = []
     for name in names:
         steps += [
             Step("motor", "trajectory", (name,)),
@@ -70,8 +75,8 @@ def registry():
         ],
         "emergency": lambda names: [Step("motor", "idle"), Step("wait_state", state=1)],
         "home": lambda names: maintenance(names, 11),
-        "calibrate": lambda names: maintenance(names, 4),
-        "full_calibrate": lambda names: maintenance(names, 3),
+        "calibrate": calibrate_robot,
+        "full_calibrate": calibrate_robot,
         "clear_errors": lambda names: maintenance(names),
         "sample_home": lambda names: prompted_maintenance(names, 11),
         "sample_calibrate": lambda names: prompted_maintenance(names, 4),
@@ -82,6 +87,50 @@ def registry():
             raise ValueError(f"Script already registered: {plugin.name}")
         scripts[plugin.name] = plugin.load()
     return scripts
+
+
+def calibrate_robot(names):
+    """Full calibration together, then ordered homing/arming with clearance."""
+    groups = (
+        ("flk", "frk", "blk", "brk"),
+        ("flf", "frf", "blf", "brf"),
+        ("bla", "bra"),
+        ("fla", "fra"),
+    )
+    required = {name for group in groups for name in group}
+    if len(names) != len(required) or set(names) != required:
+        raise ValueError(
+            "Robot calibration requires the complete standard 12-actuator roster"
+        )
+    steps = [
+        Step("motor", "idle"),
+        Step("wait_state", state=1),
+        Step("motor", "clear_errors"),
+        Step("wait_clear"),
+        Step("motor", "state", tuple(names), 3),
+        Step("wait_cycle", names=tuple(names), state=3, timeout=60.0),
+    ]
+    for group in groups:
+        if group == ("fla", "fra"):
+            front = ("flf", "frf")
+            steps += [
+                Step("position", names=front, positions=(30.0, 30.0)),
+                Step(
+                    "wait_position", names=front, positions=(30.0, 30.0), timeout=15.0
+                ),
+                Step(
+                    "wait_operator",
+                    "Confirm that objects are cleared before front abduction homing. "
+                    "Confirming allows fla and fra to move.",
+                    timeout=120.0,
+                ),
+            ]
+        steps += [
+            Step("motor", "state", group, 11),
+            Step("wait_cycle", names=group, state=11, timeout=30.0),
+            *arm_steps(group),
+        ]
+    return steps
 
 
 def home_robot(names):

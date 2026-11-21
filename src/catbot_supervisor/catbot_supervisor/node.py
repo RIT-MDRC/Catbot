@@ -28,7 +28,7 @@ from catbot_interfaces.msg import (
 from catbot_interfaces.srv import MotorCommand, RunScript, SupervisorJob
 from catbot_supervisor.core import ActionGate, Limits, Mode
 from catbot_supervisor.health import PiHealth, health_reason
-from catbot_supervisor.homing import at_position, fault_reason
+from catbot_supervisor.homing import StateCycle, at_position, fault_reason
 from catbot_supervisor.scripts import ScriptRunner, Step, registry
 
 
@@ -73,6 +73,7 @@ class RpiSupervisor(Node):
         self.body, self.body_at = {}, float("-inf")
         self.positions, self.positions_at = {}, float("-inf")
         self.script_position_at = float("inf")
+        self.state_cycle = None
         self.scripts = registry()
         self.script_name = ""
         self.script_link_required = False
@@ -145,6 +146,8 @@ class RpiSupervisor(Node):
             return
         self.body = {a.actuator_name: a for a in message.actuators}
         self.body_at = time.monotonic()
+        if self.state_cycle is not None:
+            self.state_cycle.observe(self.body)
 
     def body_fresh(self):
         return bool(self.body) and time.monotonic() - self.body_at <= self.body_timeout
@@ -180,7 +183,10 @@ class RpiSupervisor(Node):
         )
 
     def dispatch(self, step):
-        if self.script_name == "home_robot":
+        if self.script_name == "home_robot" or (
+            self.script_name in ("calibrate", "full_calibrate")
+            and self.state_cycle is not None
+        ):
             reason = self.homing_fault()
             if reason:
                 raise RuntimeError(reason)
@@ -226,6 +232,20 @@ class RpiSupervisor(Node):
                     raise RuntimeError("Pi health prevents motor operation")
             if not self.motor.service_is_ready():
                 return None
+            if (
+                step.operation == "state"
+                and step.state == 8
+                and self.script_name in ("calibrate", "full_calibrate")
+                and (
+                    not self.body_fresh()
+                    or any(a.axis_state == 11 for a in self.body.values())
+                )
+            ):
+                raise RuntimeError(
+                    "Cannot arm while an actuator is homing or feedback is stale"
+                )
+            if step.operation == "state" and step.state in (3, 11):
+                self.state_cycle = StateCycle(step.names or self.names, step.state)
             return self.motor.call_async(
                 MotorCommand.Request(
                     actuator_names=list(step.names),
@@ -287,6 +307,13 @@ class RpiSupervisor(Node):
         if not self.body_fresh():
             return False
         values = [self.body[n] for n in step.names or self.names]
+        if step.kind == "wait_cycle":
+            return (
+                self.state_cycle is not None
+                and self.state_cycle.names == step.names
+                and self.state_cycle.state == step.state
+                and self.state_cycle.complete(self.body)
+            )
         if step.kind == "wait_state":
             return all(
                 a.heartbeat_available and a.axis_state == step.state for a in values
@@ -295,7 +322,10 @@ class RpiSupervisor(Node):
             return all(a.heartbeat_available and not a.axis_error_flags for a in values)
         if step.kind == "wait_ready":
             return all(
-                a.ready and a.heartbeat_available and not a.axis_error_flags
+                a.ready
+                and a.axis_state == 8
+                and a.heartbeat_available
+                and not a.axis_error_flags
                 for a in values
             )
         raise ValueError(f"Unknown wait step: {step.kind}")
@@ -418,7 +448,14 @@ class RpiSupervisor(Node):
     def tick(self):
         now = time.monotonic()
         if (
-            self.runner.active and self.script_name == "home_robot"
+            self.runner.active
+            and (
+                self.script_name == "home_robot"
+                or (
+                    self.script_name in ("calibrate", "full_calibrate")
+                    and self.state_cycle is not None
+                )
+            )
         ) or self.gate.mode == Mode.HOLDING:
             reason = self.homing_fault()
             if not reason and self.gate.mode == Mode.HOLDING:
@@ -562,6 +599,7 @@ class RpiSupervisor(Node):
                         "Scripts require idle, ready or holding mode and no active script"
                     )
                 self.gate.mode = Mode.BOOT
+            self.state_cycle = None
             self.runner.start(steps)
             # Scripts opt into the Orin watchdog explicitly with wait_link.
             self.script_link_required = False

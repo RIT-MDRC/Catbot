@@ -25,7 +25,7 @@
       "requestPayload": "{\"name\": \"calibrate\"}",
       "buttonText": "Motor calibration",
       "buttonColor": "#546e7a",
-      "buttonTooltip": "Can move motors; clears errors and runs motor calibration, then arms",
+      "buttonTooltip": "Full calibration in parallel, ordered group homing/arming, then front-abduction homing after clearance confirmation",
       "editingMode": false,
       "timeoutSeconds": 3.0,
       "foxglovePanelTitle": "Motor calibration"

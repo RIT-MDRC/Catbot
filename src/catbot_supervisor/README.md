@@ -110,7 +110,7 @@ Install a Python entry point under `catbot_supervisor.scripts` to add a script
 without editing the node. The factory receives the complete actuator-name tuple
 and returns `Step` objects from `catbot_supervisor.scripts`. Existing script names
 cannot be overridden. Supported steps are `motor`, `job_start`, `job_stop`,
-`wait_state`, `wait_clear`, `wait_ready`, `wait_link`, `wait_health`, and
+`wait_state`, `wait_cycle`, `wait_clear`, `wait_ready`, `wait_link`, `wait_health`, and
 `wait_policy_stopped`. Startup waits for previous policy cleanup; shutdown waits
 for the Orin heartbeat to confirm that the policy process group was reaped.
 Every step has a timeout. An emergency replaces the active runner without waiting
@@ -233,8 +233,9 @@ For homing and policy controls together, import
 
 - **Home robot**: runs local `home_robot`; no policy or Orin supervisor required.
 - **Motor calibration**: explicitly runs the existing motor calibration script.
-  It can move hardware, clears faults, and arms on completion. `home_robot` is the
-  custom ordered homing script and never clears faults.
+  `calibrate` and `full_calibrate` run the complete sequence below. They can move
+  hardware, clear faults, and finish with all motors armed/holding. `home_robot`
+  remains the separate homing-only script and never clears faults.
 - **Start policy (no motor commands)**: calls the Orin job service with
   `{"name":"policy","operation":"start"}`. It loads/starts inference only;
   it does not start any Pi script, arm motors or enable policy forwarding.
@@ -254,6 +255,44 @@ supports local homing but does not provide policy services or observations.
 The CPU worker must match the selected training run's configuration before
 using the physical scenario; the button cannot repair a failed provider.
 The Pi `run` service retains all existing readiness/fresh-action checks.
+
+### Full calibration and ordered homing
+
+The Motor calibration button requests `calibrate`; `full_calibrate` is an alias
+for the same robot sequence. It does not start policy or enable forwarding:
+
+1. Disarm the complete roster, confirm IDLE, clear errors, and confirm clear.
+2. Request controller FULL_CALIBRATION_SEQUENCE (state 3) for all 12 actuators
+   in one batch, without waiting on individual motors. Track each actuator's
+   calibration substates and require every actuator to return to fault-free IDLE
+   before continuing (60-second timeout).
+3. Home `flk, frk, blk, brk` together. Wait for the entire group to finish homing
+   and return to IDLE, then configure trajectory, hold measured position, and arm
+   each member, confirming closed-loop readiness before continuing.
+4. Repeat that homing/completion/arming barrier for `flf, frf, blf, brf`.
+5. Repeat it for `bla, bra`.
+6. Command the already armed `flf, frf` to absolute logical **+30 degrees** and
+   wait for valid, settled measured feedback (15-second timeout).
+7. Pause for the operator's clearance confirmation. Use the current prompt ID
+   from `/rpi/supervisor/status` with the layout's confirmation control. No front
+   abduction homing is issued before that confirmation (120-second timeout).
+8. Home `fla, fra` together, wait until both have finished and returned to IDLE,
+   then arm/confirm them as above. Finish in local `holding`, with forwarding off.
+
+Each homing group has a 30-second completion timeout. Faster axes cannot advance
+the group barrier; each must be observed active and then IDLE. Arming is rejected
+if any actuator is still homing. Pi health, fresh complete Foundation feedback,
+and all reported fault fields remain checked during the sequence and operator
+pause. Faults/timeouts preempt into latched emergency and IDLE the full roster.
+Motor commands are sent over CAN individually within a batch; their controller
+operations overlap rather than being serialized by per-axis completion waits.
+
+ODrive 0.5.6 expands state 3 into individual calibration tasks rather than
+reporting state 3 throughout; see its
+[state machine](https://github.com/odriverobotics/ODrive/blob/fw-v0.5.6/Firmware/MotorControl/axis.cpp).
+This software checks observed task activity, return to IDLE, faults and eventual
+closed-loop readiness; it does not introduce a separate controller calibration
+result message or prove physical calibration.
 
 If the physical scenario's worker reports
 `Catbot config must contain exactly the CatbotConfig settings`, stop that launch

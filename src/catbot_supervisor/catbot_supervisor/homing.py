@@ -24,6 +24,36 @@ def fault_reason(body, names):
     return ""
 
 
+class StateCycle:
+    """Observe every requested axis become active, then all return to idle."""
+
+    def __init__(self, names, state):
+        self.names, self.state = tuple(names), state
+        # FULL_CALIBRATION_SEQUENCE expands into these tasks in ODrive 0.5.6.
+        self.active_states = {3, 4, 6, 7, 12, 13} if state == 3 else {state}
+        self.started = set()
+
+    def observe(self, body):
+        for name in self.names:
+            sample = body.get(name)
+            if (
+                sample is not None
+                and sample.heartbeat_available
+                and sample.axis_state in self.active_states
+            ):
+                self.started.add(name)
+
+    def complete(self, body):
+        samples = {name: body[name] for name in self.names if name in body}
+        reason = fault_reason(samples, self.names)
+        if reason:
+            raise RuntimeError(reason)
+        self.observe(samples)
+        return self.started == set(self.names) and all(
+            sample.axis_state == 1 for sample in samples.values()
+        )
+
+
 def at_position(body, names, targets):
     if len(names) != len(targets) or not names:
         return False
