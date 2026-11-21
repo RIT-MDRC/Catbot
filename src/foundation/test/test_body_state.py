@@ -64,6 +64,19 @@ def test_fresh_kinematics_include_position_and_velocity() -> None:
     assert velocity == 15.0
 
 
+def test_kinematics_use_supplied_snapshot_without_rereading_live_state(monkeypatch):
+    actuator = make_motor()
+    snapshot = motor_actions.get_state_snapshot(actuator.motor)
+    reader = Mock(side_effect=AssertionError("Must reuse the captured motor state"))
+    monkeypatch.setattr(motor_actions, "get_state_snapshot", reader)
+    assert kinematic_values(actuator, 10.0, 0.25, motor_state=snapshot) == (
+        True,
+        30.0,
+        15.0,
+    )
+    reader.assert_not_called()
+
+
 def test_inverted_profile_reports_logical_telemetry_direction() -> None:
     valid, position, velocity = kinematic_values(make_motor(inverted=True), 10.0, 0.25)
     assert valid is True

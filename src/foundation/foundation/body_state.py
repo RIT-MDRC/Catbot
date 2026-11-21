@@ -19,10 +19,16 @@ def encoder_available(motor, now: float, stale_seconds: float) -> bool:
     )
 
 
-def kinematic_values(actuator, now: float, stale_seconds: float) -> tuple:
-    """Return logical validity, position, and velocity for one actuator."""
+def kinematic_values(
+    actuator, now: float, stale_seconds: float, *, motor_state=None
+) -> tuple:
+    """Convert one captured state; callers sample ``now`` after capturing it."""
     motor_name = actuator.motor if hasattr(actuator, "motor") else actuator
-    motor = motor_actions.get_state_snapshot(motor_name)
+    motor = (
+        motor_actions.get_state_snapshot(motor_name)
+        if motor_state is None
+        else motor_state
+    )
     position, velocity = motor.current_position, motor.current_velocity
     if (
         position is None

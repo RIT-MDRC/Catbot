@@ -135,6 +135,13 @@ velocity in degrees per second. Encoder feedback older than 0.25 seconds, or
 feedback that has not arrived yet, is represented by `valid: false` and `NaN`
 position and velocity values.
 
+Readiness also requires fresh encoder feedback and a valid logical conversion;
+closed-loop state with zero controller fault masks alone does not imply readiness.
+Each check captures one motor snapshot before sampling the monotonic clock, then
+uses that same snapshot for conversion and the published readiness/fault fields.
+This prevents a concurrent CAN update from making fresh data appear to have a
+future timestamp. The heartbeat and encoder freshness limits remain enforced.
+
 ```bash
 ros2 topic echo /body/state/position \
   catbot_interfaces/msg/BodyKinematicState

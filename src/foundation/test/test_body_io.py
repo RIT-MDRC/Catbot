@@ -84,6 +84,9 @@ def body_io(monkeypatch):
     node._ready_motor_names = lambda **kwargs: (
         module.BodyControlNode._ready_motor_names(node, **kwargs)
     )
+    node._motor_ready = lambda *args, **kwargs: module.BodyControlNode._motor_ready(
+        node, *args, **kwargs
+    )
     logger = SimpleNamespace(error=Mock())
     node.get_logger = lambda: logger
     monkeypatch.setattr(module, "kinematic_values", Mock(return_value=(True, 0.0, 0.0)))
@@ -100,7 +103,7 @@ def test_unconvertible_feedback_blocks_position_control_without_motor_writes(bod
     module, node, snapshots = body_io
     for motor in snapshots.values():
         motor.current_state = module.MotorState.CLOSED_LOOP_CONTROL
-    module.kinematic_values.side_effect = lambda name, *_: (
+    module.kinematic_values.side_effect = lambda name, *_, **__: (
         (False, float("nan"), float("nan")) if name == "b" else (True, 0.0, 0.0)
     )
     assert node._ready_motor_names() == {"a"}
@@ -108,6 +111,88 @@ def test_unconvertible_feedback_blocks_position_control_without_motor_writes(bod
         node, SimpleNamespace(actuator_names=["b"], positions_degrees=[0.0])
     )
     module.actuator_actions.set_target_position.assert_not_called()
+    module.motor_actions.set_axis_state.assert_not_called()
+
+
+def test_ready_check_samples_clock_after_each_motor_snapshot(body_io, monkeypatch):
+    module, node, snapshots = body_io
+    clock = [10.1]
+    monkeypatch.setattr(module.time, "monotonic", lambda: clock[0])
+
+    def receive_before_snapshot(name):
+        clock[0] += 0.001
+        motor = snapshots[name]
+        motor.current_state = module.MotorState.CLOSED_LOOP_CONTROL
+        motor.last_encoder_estimate_time = clock[0]
+        return motor
+
+    monkeypatch.setattr(
+        module.motor_actions, "get_state_snapshot", receive_before_snapshot
+    )
+    assert node._ready_motor_names() == {"a", "b"}
+    module.motor_actions.set_axis_state.assert_not_called()
+
+
+def test_error_publisher_uses_one_snapshot_for_readiness_and_reported_state(
+    body_io, monkeypatch
+):
+    module, node, snapshots = body_io
+    clock = [10.1]
+    monkeypatch.setattr(module.time, "monotonic", lambda: clock[0])
+    monkeypatch.setattr(module, "BodyErrorState", lambda: SimpleNamespace(actuators=[]))
+    monkeypatch.setattr(module, "ActuatorErrorState", SimpleNamespace)
+    node.get_clock = lambda: SimpleNamespace(
+        now=lambda: SimpleNamespace(to_msg=lambda: "stamp")
+    )
+    node.error_state_publisher = Mock()
+    node.last_error_request_times = {}
+
+    def receive_before_snapshot(name):
+        clock[0] += 0.001
+        motor = snapshots[name]
+        motor.current_state = module.MotorState.CLOSED_LOOP_CONTROL
+        motor.last_encoder_estimate_time = clock[0]
+        for category in ("motor", "encoder", "sensorless", "controller"):
+            setattr(motor, f"{category}_error", 0)
+            setattr(motor, f"{category}_error_flag", False)
+        return motor
+
+    reader = Mock(side_effect=receive_before_snapshot)
+    monkeypatch.setattr(module.motor_actions, "get_state_snapshot", reader)
+    module.BodyControlNode._update_error_state(node)
+    states = node.error_state_publisher.publish.call_args.args[0].actuators
+    assert [(s.actuator_name, s.ready, s.axis_state) for s in states] == [
+        ("a", True, 8),
+        ("b", True, 8),
+    ]
+    assert reader.call_args_list == [call("a"), call("b")]
+    assert [
+        c.kwargs["motor_state"] for c in module.kinematic_values.call_args_list
+    ] == [
+        snapshots["a"],
+        snapshots["b"],
+    ]
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("last_encoder_estimate_time", 9.0),
+        ("last_heartbeat_time", 9.0),
+        ("current_position", float("nan")),
+        ("current_velocity", float("inf")),
+        ("axis_error", 8192),
+        ("motor_error_flag", True),
+    ],
+)
+def test_readiness_still_rejects_stale_invalid_or_faulted_feedback(
+    body_io, field, value
+):
+    module, node, snapshots = body_io
+    for motor in snapshots.values():
+        motor.current_state = module.MotorState.CLOSED_LOOP_CONTROL
+    setattr(snapshots["b"], field, value)
+    assert node._ready_motor_names() == {"a"}
     module.motor_actions.set_axis_state.assert_not_called()
 
 
@@ -125,7 +210,7 @@ def test_position_publisher_keeps_roster_and_logs_conversion_failure_once(
         now=lambda: SimpleNamespace(to_msg=lambda: "stamp")
     )
     node.position_state_publisher = Mock()
-    module.kinematic_values.side_effect = lambda name, *_: (
+    module.kinematic_values.side_effect = lambda name, *_, **__: (
         (False, math.nan, math.nan) if name == "b" else (True, 12.0, 3.0)
     )
     for _ in range(2):
