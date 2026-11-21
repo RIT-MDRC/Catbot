@@ -6,6 +6,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
 
+import pytest
+
 FOUNDATION_ROOT = Path(__file__).resolve().parents[1] / "foundation"
 sys.path.insert(0, str(FOUNDATION_ROOT))
 
@@ -14,9 +16,13 @@ from body_state import (
     heartbeat_available,
     kinematic_values,
 )
-from component.actuator import motion_profile_actions
+from component.actuator import actuator_actions, motion_profile_actions
 from component.actuator.actuator import Actuator
-from component.actuator.motion_profile import ActuatorMotionProfile, MotionQuantity
+from component.actuator.motion_profile import (
+    ActuatorMotionProfile,
+    BallscrewLinkage,
+    MotionQuantity,
+)
 from component.can import can_actions
 from component.can.can_bus import CanBus
 from component.motor import motor_actions
@@ -79,6 +85,50 @@ def test_missing_or_stale_kinematics_are_invalid_nan() -> None:
         assert valid is False
         assert math.isnan(position)
         assert math.isnan(velocity)
+
+
+def test_unreachable_knee_feedback_is_invalid_and_recovers_on_reachable_sample():
+    actuator = make_motor(current_position=21.353660583496094, current_velocity=0.0)
+    profile = ActuatorMotionProfile(
+        motor_turns_per_actuator_turn=None,
+        inverted=True,
+        position_min=MotionQuantity(-55, "degrees"),
+        position_max=MotionQuantity(55, "degrees"),
+        trajectory_velocity=MotionQuantity(1, "motor_turns_per_second"),
+        trajectory_acceleration=MotionQuantity(1, "motor_turns_per_second_squared"),
+        ballscrew_linkage=BallscrewLinkage(
+            L1=7.235,
+            L2=18.6452,
+            A=11.869,
+            B=7.95,
+            ballscrew_travel_per_motor_turn=MotionQuantity(5, "millimeters"),
+            x_offset=MotionQuantity(6.76, "centimeters"),
+        ),
+    )
+    motion_profile_actions.ctx.store["state_profile"] = profile
+    valid, position, velocity = kinematic_values(actuator, 10.0, 0.25)
+    assert not valid and math.isnan(position) and math.isnan(velocity)
+    motor_actions.ctx.store[
+        "state_motor"
+    ].current_position = actuator_actions.position_to_motor_turns(actuator, 0)
+    valid, position, velocity = kinematic_values(actuator, 10.0, 0.25)
+    assert valid and position == pytest.approx(0, abs=1e-8)
+    assert velocity == pytest.approx(0)
+
+
+@pytest.mark.parametrize(
+    "action", ["motor_turns_to_position", "motor_turns_to_velocity"]
+)
+def test_conversion_errors_and_nonfinite_results_are_invalid(monkeypatch, action):
+    actuator = make_motor()
+    convert = Mock(side_effect=ValueError("conversion failed"))
+    monkeypatch.setattr(actuator_actions, action, convert)
+    valid, position, velocity = kinematic_values(actuator, 10.0, 0.25)
+    assert not valid and math.isnan(position) and math.isnan(velocity)
+    convert.side_effect = None
+    convert.return_value = math.inf
+    valid, position, velocity = kinematic_values(actuator, 10.0, 0.25)
+    assert not valid and math.isnan(position) and math.isnan(velocity)
 
 
 def test_heartbeat_freshness() -> None:
