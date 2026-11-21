@@ -284,7 +284,9 @@ for the same robot sequence. It does not start policy or enable forwarding:
    from `/rpi/supervisor/status` with the layout's confirmation control. No front
    abduction homing is issued before that confirmation (120-second timeout).
 8. Home `fla, fra` together, wait until both have finished and returned to IDLE,
-   then arm/confirm them as above. Finish in local `holding`, with forwarding off.
+   then arm/confirm them as above.
+9. Move `flf, frf` together back to **0 degrees** and wait for valid, settled
+   feedback (15-second timeout). Finish in local `holding`, with forwarding off.
 
 Each homing group has a 30-second completion timeout. Faster axes cannot advance
 the group barrier; each must be observed active and then IDLE. Arming is rejected

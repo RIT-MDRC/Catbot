@@ -2,7 +2,7 @@ from types import SimpleNamespace
 
 import pytest
 from catbot_supervisor.homing import ERROR_FIELDS, StateCycle, at_position, fault_reason
-from catbot_supervisor.scripts import calibrate_robot, home_robot, registry
+from catbot_supervisor.scripts import Step, calibrate_robot, home_robot, registry
 
 NAMES = tuple(
     f"{leg}{joint}" for leg in ("fl", "fr", "bl", "br") for joint in ("a", "f", "k")
@@ -117,6 +117,18 @@ def test_robot_calibration_batches_full_calibration_and_orders_homing_with_group
         "motor",
     ]
     assert steps[move + 3].names == ("fla", "fra")
+    assert steps[-2:] == [
+        Step("position", names=("flf", "frf"), positions=(0.0, 0.0)),
+        Step("wait_position", names=("flf", "frf"), positions=(0.0, 0.0), timeout=15.0),
+    ]
+    assert (
+        next(
+            i
+            for i, s in enumerate(steps)
+            if s.kind == "wait_ready" and s.names == ("fra",)
+        )
+        < len(steps) - 2
+    )
     assert not any(s.kind.startswith("job_") for s in steps)
     for names in (NAMES[:-1], (*NAMES, "extra"), (*NAMES, NAMES[0])):
         with pytest.raises(ValueError):

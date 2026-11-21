@@ -132,7 +132,11 @@ def calibrate_robot(names):
             Step("wait_cycle", names=group, state=11, timeout=30.0),
             *arm_steps(group),
         ]
-    return steps
+    front = ("flf", "frf")
+    return steps + [
+        Step("position", names=front, positions=(0.0, 0.0)),
+        Step("wait_position", names=front, positions=(0.0, 0.0), timeout=15.0),
+    ]
 
 
 def home_robot(names):

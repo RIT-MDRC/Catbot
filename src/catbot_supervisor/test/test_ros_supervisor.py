@@ -403,6 +403,10 @@ def test_local_homing_without_orin_or_policy():
         body.create_service(MotorCommand, "/body/control/motor", motor)
 
         def explicit_move(msg):
+            if list(msg.positions_degrees) == [0.0, 0.0]:
+                assert all(states[name] == 8 for name in ("fla", "fra")), (
+                    "Front flexion returned before front abduction was homed and armed"
+                )
             positions.update(zip(msg.actuator_names, msg.positions_degrees))
             for name in msg.actuator_names:
                 states[name] = 8
@@ -542,6 +546,7 @@ def test_local_homing_without_orin_or_policy():
             -1
         ] == ["fla", "fra"]
         assert all(state == 8 for state in states.values())
+        assert positions["flf"] == positions["frf"] == 0.0
         assert not pi.jobs.service_is_ready()
         # A fault still aborts a local sequence during its buffer, without Orin.
         script()
