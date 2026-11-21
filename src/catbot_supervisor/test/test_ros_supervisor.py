@@ -242,8 +242,12 @@ def test_managed_orin_policy_pi_gate_scripts_and_stale_emergency(tmp_path):
         )
         assert not result.success and "encoder_error_flags" in result.message
         assert len(operations) == before
+        until(lambda: pi.gate.mode == Mode.EMERGENCY and not pi.runner.active)
         faults["flk"] = 0
         until(lambda: pi.body["flk"].encoder_error_flags == 0)
+        assert pi.gate.mode == Mode.EMERGENCY
+        call(Trigger, "/rpi/supervisor/recover", Trigger.Request())
+        until(lambda: pi.gate.mode == Mode.IDLE)
         call(RunScript, "/rpi/supervisor/script", RunScript.Request(name="home_robot"))
         until(lambda: pi.runner.prompt is not None, timeout=60)
         assert positions["flf"] == positions["frf"] == 30.0
