@@ -72,7 +72,21 @@ def body_io(monkeypatch):
         (module.actuator_actions, "configure_trajectory"),
     ):
         monkeypatch.setattr(owner, name, Mock(return_value=True))
-    node = SimpleNamespace(actuator_names=("a", "b"), ordered_motor_names=["a", "b"])
+    node = SimpleNamespace(
+        actuator_names=("a", "b"),
+        ordered_motor_names=["a", "b"],
+        motion_inhibited=False,
+    )
+    node._ready_motor_names = lambda **kwargs: (
+        module.BodyControlNode._ready_motor_names(node, **kwargs)
+    )
+    node.get_logger = lambda: SimpleNamespace(error=Mock())
+    monkeypatch.setattr(
+        module.actuator_actions, "validate_target_position", Mock(return_value=0.0)
+    )
+    monkeypatch.setattr(
+        module.actuator_actions, "set_target_position", Mock(return_value=True)
+    )
     return module, node, snapshots
 
 
@@ -164,6 +178,103 @@ def test_send_failures_are_reported_without_any_followup_sequence(body_io):
     assert module.motor_actions.set_axis_state.call_count == 2
     module.motor_actions.hold_current_position.assert_not_called()
     module.actuator_actions.configure_trajectory.assert_not_called()
+
+
+def test_explicit_move_allows_idle_axes_but_policy_stream_cannot_auto_arm(body_io):
+    module, node, _ = body_io
+    move = SimpleNamespace(actuator_names=["a"], positions_degrees=[10.0])
+    module.BodyControlNode._position_callback(node, move)
+    module.actuator_actions.set_target_position.assert_not_called()
+    module.BodyControlNode._position_callback(node, move, auto_arm=True)
+    module.actuator_actions.set_target_position.assert_called_once_with(
+        "a", 10.0, auto_arm=True
+    )
+    module.actuator_actions.configure_trajectory.assert_not_called()
+    module.motor_actions.hold_current_position.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "invalid", ["bounds", "heartbeat", "encoder", "busy", "axis", "nan"]
+)
+def test_explicit_move_validates_the_whole_batch_before_any_io(body_io, invalid):
+    module, node, states = body_io
+    values = [1.0, 2.0]
+    if invalid == "bounds":
+        module.actuator_actions.validate_target_position.side_effect = [
+            1.0,
+            ValueError("bounds"),
+        ]
+    elif invalid == "heartbeat":
+        states["b"].last_heartbeat_time = 0.0
+    elif invalid == "encoder":
+        states["b"].last_encoder_estimate_time = 0.0
+    elif invalid == "busy":
+        states["b"].current_state = module.MotorState.HOMING
+    elif invalid == "axis":
+        states["b"].axis_error = 1
+    else:
+        values[1] = float("nan")
+    module.BodyControlNode._position_callback(
+        node,
+        SimpleNamespace(actuator_names=["a", "b"], positions_degrees=values),
+        auto_arm=True,
+    )
+    module.actuator_actions.set_target_position.assert_not_called()
+    module.motor_actions.set_axis_state.assert_not_called()
+
+
+def test_emergency_latch_blocks_queued_moves_and_arm_until_idle_recovery(body_io):
+    module, node, states = body_io
+    assert command(body_io, "emergency").success
+    assert node.motion_inhibited
+    for state in (8, 11, 3):
+        assert not command(body_io, "state", state=state).success
+    move = SimpleNamespace(actuator_names=["a"], positions_degrees=[10.0])
+    module.BodyControlNode._position_callback(node, move, auto_arm=True)
+    module.actuator_actions.set_target_position.assert_not_called()
+    assert command(body_io, "clear_errors").success
+    assert node.motion_inhibited
+    states["b"].current_state = module.MotorState.CLOSED_LOOP_CONTROL
+    assert not command(body_io, "recover").success
+    assert node.motion_inhibited
+    states["b"].current_state = module.MotorState.IDLE
+    states["b"].last_heartbeat_time = 0.0
+    assert not command(body_io, "recover").success
+    assert node.motion_inhibited
+    states["b"].last_heartbeat_time = 10.0
+    assert command(body_io, "recover").success
+    assert not node.motion_inhibited
+    # Recovery never arms; a new explicit move is still needed.
+    assert all(
+        call.args[1] == module.MotorState.IDLE
+        for call in module.motor_actions.set_axis_state.call_args_list
+    )
+    module.BodyControlNode._position_callback(node, move, auto_arm=True)
+    module.actuator_actions.set_target_position.assert_called_once()
+
+
+def test_partial_emergency_or_recovery_cannot_change_the_global_latch(body_io):
+    module, node, _ = body_io
+    assert not command(body_io, "emergency", names=["a"]).success
+    assert not node.motion_inhibited
+    node.motion_inhibited = True
+    assert not command(body_io, "recover", names=["a"]).success
+    assert node.motion_inhibited
+    module.motor_actions.set_axis_state.assert_not_called()
+
+
+def test_failed_explicit_move_disarms_the_selected_batch(body_io):
+    module, node, _ = body_io
+    module.actuator_actions.set_target_position.side_effect = [True, False]
+    module.BodyControlNode._position_callback(
+        node,
+        SimpleNamespace(actuator_names=["a", "b"], positions_degrees=[1.0, 2.0]),
+        auto_arm=True,
+    )
+    assert module.motor_actions.set_axis_state.call_args_list == [
+        call("a", module.MotorState.IDLE),
+        call("b", module.MotorState.IDLE),
+    ]
 
 
 @pytest.mark.parametrize("exit_kind", ["SIGINT", "SIGTERM", "external_shutdown"])

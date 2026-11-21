@@ -1,4 +1,5 @@
 import logging
+import math
 import os
 import time
 from dataclasses import dataclass
@@ -20,9 +21,7 @@ from .odrive_enums import AxisError, ControlMode, InputMode, MotorState
 logger = logging.getLogger(__name__)
 ODRIVE_CAN_DB = cast(
     Database,
-    cantools.database.load_file(
-        os.path.dirname(__file__) + "/odrive-cansimple.dbc"
-    ),
+    cantools.database.load_file(os.path.dirname(__file__) + "/odrive-cansimple.dbc"),
 )
 
 
@@ -42,6 +41,9 @@ class ODriveMotor:
     current_velocity: float | None = None
     last_heartbeat_time: float | None = None
     last_encoder_estimate_time: float | None = None
+    last_motion_arm_request_time: float | None = None
+    pending_motion: tuple[str, dict, ControlMode, InputMode] | None = None
+    controller_mode_configured: bool = False
 
     motor_error: int = 0
     encoder_error: int = 0
@@ -129,6 +131,9 @@ def read_heartbeat(motor: ODriveMotor, data):
     motor.sensorless_error_flag = bool(
         motor.axis_error & AxisError.SENSORLESS_ESTIMATOR_FAILED
     )
+    if state != MotorState.CLOSED_LOOP_CONTROL or motor.axis_error:
+        # Calibration/homing and controller restarts may change firmware modes.
+        motor.controller_mode_configured = False
     if motor.current_state != state:
         motor.current_state = state
         logger.info(
@@ -141,6 +146,22 @@ def read_heartbeat(motor: ODriveMotor, data):
             logger.error(
                 f"Axis {motor.axisID} Error w/ following data: " + str(axis_error)
             )
+    pending = motor.pending_motion
+    if pending is not None:
+        requested_at = motor.last_motion_arm_request_time
+        if (
+            motor.axis_error
+            or requested_at is None
+            or time.monotonic() - requested_at > 0.5
+            or state not in (MotorState.IDLE, MotorState.CLOSED_LOOP_CONTROL)
+        ):
+            set_axis_state(motor, MotorState.IDLE)
+        elif state == MotorState.CLOSED_LOOP_CONTROL:
+            motor.pending_motion = None
+            if not _send_motion(motor, *pending, auto_arm=False):
+                set_axis_state(motor, MotorState.IDLE)
+    if state == MotorState.CLOSED_LOOP_CONTROL:
+        motor.last_motion_arm_request_time = None
 
 
 @event_decorator("Get_Encoder_Estimates")
@@ -246,9 +267,7 @@ def get_state_snapshot(motor: ODriveMotor) -> ODriveMotorState:
         current_position=getattr(motor, "current_position", None),
         current_velocity=getattr(motor, "current_velocity", None),
         last_heartbeat_time=getattr(motor, "last_heartbeat_time", None),
-        last_encoder_estimate_time=getattr(
-            motor, "last_encoder_estimate_time", None
-        ),
+        last_encoder_estimate_time=getattr(motor, "last_encoder_estimate_time", None),
         motor_error=getattr(motor, "motor_error", 0),
         encoder_error=getattr(motor, "encoder_error", 0),
         sensorless_error=getattr(motor, "sensorless_error", 0),
@@ -261,9 +280,7 @@ def get_state_snapshot(motor: ODriveMotor) -> ODriveMotorState:
 
 
 @device_action(ctx)
-def set_position_bounds(
-    motor: ODriveMotor, minimum: float, maximum: float
-) -> None:
+def set_position_bounds(motor: ODriveMotor, minimum: float, maximum: float) -> None:
     """Set validated raw position bounds for an actuator-owned motor."""
     if motor.position_min is not None or motor.position_max is not None:
         raise ValueError(
@@ -278,13 +295,11 @@ def set_target_position(
     position: float,
     velocity_FF: float = 0.0,
     torque_FF: float = 0.0,
+    *,
+    auto_arm: bool = True,
 ) -> bool:
-    """Set the target position for this motor
-    Only use this function if Control Mode is set to POSITION_CONTROL"""
-    if motor.control_mode != ControlMode.POSITION_CONTROL:
-        logger.error(
-            f"Can not set position on motor {motor.axisID} when not set to POSITION_CONTROL."
-        )
+    """Select position mode and send a target, optionally entering closed loop."""
+    if not all(math.isfinite(v) for v in (position, velocity_FF, torque_FF)):
         return False
     if motor.position_min is not None and position < motor.position_min:
         if motor.strict_bounds:
@@ -306,11 +321,98 @@ def set_target_position(
             f"Attempting to set position on motor {motor.axisID} past upper bounds."
         )
         position = motor.position_max
-    return send_message(
+    return _send_motion(
         motor,
         "Set_Input_Pos",
         {"Input_Pos": position, "Vel_FF": velocity_FF, "Torque_FF": torque_FF},
+        ControlMode.POSITION_CONTROL,
+        InputMode.TRAP_TRAJ,
+        auto_arm=auto_arm,
     )
+
+
+def has_fault(motor) -> bool:
+    """Check axis and detailed fault state without sending a request."""
+    return any(
+        getattr(motor, key, 0)
+        for key in (
+            "axis_error",
+            "motor_error",
+            "encoder_error",
+            "sensorless_error",
+            "controller_error",
+            "motor_error_flag",
+            "encoder_error_flag",
+            "sensorless_error_flag",
+            "controller_error_flag",
+        )
+    )
+
+
+def _send_motion(motor, command, values, control_mode, input_mode, *, auto_arm):
+    """Select mode and enable motion, sending idle-axis targets after state 8."""
+    now = time.monotonic()
+    allowed = (
+        (MotorState.IDLE, MotorState.CLOSED_LOOP_CONTROL)
+        if auto_arm
+        else (MotorState.CLOSED_LOOP_CONTROL,)
+    )
+    if (
+        motor.current_state not in allowed
+        or has_fault(motor)
+        or motor.last_heartbeat_time is None
+        or not 0 <= now - motor.last_heartbeat_time <= 0.5
+        or motor.last_encoder_estimate_time is None
+        or not 0 <= now - motor.last_encoder_estimate_time <= 0.25
+        or motor.current_position is None
+        or not math.isfinite(motor.current_position)
+        or motor.current_velocity is None
+        or not math.isfinite(motor.current_velocity)
+    ):
+        logger.error(
+            "Motion rejected for axis %s: unavailable, busy, faulted or stale",
+            motor.axisID,
+        )
+        return False
+    pending = motor.last_motion_arm_request_time
+    if (
+        motor.current_state == MotorState.IDLE
+        and pending is not None
+        and now - pending > 0.5
+    ):
+        set_axis_state(motor, MotorState.IDLE)
+        logger.error("Axis %s did not confirm closed loop", motor.axisID)
+        return False
+    if motor.current_state == MotorState.IDLE and pending is not None:
+        motor.pending_motion = (command, values, control_mode, input_mode)
+        return True
+    # CANSimple mode updates reset the position input, and entering closed loop
+    # resets it again (ODrive fw-v0.5.6 controller.cpp / axis.cpp). Select mode
+    # before the target; defer idle-axis targets until a closed-loop heartbeat.
+    sent = True
+    if (
+        auto_arm
+        or not motor.controller_mode_configured
+        or motor.control_mode != control_mode
+        or motor.input_mode != input_mode
+    ):
+        sent = set_controller_mode(motor, control_mode, input_mode)
+    if sent and motor.current_state == MotorState.IDLE:
+        if not auto_arm:
+            return False
+        # Velocity input survives entry to closed loop. Zero its old value first.
+        if control_mode == ControlMode.VELOCITY_CONTROL:
+            sent = send_message(
+                motor, "Set_Input_Vel", {"Input_Vel": 0.0, "Input_Torque_FF": 0.0}
+            )
+        if sent:
+            motor.pending_motion = (command, values, control_mode, input_mode)
+            sent = set_axis_state(motor, MotorState.CLOSED_LOOP_CONTROL)
+    elif sent:
+        sent = send_message(motor, command, values)
+    if not sent:
+        set_axis_state(motor, MotorState.IDLE)
+    return sent
 
 
 @device_action(ctx)
@@ -372,34 +474,37 @@ def set_trajectory_accel(
 
 @device_action(ctx)
 def set_target_velocity(
-    motor: ODriveMotor, velocity: float, torque_FF: float = 0.0
+    motor: ODriveMotor,
+    velocity: float,
+    torque_FF: float = 0.0,
+    *,
+    auto_arm: bool = True,
 ) -> bool:
-    """Set the target velocity for this motor"""
+    """Select velocity/ramp mode without changing the configured ramp rate."""
     logger.info(f"Setting target velocity to {velocity}")
-    if (
-        motor.control_mode == ControlMode.POSITION_CONTROL
-        and motor.input_mode == InputMode.TRAP_TRAJ
-    ):
-        return set_trajectory_velocity(motor, velocity)
-    elif motor.control_mode != ControlMode.VELOCITY_CONTROL:
-        logger.error(
-            f"Can not set input velocity on motor {motor.axisID} when not set to VELOCITY_CONTROL."
-        )
+    if not all(math.isfinite(v) for v in (velocity, torque_FF)):
         return False
-    return send_message(
-        motor, "Set_Input_Vel", {"Input_Vel": velocity, "Input_Torque_FF": torque_FF}
+    return _send_motion(
+        motor,
+        "Set_Input_Vel",
+        {"Input_Vel": velocity, "Input_Torque_FF": torque_FF},
+        ControlMode.VELOCITY_CONTROL,
+        InputMode.VEL_RAMP,
+        auto_arm=auto_arm,
     )
 
 
 @device_action(ctx)
 def stop(motor: ODriveMotor):
     logger.info(f"Stopping motor(Axis: {motor.axisID})")
+    if motor.current_state != MotorState.CLOSED_LOOP_CONTROL:
+        return
     match motor.control_mode:
         case ControlMode.POSITION_CONTROL:
             if motor.current_position is not None:
-                set_target_position(motor, motor.current_position)
+                set_target_position(motor, motor.current_position, auto_arm=False)
         case ControlMode.VELOCITY_CONTROL:
-            set_target_velocity(motor, 0)
+            set_target_velocity(motor, 0, auto_arm=False)
 
 
 @device_action(ctx)
@@ -468,6 +573,7 @@ def set_controller_mode(
     if res:
         motor.control_mode = control_mode
         motor.input_mode = input_mode
+        motor.controller_mode_configured = True
     return res
 
 
@@ -533,7 +639,15 @@ def reboot(motor: ODriveMotor) -> bool:
 @device_action(ctx)
 def set_axis_state(motor: ODriveMotor, state: MotorState) -> bool:
     logger.info(f"Motor {motor.axisID} is being set to state {state}")
-    return send_message(motor, "Set_Axis_State", {"Axis_Requested_State": state})
+    if state != MotorState.CLOSED_LOOP_CONTROL:
+        motor.pending_motion = None
+        motor.last_motion_arm_request_time = None
+    sent = send_message(motor, "Set_Axis_State", {"Axis_Requested_State": state})
+    if sent:
+        motor.last_motion_arm_request_time = (
+            time.monotonic() if state == MotorState.CLOSED_LOOP_CONTROL else None
+        )
+    return sent
 
 
 # endregion

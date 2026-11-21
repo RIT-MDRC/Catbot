@@ -58,6 +58,7 @@ class BodyControlNode(Node):
         super().__init__("foundation_node")
 
         self.actuator_names = actuator_actions.get_names()
+        self.motion_inhibited = False
         self.ordered_motor_names = actuator_names_by_axis_id(self.actuator_names)
         self.last_error_request_times = {}
 
@@ -70,6 +71,12 @@ class BodyControlNode(Node):
             ActuatorPositionCommand,
             "/body/control/position",
             self._position_callback,
+            position_qos,
+        )
+        self.create_subscription(
+            ActuatorPositionCommand,
+            "/body/control/move/position",
+            self._move_position_callback,
             position_qos,
         )
         position_state_qos = QoSProfile(
@@ -97,15 +104,20 @@ class BodyControlNode(Node):
         self.create_timer(POSITION_STATE_PERIOD_SECONDS, self._publish_position_state)
         self.create_timer(STATE_CHECK_PERIOD_SECONDS, self._update_error_state)
 
-    def _ready_motor_names(self) -> set[str]:
+    def _ready_motor_names(self, *, allow_idle=False) -> set[str]:
         now = time.monotonic()
         return {
             name
             for name in self.ordered_motor_names
             for motor in (motor_actions.get_state_snapshot(name),)
             if heartbeat_available(motor, now, HEARTBEAT_STALE_SECONDS)
-            and motor.current_state == MotorState.CLOSED_LOOP_CONTROL
-            and not motor.axis_error
+            and motor.current_state
+            in (
+                (MotorState.IDLE, MotorState.CLOSED_LOOP_CONTROL)
+                if allow_idle
+                else (MotorState.CLOSED_LOOP_CONTROL,)
+            )
+            and not motor_actions.has_fault(motor)
             and encoder_available(motor, now, ENCODER_STALE_SECONDS)
         }
 
@@ -115,15 +127,49 @@ class BodyControlNode(Node):
             validate_motor_command(
                 names, self.actuator_names, request.operation, request.state
             )
+            if request.operation in ("emergency", "recover") and set(names) != set(
+                self.actuator_names
+            ):
+                raise ValueError(
+                    "Emergency/recovery requires the complete actuator roster"
+                )
+            if request.operation == "emergency":
+                self.motion_inhibited = True
+            if request.operation == "recover":
+                if any(
+                    not heartbeat_available(
+                        motor_actions.get_state_snapshot(name),
+                        time.monotonic(),
+                        HEARTBEAT_STALE_SECONDS,
+                    )
+                    or motor_actions.get_state_snapshot(name).current_state
+                    != MotorState.IDLE
+                    for name in names
+                ):
+                    raise ValueError("Recovery requires confirmed idle axes")
+                self.motion_inhibited = False
+                response.success, response.message = (
+                    True,
+                    "motion latch cleared; axes remain idle",
+                )
+                return response
+            if self.motion_inhibited and (
+                request.operation == "hold"
+                or (
+                    request.operation == "state"
+                    and request.state != int(MotorState.IDLE)
+                )
+            ):
+                raise ValueError("Motion inhibited by emergency; recover first")
             # Validate the entire batch before issuing any non-idle operation.
             for name in names:
                 motor = motor_actions.get_state_snapshot(name)
-                if request.operation not in ("idle", "clear_errors"):
+                if request.operation not in ("idle", "emergency", "clear_errors"):
                     if not heartbeat_available(
                         motor, time.monotonic(), HEARTBEAT_STALE_SECONDS
                     ):
                         raise ValueError(f"No fresh heartbeat for {name}")
-                    if motor.axis_error:
+                    if motor_actions.has_fault(motor):
                         raise ValueError(f"Axis fault on {name}")
                     needs_encoder = request.operation in ("hold", "trajectory") or (
                         request.operation == "state"
@@ -135,7 +181,7 @@ class BodyControlNode(Node):
                         raise ValueError(f"No fresh encoder for {name}")
             failed = []
             for name in names:
-                if request.operation == "idle":
+                if request.operation in ("idle", "emergency"):
                     sent = motor_actions.set_axis_state(name, MotorState.IDLE)
                 elif request.operation == "clear_errors":
                     sent = motor_actions.clear_error_message(name)
@@ -232,17 +278,28 @@ class BodyControlNode(Node):
 
         self.error_state_publisher.publish(message)
 
-    def _position_callback(self, message: ActuatorPositionCommand) -> None:
+    def _move_position_callback(self, message: ActuatorPositionCommand) -> None:
+        self._position_callback(message, auto_arm=True)
+
+    def _position_callback(
+        self, message: ActuatorPositionCommand, *, auto_arm=False
+    ) -> None:
         try:
+            if self.motion_inhibited:
+                raise ValueError("Motion inhibited by emergency; recover first")
             targets = prepare_position_targets(
                 list(message.actuator_names),
                 list(message.positions_degrees),
                 self.actuator_names,
-                self._ready_motor_names(),
+                self._ready_motor_names(allow_idle=auto_arm),
             )
             for name, _ in targets:
                 motor = motor_actions.get_state_snapshot(name)
-                if motor.current_state != MotorState.CLOSED_LOOP_CONTROL:
+                if motor.current_state not in (
+                    (MotorState.IDLE, MotorState.CLOSED_LOOP_CONTROL)
+                    if auto_arm
+                    else (MotorState.CLOSED_LOOP_CONTROL,)
+                ):
                     raise ValueError(
                         f'Actuator "{name}" is no longer in closed-loop control'
                     )
@@ -252,9 +309,14 @@ class BodyControlNode(Node):
 
         failed = []
         for name, target_degrees in targets:
-            if not actuator_actions.set_target_position(name, target_degrees):
+            if not actuator_actions.set_target_position(
+                name, target_degrees, auto_arm=auto_arm
+            ):
                 failed.append(name)
+                break
         if failed:
+            for name, _ in targets:
+                motor_actions.set_axis_state(name, MotorState.IDLE)
             self.get_logger().error(
                 "Failed to send position targets to: " + ", ".join(failed)
             )

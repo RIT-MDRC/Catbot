@@ -102,11 +102,14 @@ def test_managed_orin_policy_pi_gate_scripts_and_stale_emergency(tmp_path):
         )
 
         def motor(request, response):
+            assert request.operation not in ("trajectory", "hold"), (
+                "Arming must preserve controller configuration and target"
+            )
             operations.append(
                 (request.operation, request.state, list(request.actuator_names))
             )
             for name in request.actuator_names or names:
-                if request.operation == "idle":
+                if request.operation in ("idle", "emergency"):
                     states[name] = 1
                     completing.pop(name, None)
                 elif request.operation == "state":
@@ -124,6 +127,9 @@ def test_managed_orin_policy_pi_gate_scripts_and_stale_emergency(tmp_path):
 
         body.create_subscription(
             ActuatorPositionCommand, "/body/control/position", position_command, 1
+        )
+        body.create_subscription(
+            ActuatorPositionCommand, "/body/control/move/position", position_command, 1
         )
 
         def publish():
@@ -296,7 +302,7 @@ def test_managed_orin_policy_pi_gate_scripts_and_stale_emergency(tmp_path):
         assert len(received) == count, "Emergency forwarded an action"
         sensors_enabled[0] = True
         call(Trigger, "/rpi/supervisor/recover", Trigger.Request())
-        assert pi.gate.mode == Mode.IDLE
+        until(lambda: pi.gate.mode == Mode.IDLE)
         assert len(received) == count
         old_session = orin.session
         call(
@@ -371,6 +377,9 @@ def test_local_homing_without_orin_or_policy():
         )
 
         def motor(request, response):
+            assert request.operation not in ("trajectory", "hold"), (
+                "Arming must preserve controller configuration and target"
+            )
             operations.append(
                 (request.operation, request.state, list(request.actuator_names))
             )
@@ -379,7 +388,7 @@ def test_local_homing_without_orin_or_policy():
                     "Arming before the complete homing group finished"
                 )
             for index, name in enumerate(request.actuator_names or names):
-                if request.operation == "idle":
+                if request.operation in ("idle", "emergency"):
                     states[name] = 1
                     completing.pop(name, None)
                 elif request.operation == "state":
@@ -392,12 +401,16 @@ def test_local_homing_without_orin_or_policy():
             return response
 
         body.create_service(MotorCommand, "/body/control/motor", motor)
+
+        def explicit_move(msg):
+            positions.update(zip(msg.actuator_names, msg.positions_degrees))
+            for name in msg.actuator_names:
+                states[name] = 8
+
         body.create_subscription(
             ActuatorPositionCommand,
-            "/body/control/position",
-            lambda msg: positions.update(
-                zip(msg.actuator_names, msg.positions_degrees)
-            ),
+            "/body/control/move/position",
+            explicit_move,
             1,
         )
 
@@ -455,6 +468,26 @@ def test_local_homing_without_orin_or_policy():
             assert result.success, result.message
 
         until(lambda: pi.gate.mode == Mode.IDLE and pi.body_fresh())
+        # An explicit script move can start from idle without separate arm steps.
+        pi.scripts["move_check"] = lambda names: [
+            Step("position", names=("flf",), positions=(12.0,)),
+            Step("wait_position", names=("flf",), positions=(12.0,)),
+        ]
+        assert pi.run_script(
+            RunScript.Request(name="move_check"), RunScript.Response()
+        ).success
+        until(lambda: pi.gate.mode == Mode.HOLDING)
+        assert positions["flf"] == 12.0 and states["flf"] == 8
+        assert not any(op == "state" and state == 8 for op, state, ns in operations)
+        pi.emergency(Trigger.Request(), Trigger.Response())
+        until(lambda: not pi.runner.active and all(s == 1 for s in states.values()))
+        # A new emergency supersedes a pending Foundation recovery response.
+        assert pi.recover(Trigger.Request(), Trigger.Response()).success
+        pi.emergency(Trigger.Request(), Trigger.Response())
+        until(lambda: not pi.runner.active)
+        assert pi.gate.mode == Mode.EMERGENCY
+        assert pi.recover(Trigger.Request(), Trigger.Response()).success
+        until(lambda: pi.gate.mode == Mode.IDLE)
         statuses = []
         body.create_subscription(
             String,
@@ -476,6 +509,7 @@ def test_local_homing_without_orin_or_policy():
         pi.emergency(Trigger.Request(), Trigger.Response())
         until(lambda: not pi.runner.active)
         assert pi.recover(Trigger.Request(), Trigger.Response()).success
+        until(lambda: pi.gate.mode == Mode.IDLE)
         # Calibration is independently requested and does not need a policy peer.
         result = pi.run_script(
             RunScript.Request(name="calibrate"), RunScript.Response()
@@ -520,6 +554,7 @@ def test_local_homing_without_orin_or_policy():
         faults["flk"] = 0
         until(lambda: pi.body["flk"].controller_error_flags == 0)
         assert pi.recover(Trigger.Request(), Trigger.Response()).success
+        until(lambda: pi.gate.mode == Mode.IDLE)
         operations.clear()
         script()
         until(lambda: pi.runner.prompt is not None, timeout=60)

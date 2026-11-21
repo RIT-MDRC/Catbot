@@ -199,10 +199,14 @@ def validate_target_position(actuator: Actuator, value: float, unit="degrees") -
 
 
 @device_action(ctx)
-def set_target_position(actuator: Actuator, value: float, unit="degrees") -> bool:
+def set_target_position(
+    actuator: Actuator, value: float, unit="degrees", *, auto_arm=True
+) -> bool:
     """Validate a logical target against the profile and send it to the motor."""
     return motor_actions.set_target_position(
-        actuator.motor, validate_target_position(actuator, value, unit)
+        actuator.motor,
+        validate_target_position(actuator, value, unit),
+        auto_arm=auto_arm,
     )
 
 

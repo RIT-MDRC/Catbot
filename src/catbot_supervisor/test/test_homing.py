@@ -123,7 +123,7 @@ def test_robot_calibration_batches_full_calibration_and_orders_homing_with_group
             calibrate_robot(names)
 
 
-def test_homing_stages_hold_each_axis_and_gate_abduction_on_operator():
+def test_homing_stages_arm_each_axis_and_gate_abduction_on_operator():
     steps = home_robot(NAMES)
     homed = [s.names[0] for s in steps if s.kind == "motor" and s.state == 11]
     assert homed == [
@@ -145,12 +145,10 @@ def test_homing_stages_hold_each_axis_and_gate_abduction_on_operator():
         start = next(
             i for i, s in enumerate(steps) if s.state == 11 and s.names == (name,)
         )
-        assert [(s.kind, s.operation, s.state) for s in steps[start : start + 7]] == [
+        assert [(s.kind, s.operation, s.state) for s in steps[start : start + 5]] == [
             ("motor", "state", 11),
             ("wait_state", "", 11),
             ("wait_state", "", 1),
-            ("motor", "trajectory", 0),
-            ("motor", "hold", 0),
             ("motor", "state", 8),
             ("wait_ready", "", 0),
         ]

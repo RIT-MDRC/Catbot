@@ -9,3 +9,9 @@ named motion profile, so an inverted profile reverses raw motor direction
 without changing logical signs. The sample uses a Textual interface with a
 scrollable output log, command-history input, and live configured-axis CAN error
 indicator.
+
+A valid `mp` or `mr` command selects position/trapezoidal control and enters
+closed loop automatically; a separate `arm` command is optional. `arm` only
+requests state 8. Moves preserve existing trajectory speed/acceleration limits;
+use `speed` or `accel` explicitly to change them. Idle-axis targets wait for the
+closed-loop heartbeat. Faulted, busy or stale axes reject moves.

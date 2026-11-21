@@ -104,8 +104,20 @@ A rejected message sends no targets. An error on an omitted actuator does not
 block the named subset. CAN frames cannot be sent atomically, so a transport
 failure after validation is logged for the affected actuator.
 
+For an explicit move that also selects position/trapezoidal mode and enters
+closed loop automatically, publish the same message to
+`/body/control/move/position`. Idle axes wait for a closed-loop heartbeat before
+receiving their target. Speed/acceleration limits are preserved. The streaming
+`/body/control/position` path still requires closed-loop axes and never re-arms
+them; Pi policy forwarding retains its explicit RUN gate. Invalid batches send
+no targets; a send failure disarms the selected batch.
+
 `/body/control/motor` provides `catbot_interfaces/srv/MotorCommand` for immediate
-`idle`, `clear_errors`, `trajectory`, `hold`, or explicit `state` requests.
+`idle`, `emergency`, `recover`, `clear_errors`, `trajectory`, `hold`, or explicit
+`state` requests. Arming (`state: 8`) sends only the axis-state request. An
+`emergency` request requires the complete roster, latches motion/arm requests
+off, and requests IDLE. `clear_errors` leaves this latch set. `recover` requires
+fresh confirmed IDLE on the complete roster and clears the latch without arming.
 An empty actuator-name list selects the complete configured roster, including
 unresponsive axes for disarm. Requests validate names and operation before I/O;
 non-idle operations retain heartbeat, fault, and encoder checks where required.

@@ -102,9 +102,16 @@ Probe echoes are matched to outstanding Pi requests and consumed once.
 
 Built-ins are `startup`, `shutdown`, `emergency`, `home`, `calibrate`,
 `full_calibrate`, and `clear_errors`. Maintenance explicitly disarms, clears faults,
-waits for each motor operation, configures trajectory, holds measured position,
-then requests and confirms closed loop per axis. Service success means the
-request was sent; scripts wait for body-state confirmation before advancing.
+waits for each motor operation, then requests and confirms closed loop per axis.
+Arming sends only controller state 8. It sends no control/input-mode,
+trajectory-limit, or target writes; the ODrive handles closed-loop entry using
+its existing configuration. Entering the supervisor's `holding` mode does not
+itself write a hold target. Explicit
+position moves select position/trapezoidal mode automatically and enter closed
+loop if idle, without resetting speed or acceleration limits. Targets are sent
+after closed-loop feedback so controller startup cannot overwrite them.
+Service success means the request was sent; scripts wait for body-state
+confirmation before advancing.
 
 Install a Python entry point under `catbot_supervisor.scripts` to add a script
 without editing the node. The factory receives the complete actuator-name tuple
@@ -267,7 +274,7 @@ for the same robot sequence. It does not start policy or enable forwarding:
    calibration substates and require every actuator to return to fault-free IDLE
    before continuing (60-second timeout).
 3. Home `flk, frk, blk, brk` together. Wait for the entire group to finish homing
-   and return to IDLE, then configure trajectory, hold measured position, and arm
+   and return to IDLE, then request closed loop for
    each member, confirming closed-loop readiness before continuing.
 4. Repeat that homing/completion/arming barrier for `flf, frf, blf, brf`.
 5. Repeat it for `bla, bra`.
@@ -351,8 +358,11 @@ feedback confirms all axes are IDLE. Service acceptance is not confirmation
 that hardware has stopped: inspect `/rpi/supervisor/status` and
 `/body/state/error` for mode, faults and actual axis state.
 
-Recovery is a separate explicit `/rpi/supervisor/recover` Trigger call after
-confirmed IDLE; it does not resume the interrupted script or motion. The layout
+Foundation also latches out move and arm requests during emergency, including
+queued explicit moves. Clearing errors does not clear this latch. Recovery is a
+separate explicit `/rpi/supervisor/recover` Trigger call after confirmed IDLE;
+the Pi waits for Foundation's acknowledgement before reporting idle. It does
+not resume the interrupted script or motion. The layout
 deliberately has no recovery/run button next to the e-stop.
 
 This is a software disarm, not a power cut or a guaranteed physical stop. Motor
@@ -398,8 +408,8 @@ The sequence is implemented in `catbot_supervisor/scripts.py:home_robot`:
 5. Home abduction/adduction: `fla`, `fra`, `bla`, `bra`.
 
 Each group runs one actuator at a time. For each axis, request homing (controller
-state 11), observe homing then IDLE (30-second completion timeout), configure its
-trajectory, hold measured position, request closed loop, and confirm readiness.
+state 11), observe homing then IDLE (30-second completion timeout), request closed
+loop only, and confirm readiness.
 Each motor is armed immediately after its own homing finishes, before the next
 motor starts. There is a 15-second buffer after each complete homing group,
 after the front joints reach +30 degrees, and after operator confirmation before
@@ -407,7 +417,8 @@ abduction/adduction starts. These five buffers add 75 seconds to the sequence;
 they are pauses after completion, not replacements for feedback checks or
 operation timeouts. Fault/link/health checks and the e-stop remain active during
 every buffer.
-This keeps previously homed axes holding while later axes home. The front
+This keeps previously homed axes in closed loop while later axes home. Their
+arming sends no controller-mode or target commands. The front
 flexion joints keep their +30-degree targets through the prompt and final group.
 Successful completion leaves all axes in local `holding` mode, with policy
 forwarding disabled. Starting policy through the Orin job service does not arm
@@ -440,8 +451,9 @@ for this test and starts a kinematics worker that depends on saved policy files.
 `sample_home` and `sample_calibrate` are editable examples in
 `catbot_supervisor/scripts.py:prompted_maintenance`. They disarm and clear faults,
 then ask for confirmation before each axis's controller operation. After all
-operations, the existing maintenance sequence holds measured positions and arms
-closed loop. Policy forwarding remains paused until an explicit `run` request.
+operations, the existing maintenance sequence requests closed loop without
+rewriting controller configuration or position targets. Policy forwarding remains
+paused until an explicit `run` request.
 They require healthy Pi/body telemetry but no Orin policy. Completion leaves
 local holding mode; policy forwarding remains disabled until explicitly enabled.
 

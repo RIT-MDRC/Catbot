@@ -3,7 +3,47 @@ from types import SimpleNamespace
 from unittest.mock import Mock, call
 
 import pytest
-from catbot_supervisor.scripts import ScriptRunner, Step, maintenance, registry
+from catbot_supervisor.scripts import (
+    ScriptRunner,
+    Step,
+    arm_steps,
+    maintenance,
+    registry,
+)
+
+
+def test_arm_only_requests_closed_loop_and_waits_for_readiness():
+    assert arm_steps(("flf", "frf")) == [
+        Step("motor", "state", ("flf",), 8),
+        Step("wait_ready", names=("flf",)),
+        Step("motor", "state", ("frf",), 8),
+        Step("wait_ready", names=("frf",)),
+    ]
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "startup",
+        "restart_policy",
+        "home",
+        "home_robot",
+        "calibrate",
+        "full_calibrate",
+        "clear_errors",
+        "sample_home",
+        "sample_calibrate",
+    ],
+)
+def test_builtin_arming_never_reconfigures_or_overwrites_motor_targets(name):
+    names = tuple(
+        f"{leg}{joint}" for leg in ("fl", "fr", "bl", "br") for joint in ("a", "f", "k")
+    )
+    steps = registry()[name](names)
+    assert any(s.kind == "motor" and s.state == 8 for s in steps)
+    assert not any(
+        s.kind == "motor" and s.operation in ("trajectory", "hold") for s in steps
+    )
 
 
 def test_runner_waits_for_service_and_confirmation_then_advances():
@@ -82,7 +122,7 @@ def test_emergency_dispatches_idle_without_waiting_for_pending_service():
     assert not pending.done()
     runner.start(registry()["emergency"](("a",)))
     runner.tick(1.1)
-    assert dispatch.call_args_list == [call(arm), call(Step("motor", "idle"))]
+    assert dispatch.call_args_list == [call(arm), call(Step("motor", "emergency"))]
     # A late reply from the replaced script must not resume its remaining work.
     pending.set_result(SimpleNamespace(success=True))
     runner.tick(1.2)
@@ -108,7 +148,7 @@ def test_script_registry_and_axis_order_are_extensible(monkeypatch):
     calibration = [s for s in steps if s.operation == "state" and s.state == 4]
     assert [s.names for s in calibration] == [("a",), ("b",)]
     assert all(s.names for s in steps if s.operation == "state" and s.state == 8)
-    assert scripts["emergency"](())[0].operation == "idle"
+    assert scripts["emergency"](())[0].operation == "emergency"
 
 
 def test_plugins_cannot_replace_emergency(monkeypatch):

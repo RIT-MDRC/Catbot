@@ -338,7 +338,9 @@ class MotorTestSession:
             self.refresh_motors()
             report_bus_errors(self.motors, self.emit)
             selected_names = ", ".join(name for name, _ in selected_motors)
-            self.emit(f"{selected_names} disarmed; type 'arm' to enable the selection.")
+            self.emit(
+                f"{selected_names} disarmed; a valid move selects position mode and enters closed loop."
+            )
 
         return 0
 
@@ -449,7 +451,7 @@ class MotorTestSession:
             )
 
     def _arm(self, matches) -> None:
-        """Enable position control only after confirming a safe hold and heartbeat."""
+        """Request closed loop only, without configuration or target writes."""
         for name, motor in matches:
             if motor.axis_error:
                 self.emit(Errors.FAULT_BEFORE_ARM.format(name=name))
@@ -458,12 +460,6 @@ class MotorTestSession:
                 self.emit(Errors.NO_HOLD_POSITION.format(name=name))
                 continue
             self.emit(Errors.ARM_WARNING.format(name=name))
-            if not actuator_actions.configure_trajectory(name):
-                self.emit(Errors.TRAJECTORY_FAILED.format(name=name))
-                continue
-            if not motor_actions.hold_current_position(name):
-                self.emit(Errors.HOLD_FAILED.format(name=name))
-                continue
             if not motor_actions.set_axis_state(name, MotorState.CLOSED_LOOP_CONTROL):
                 self.emit(Errors.ARM_REQUEST_FAILED.format(name=name))
                 continue
@@ -477,7 +473,7 @@ class MotorTestSession:
                 motor_actions.set_axis_state(name, MotorState.IDLE)
                 continue
             self.active_motor_names.add(name)
-            self.emit(f"Armed {name} in position control.")
+            self.emit(f"Armed {name} in closed loop.")
         report_bus_errors(self.motors, self.emit)
 
     def _disarm(self, matches) -> None:
@@ -578,17 +574,14 @@ class MotorTestSession:
             self._move_motor(command, angle_degrees, name, motor)
 
     def _move_motor(self, command, angle_degrees, name, motor) -> None:
-        """Validate arm state, relative feedback, and bounds before sending a target."""
+        """Validate a move; its motor action selects mode and arms automatically."""
 
         if motor.axis_error:
             self.emit(Errors.FAULT_BEFORE_MOTION.format(name=name))
             return
-        if (
-            name not in self.active_motor_names
-            or motor.current_state != MotorState.CLOSED_LOOP_CONTROL
-        ):
+        if motor.current_state not in (MotorState.IDLE, MotorState.CLOSED_LOOP_CONTROL):
             self.active_motor_names.discard(name)
-            self.emit(Errors.DISARMED.format(name=name))
+            self.emit(f"Motion rejected for {name}: axis is busy or unavailable.")
             return
         current_degrees = None
         if command == "mr":
@@ -610,6 +603,17 @@ class MotorTestSession:
             self.emit(Errors.TARGET_REJECTED.format(name=name, error=error))
             return
         if actuator_actions.set_target_position(name, target_degrees):
+            if not wait_for(
+                name,
+                lambda current: current.current_state == MotorState.CLOSED_LOOP_CONTROL,
+                HEARTBEAT_TIMEOUT_SECONDS,
+                self.should_stop,
+            ):
+                motor_actions.set_axis_state(name, MotorState.IDLE)
+                self.active_motor_names.discard(name)
+                self.emit(Errors.ARM_NOT_CONFIRMED.format(name=name))
+                return
+            self.active_motor_names.add(name)
             if command == "mr":
                 self.emit(
                     f"Commanded {name} by {angle_degrees:g} "

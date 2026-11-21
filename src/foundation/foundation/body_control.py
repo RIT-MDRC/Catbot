@@ -17,7 +17,15 @@ def validate_motor_command(names, configured, operation, state):
         or any(n not in configured for n in names)
     ):
         raise ValueError("Motor command requires unique configured actuator names")
-    if operation not in {"idle", "clear_errors", "trajectory", "hold", "state"}:
+    if operation not in {
+        "idle",
+        "emergency",
+        "recover",
+        "clear_errors",
+        "trajectory",
+        "hold",
+        "state",
+    }:
         raise ValueError("Unknown immediate motor operation")
     if operation == "state" and state not in {
         int(MotorState.IDLE),

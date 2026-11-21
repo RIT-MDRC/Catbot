@@ -57,3 +57,9 @@ different per-axis completion times and calibration substates, and checks that
 no arming request occurs while any actuator remains in homing. It checks the
 ordered homing groups, settled +30-degree front-flexion move, required operator
 confirmation before front-abduction homing, and final holding without policy.
+Both real-adapter ROS tests reject trajectory/hold commands from the supervisor
+to verify that arming requests only closed loop and preserves existing controller
+configuration and targets. The explicit +30-degree position command is retained.
+Foundation doubles check automatic move-mode selection, target delivery after
+closed-loop feedback, preserved speed/acceleration limits, sparse batch
+validation, and emergency latching across queued moves and explicit recovery.

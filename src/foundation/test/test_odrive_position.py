@@ -4,10 +4,11 @@ import asyncio
 import subprocess
 import sys
 import textwrap
+import time
 from argparse import Namespace
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, call, patch
 
 import pytest
 from textual.widgets import Static, TextArea
@@ -71,6 +72,226 @@ def make_motor() -> ODriveMotor:
     motor.sensorless_error_flag = False
     motor.controller_error_flag = False
     return motor
+
+
+@pytest.fixture
+def motion_motor(monkeypatch):
+    motor = make_motor()
+    motor.current_state = MotorState.IDLE
+    motor.current_position = motor.current_velocity = 0.0
+    motor.last_heartbeat_time = motor.last_encoder_estimate_time = 10.0
+    motor.strict_bounds = True
+    clock = [10.1]
+    monkeypatch.setattr(time, "monotonic", lambda: clock[0])
+    send = Mock(return_value=True)
+    monkeypatch.setattr(motor_actions, "send_message", send)
+    return motor, send, clock
+
+
+def heartbeat(motor, state=MotorState.CLOSED_LOOP_CONTROL, error=0):
+    read_heartbeat(
+        motor,
+        {
+            "Axis_State": SimpleNamespace(value=state),
+            "Axis_Error": error,
+            "Motor_Error_Flag": 0,
+            "Encoder_Error_Flag": 0,
+            "Controller_Error_Flag": 0,
+        },
+    )
+
+
+@pytest.mark.parametrize("kind", ["position", "velocity"])
+def test_move_selects_mode_and_waits_for_closed_loop_before_target(motion_motor, kind):
+    motor, send, _ = motion_motor
+    action = (
+        motor_actions.set_target_position
+        if kind == "position"
+        else motor_actions.set_target_velocity
+    )
+    command = "Set_Input_Pos" if kind == "position" else "Set_Input_Vel"
+    mode = (
+        ControlMode.POSITION_CONTROL
+        if kind == "position"
+        else ControlMode.VELOCITY_CONTROL
+    )
+    input_mode = InputMode.TRAP_TRAJ if kind == "position" else InputMode.VEL_RAMP
+    assert action(motor, 5.0)
+    assert send.call_args_list[0] == call(
+        motor, "Set_Controller_Mode", {"Control_Mode": mode, "Input_Mode": input_mode}
+    )
+    assert send.call_args_list[-1] == call(
+        motor,
+        "Set_Axis_State",
+        {"Axis_Requested_State": MotorState.CLOSED_LOOP_CONTROL},
+    )
+    if kind == "velocity":
+        assert send.call_args_list[1] == call(
+            motor, command, {"Input_Vel": 0.0, "Input_Torque_FF": 0.0}
+        )
+    else:
+        assert send.call_count == 2
+    heartbeat(motor)
+    assert send.call_args.args[1] == command
+    assert (
+        send.call_args.args[2]["Input_Pos" if kind == "position" else "Input_Vel"]
+        == 5.0
+    )
+    assert motor.pending_motion is None
+    assert not any(
+        "Limit" in c.args[1] or "Accel" in c.args[1] for c in send.call_args_list
+    )
+
+
+def test_armed_move_sends_mode_before_target_and_arm_itself_is_state_only(motion_motor):
+    motor, send, _ = motion_motor
+    assert motor_actions.set_axis_state(motor, MotorState.CLOSED_LOOP_CONTROL)
+    send.assert_called_once_with(
+        motor,
+        "Set_Axis_State",
+        {"Axis_Requested_State": MotorState.CLOSED_LOOP_CONTROL},
+    )
+    heartbeat(motor)
+    send.reset_mock()
+    assert motor_actions.set_target_position(motor, 5.0)
+    assert [c.args[1] for c in send.call_args_list] == [
+        "Set_Controller_Mode",
+        "Set_Input_Pos",
+    ]
+    send.reset_mock()
+    assert motor_actions.set_target_position(motor, 6.0, auto_arm=False)
+    assert [c.args[1] for c in send.call_args_list] == ["Set_Input_Pos"]
+    heartbeat(motor, MotorState.IDLE)
+    heartbeat(motor)
+    send.reset_mock()
+    assert motor_actions.set_target_position(motor, 7.0, auto_arm=False)
+    assert [c.args[1] for c in send.call_args_list] == [
+        "Set_Controller_Mode",
+        "Set_Input_Pos",
+    ]
+
+
+def test_pending_move_updates_target_without_repeated_arm_and_disarm_cancels_it(
+    motion_motor,
+):
+    motor, send, _ = motion_motor
+    assert motor_actions.set_target_position(motor, 5.0)
+    count = send.call_count
+    assert motor_actions.set_target_position(motor, 7.0)
+    assert send.call_count == count
+    heartbeat(motor)
+    assert send.call_args.args[2]["Input_Pos"] == 7.0
+    motor.current_state = MotorState.IDLE
+    assert motor_actions.set_target_position(motor, 9.0)
+    assert motor_actions.set_axis_state(motor, MotorState.IDLE)
+    send.reset_mock()
+    heartbeat(motor)
+    send.assert_not_called()
+
+
+@pytest.mark.parametrize("failure", ["timeout", "fault", "busy", "encoder", "send"])
+def test_pending_move_aborts_to_idle_instead_of_sending_unsafe_target(
+    motion_motor, failure
+):
+    motor, send, clock = motion_motor
+    assert motor_actions.set_target_position(motor, 5.0)
+    send.reset_mock()
+    if failure == "timeout":
+        clock[0] = 10.7
+    elif failure == "encoder":
+        motor.last_encoder_estimate_time = 0.0
+    elif failure == "send":
+        send.side_effect = [False, True, True]
+    heartbeat(
+        motor,
+        MotorState.HOMING if failure == "busy" else MotorState.CLOSED_LOOP_CONTROL,
+        1 if failure == "fault" else 0,
+    )
+    assert send.call_args == call(
+        motor, "Set_Axis_State", {"Axis_Requested_State": MotorState.IDLE}
+    )
+    assert motor.pending_motion is None
+    if failure != "send":
+        assert not any(c.args[1] == "Set_Input_Pos" for c in send.call_args_list)
+
+
+@pytest.mark.parametrize(
+    "invalid",
+    [
+        "axis_error",
+        "motor_error",
+        "encoder_error",
+        "sensorless_error",
+        "controller_error",
+        "motor_error_flag",
+        "encoder_error_flag",
+        "sensorless_error_flag",
+        "controller_error_flag",
+        "heartbeat",
+        "encoder",
+        "position",
+        "velocity",
+        "busy",
+        "bounds",
+        "target",
+    ],
+)
+def test_move_rejects_invalid_feedback_faults_and_targets_before_any_can(
+    motion_motor, invalid
+):
+    motor, send, _ = motion_motor
+    target = 5.0
+    if "error" in invalid:
+        setattr(motor, invalid, 1)
+    elif invalid == "heartbeat":
+        motor.last_heartbeat_time = 0.0
+    elif invalid == "encoder":
+        motor.last_encoder_estimate_time = 0.0
+    elif invalid in ("position", "velocity"):
+        setattr(motor, "current_" + invalid, float("nan"))
+    elif invalid == "busy":
+        motor.current_state = MotorState.HOMING
+    elif invalid == "bounds":
+        target = 100.0
+    else:
+        target = float("nan")
+    assert not motor_actions.set_target_position(motor, target)
+    send.assert_not_called()
+
+
+def test_policy_move_and_stop_cannot_rearm_idle_axes(motion_motor):
+    motor, send, _ = motion_motor
+    assert not motor_actions.set_target_position(motor, 5.0, auto_arm=False)
+    motor_actions.stop(motor)
+    send.assert_not_called()
+    motor.current_state = MotorState.CLOSED_LOOP_CONTROL
+    assert motor_actions.set_target_position(motor, 5.0, auto_arm=False)
+    assert all(c.args[1] != "Set_Axis_State" for c in send.call_args_list)
+
+
+def test_stream_configures_mode_once_then_reestablishes_it_after_idle(motion_motor):
+    motor, send, _ = motion_motor
+    motor.control_mode = ControlMode.POSITION_CONTROL
+    motor.input_mode = InputMode.TRAP_TRAJ
+    heartbeat(motor)
+    assert motor_actions.set_target_position(motor, 5.0, auto_arm=False)
+    assert [c.args[1] for c in send.call_args_list] == [
+        "Set_Controller_Mode",
+        "Set_Input_Pos",
+    ]
+
+
+def test_stream_cannot_arm_if_idle_heartbeat_arrives_during_mode_write(motion_motor):
+    motor, send, _ = motion_motor
+    motor.current_state = MotorState.CLOSED_LOOP_CONTROL
+
+    def become_idle(*_args):
+        motor.current_state = MotorState.IDLE
+        return True
+
+    send.side_effect = become_idle
+    assert not motor_actions.set_target_position(motor, 5.0, auto_arm=False)
+    assert [c.args[1] for c in send.call_args_list] == ["Set_Controller_Mode"]
 
 
 def test_sample_import_registers_parsers_without_opening_can(tmp_path) -> None:
@@ -541,7 +762,11 @@ def command_runtime(monkeypatch):
         position=Mock(return_value=10.0),
         velocity=Mock(return_value=5.0),
         validate=Mock(side_effect=lambda _name, degrees: degrees * 64 / 360),
-        target=Mock(return_value=True),
+        target=Mock(
+            side_effect=lambda name, _value: set_state(
+                name, MotorState.CLOSED_LOOP_CONTROL
+            )
+        ),
         close=Mock(),
     )
     monkeypatch.setattr(motor_test_sample, "configure_device", Mock())
@@ -738,12 +963,15 @@ def test_command_session_checks_each_selected_motor_before_motion(command_runtim
 
     assert runtime.run(["mp 5", "arm", "mp 5", "q"]) == 0
 
-    runtime.actions.hold.assert_called_once_with("front")
-    runtime.actions.target.assert_called_once_with("front", 5.0)
+    runtime.actions.hold.assert_not_called()
+    runtime.actions.configure.assert_not_called()
+    assert runtime.actions.target.call_args_list == [
+        call("front", 5.0),
+        call("front", 5.0),
+    ]
     assert "rear" not in [
         call.args[0] for call in runtime.actions.set_state.call_args_list
     ]
-    assert "front is disarmed; run 'arm front'." in runtime.output
     assert runtime.motors["front"].current_state == MotorState.IDLE
 
 
@@ -807,7 +1035,7 @@ def test_command_session_returns_idle_after_unconfirmed_arm(
 
     assert runtime.run(["arm front", "mp 5 front", "q"], selector=None) == 0
 
-    runtime.actions.target.assert_not_called()
+    runtime.actions.target.assert_called_once_with("front", 5.0)
     assert runtime.motors["front"].current_state == MotorState.IDLE
     assert "front did not confirm that it is armed." in runtime.output
 

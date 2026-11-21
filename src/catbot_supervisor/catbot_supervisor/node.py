@@ -85,10 +85,15 @@ class RpiSupervisor(Node):
         self.orin_bundle_id = ""
         self.remote_stop_at = float("-inf")
         self.emergency_attempt = float("-inf")
+        self.recovery_generation = 0
+        self.recovery_deadline = None
         self.motor = self.create_client(MotorCommand, "/body/control/motor")
         self.jobs = self.create_client(SupervisorJob, "/orin/supervisor/job")
         self.output = self.create_publisher(
             ActuatorPositionCommand, "/body/control/position", 1
+        )
+        self.moves = self.create_publisher(
+            ActuatorPositionCommand, "/body/control/move/position", 1
         )
         self.acks = self.create_publisher(
             PolicyActionAck, "/rpi/supervisor/action_ack", 1
@@ -205,13 +210,18 @@ class RpiSupervisor(Node):
             if reason:
                 raise RuntimeError(reason)
             if not self.body_fresh() or not all(
-                self.body[n].ready and self.body[n].axis_state == 8 for n in step.names
+                self.body[n].heartbeat_available
+                and not self.body[n].axis_error_flags
+                and self.body[n].axis_state in (1, 8)
+                for n in step.names
             ):
-                raise RuntimeError("Position move requires fresh closed-loop axes")
-            if not self.output.get_subscription_count():
+                raise RuntimeError(
+                    "Position move requires fresh idle or closed-loop axes"
+                )
+            if not self.moves.get_subscription_count():
                 return None
             self.script_position_at = time.monotonic()
-            self.output.publish(
+            self.moves.publish(
                 ActuatorPositionCommand(
                     actuator_names=list(step.names),
                     positions_degrees=list(step.positions),
@@ -221,7 +231,7 @@ class RpiSupervisor(Node):
             future.set_result(SimpleNamespace(success=True))
             return future
         if step.kind == "motor":
-            if step.operation not in ("idle", "clear_errors"):
+            if step.operation not in ("idle", "emergency", "clear_errors"):
                 if self.script_link_required and not self.gate.check(
                     time.monotonic(), require_action=False
                 ):
@@ -428,8 +438,8 @@ class RpiSupervisor(Node):
         self.health_sample = self.health.sample(time.monotonic())
 
     def enter_emergency(self, reason):
-        if self.gate.mode == Mode.EMERGENCY:
-            return
+        self.recovery_generation += 1
+        self.recovery_deadline = None
         # Record degraded verdict before the immediate transition to emergency.
         self.get_logger().error(f"Emergency: {reason}")
         self.gate.emergency(reason)
@@ -447,6 +457,8 @@ class RpiSupervisor(Node):
 
     def tick(self):
         now = time.monotonic()
+        if self.recovery_deadline is not None and now >= self.recovery_deadline:
+            self.enter_emergency("Foundation recovery timed out")
         if (
             self.runner.active
             and (
@@ -668,8 +680,42 @@ class RpiSupervisor(Node):
                 "Recovery requires confirmed idle axes after emergency script",
             )
         else:
-            self.gate.recover()
-            response.success, response.message = True, "idle; run startup explicitly"
+            if not self.motor.service_is_ready():
+                response.success, response.message = (
+                    False,
+                    "Foundation motor service unavailable",
+                )
+                return response
+            self.recovery_generation += 1
+            generation = self.recovery_generation
+            self.recovery_deadline = time.monotonic() + 3.0
+            future = self.motor.call_async(MotorCommand.Request(operation="recover"))
+
+            def complete(result_future):
+                if generation != self.recovery_generation:
+                    return
+                self.recovery_deadline = None
+                try:
+                    result = result_future.result()
+                    if result is None or not result.success:
+                        raise RuntimeError(
+                            getattr(result, "message", "Foundation recovery failed")
+                        )
+                    if (
+                        self.gate.mode != Mode.EMERGENCY
+                        or self.runner.active
+                        or not self.satisfied(Step("wait_state", state=1))
+                    ):
+                        raise RuntimeError("Recovery lost confirmed idle axes")
+                    self.gate.recover()
+                except (OSError, RuntimeError, ValueError) as error:
+                    self.enter_emergency(str(error))
+
+            future.add_done_callback(complete)
+            response.success, response.message = (
+                True,
+                "recovery requested; wait for idle status",
+            )
         return response
 
 

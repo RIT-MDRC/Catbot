@@ -33,11 +33,10 @@ def maintenance(names, state=None):
 
 
 def arm_steps(names):
+    """Request closed loop only, without configuration or target writes."""
     steps = []
     for name in names:
         steps += [
-            Step("motor", "trajectory", (name,)),
-            Step("motor", "hold", (name,)),
             Step("motor", "state", (name,), 8),
             Step("wait_ready", names=(name,)),
         ]
@@ -73,7 +72,10 @@ def registry():
             Step("wait_link", timeout=120.0),
             *maintenance(names),
         ],
-        "emergency": lambda names: [Step("motor", "idle"), Step("wait_state", state=1)],
+        "emergency": lambda names: [
+            Step("motor", "emergency"),
+            Step("wait_state", state=1),
+        ],
         "home": lambda names: maintenance(names, 11),
         "calibrate": calibrate_robot,
         "full_calibrate": calibrate_robot,
@@ -165,10 +167,7 @@ def home_robot(names):
                 Step("motor", "state", (name,), 11),
                 Step("wait_state", names=(name,), state=11),
                 Step("wait_state", names=(name,), state=1, timeout=30.0),
-                Step("motor", "trajectory", (name,)),
-                Step("motor", "hold", (name,)),
-                Step("motor", "state", (name,), 8),
-                Step("wait_ready", names=(name,)),
+                *arm_steps((name,)),
             ]
         steps.append(Step("delay", timeout=15.0))
     return steps
@@ -179,7 +178,7 @@ def prompted_maintenance(names, state):
 
     State 11 is controller homing; state 4 is motor calibration, not joint-zero
     measurement. Adapt prompts and axis selection to the physical procedure.
-    Existing maintenance finishes by holding/arming each axis.
+    Existing maintenance finishes by requesting closed loop for each axis.
     """
     steps = []
     for step in maintenance(names, state):
