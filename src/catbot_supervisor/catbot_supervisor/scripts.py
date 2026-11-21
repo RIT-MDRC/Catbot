@@ -92,7 +92,7 @@ def registry():
 
 
 def calibrate_robot(names):
-    """Full calibration together, then ordered homing/arming with clearance."""
+    """Calibrate, hold abduction, home in order, then settle every joint at zero."""
     groups = (
         ("flk", "frk", "blk", "brk", "flf", "frf", "blf", "brf"),
         ("bla", "bra"),
@@ -110,6 +110,7 @@ def calibrate_robot(names):
         Step("wait_clear"),
         Step("motor", "state", tuple(names), 3),
         Step("wait_cycle", names=tuple(names), state=3, timeout=60.0),
+        *arm_steps(("fla", "fra", "bla", "bra")),
     ]
     for group in groups:
         if group == ("fla", "fra"):
@@ -131,10 +132,10 @@ def calibrate_robot(names):
             Step("wait_cycle", names=group, state=11, timeout=30.0),
             *arm_steps(group),
         ]
-    front = ("flf", "frf")
+    zero = (0.0,) * len(names)
     return steps + [
-        Step("position", names=front, positions=(0.0, 0.0)),
-        Step("wait_position", names=front, positions=(0.0, 0.0), timeout=15.0),
+        Step("position", names=tuple(names), positions=zero),
+        Step("wait_position", names=tuple(names), positions=zero, timeout=15.0),
     ]
 
 
