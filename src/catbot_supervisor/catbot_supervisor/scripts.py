@@ -94,8 +94,7 @@ def registry():
 def calibrate_robot(names):
     """Full calibration together, then ordered homing/arming with clearance."""
     groups = (
-        ("flk", "frk", "blk", "brk"),
-        ("flf", "frf", "blf", "brf"),
+        ("flk", "frk", "blk", "brk", "flf", "frf", "blf", "brf"),
         ("bla", "bra"),
         ("fla", "fra"),
     )
@@ -140,17 +139,16 @@ def calibrate_robot(names):
 
 
 def home_robot(names):
-    """Home knees, flexion, then operator-approved abduction. Never clear faults."""
+    """Home knees/flexion together, then approved abduction. Never clear faults."""
     groups = (
-        ("flk", "frk", "blk", "brk"),
-        ("flf", "frf", "blf", "brf"),
+        ("flk", "frk", "blk", "brk", "flf", "frf", "blf", "brf"),
         ("fla", "fra", "bla", "bra"),
     )
     if set(names) != {name for group in groups for name in group}:
         raise ValueError("home_robot requires the complete standard 12-actuator roster")
     steps = [Step("motor", "idle"), Step("wait_state", state=1)]
     for index, group in enumerate(groups):
-        if index == 2:
+        if index == 1:
             front = ("flf", "frf")
             steps += [
                 Step("position", names=front, positions=(30.0, 30.0)),
@@ -166,13 +164,20 @@ def home_robot(names):
                 ),
                 Step("delay", timeout=15.0),
             ]
-        for name in group:
+        if index == 0:
             steps += [
-                Step("motor", "state", (name,), 11),
-                Step("wait_state", names=(name,), state=11),
-                Step("wait_state", names=(name,), state=1, timeout=30.0),
-                *arm_steps((name,)),
+                Step("motor", "state", group, 11),
+                Step("wait_cycle", names=group, state=11, timeout=30.0),
+                *arm_steps(group),
             ]
+        else:
+            for name in group:
+                steps += [
+                    Step("motor", "state", (name,), 11),
+                    Step("wait_state", names=(name,), state=11),
+                    Step("wait_state", names=(name,), state=1, timeout=30.0),
+                    *arm_steps((name,)),
+                ]
         steps.append(Step("delay", timeout=15.0))
     return steps
 

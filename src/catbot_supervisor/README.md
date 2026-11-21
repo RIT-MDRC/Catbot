@@ -294,19 +294,19 @@ for the same robot sequence. It does not start policy or enable forwarding:
    in one batch, without waiting on individual motors. Track each actuator's
    calibration substates and require every actuator to return to fault-free IDLE
    before continuing (60-second timeout).
-3. Home `flk, frk, blk, brk` together. Wait for the entire group to finish homing
+3. Home all knees and flexion/extension actuators together:
+   `flk, frk, blk, brk, flf, frf, blf, brf`. Wait for all eight to finish homing
    and return to IDLE, then request closed loop for
    each member, confirming closed-loop readiness before continuing.
-4. Repeat that homing/completion/arming barrier for `flf, frf, blf, brf`.
-5. Repeat it for `bla, bra`.
-6. Command the already armed `flf, frf` to absolute logical **+30 degrees** and
+4. Repeat that homing/completion/arming barrier for `bla, bra`.
+5. Command the already armed `flf, frf` to absolute logical **+30 degrees** and
    wait for valid, settled measured feedback (15-second timeout).
-7. Pause for the operator's clearance confirmation. Use the current prompt ID
+6. Pause for the operator's clearance confirmation. Use the current prompt ID
    from `/rpi/supervisor/status` with the layout's confirmation control. No front
    abduction homing is issued before that confirmation (120-second timeout).
-8. Home `fla, fra` together, wait until both have finished and returned to IDLE,
+7. Home `fla, fra` together, wait until both have finished and returned to IDLE,
    then arm/confirm them as above.
-9. Move `flf, frf` together back to **0 degrees** and wait for valid, settled
+8. Move `flf, frf` together back to **0 degrees** and wait for valid, settled
    feedback (15-second timeout). Finish in local `holding`, with forwarding off.
 
 Each homing group has a 30-second completion timeout. Faster axes cannot advance
@@ -420,24 +420,25 @@ The sequence is implemented in `catbot_supervisor/scripts.py:home_robot`:
 
 0. Reject stale/missing actuator state, missing heartbeats, or any nonzero axis,
    motor, encoder, sensorless or controller error flags. Never clear errors.
-1. Disarm all axes and confirm IDLE, then home knees: `flk`, `frk`, `blk`, `brk`.
-2. Home flexion/extension: `flf`, `frf`, `blf`, `brf`.
-3. Command `flf` and `frf` to absolute **+30 degrees** in Foundation's logical
+1. Disarm all axes and confirm IDLE, then home knees and flexion/extension in one
+   batch: `flk, frk, blk, brk, flf, frf, blf, brf`. Wait for all eight to finish
+   and return to IDLE before arming each and confirming readiness.
+2. Command `flf` and `frf` to absolute **+30 degrees** in Foundation's logical
    joint coordinates, using the configured trajectory profiles. Require fresh,
    valid post-command feedback within 1 degree, with speed at most 1 degree/s,
    before advancing (15-second timeout).
-4. Prompt: confirm that the front legs are clear. Respond through
+3. Prompt: confirm that the front legs are clear. Respond through
    `/rpi/supervisor/respond` with `{"name":"<current operator_prompt.id>"}`.
    The prompt appears in `/rpi/supervisor/status` and expires after 120 seconds.
-5. Home abduction/adduction: `fla`, `fra`, `bla`, `bra`.
+4. Home abduction/adduction: `fla`, `fra`, `bla`, `bra`.
 
-Each group runs one actuator at a time. For each axis, request homing (controller
-state 11), observe homing then IDLE (30-second completion timeout), request closed
-loop only, and confirm readiness.
-Each motor is armed immediately after its own homing finishes, before the next
-motor starts. There is a 15-second buffer after each complete homing group,
+The first group requests homing (controller state 11) as one batch and observes
+each member homing then returning to IDLE (30-second completion timeout).
+No arming occurs until the complete group finishes. Abduction runs one actuator
+at a time: observe homing then IDLE, request closed loop only, and confirm
+readiness before starting the next motor. There is a 15-second buffer after each complete homing group,
 after the front joints reach +30 degrees, and after operator confirmation before
-abduction/adduction starts. These five buffers add 75 seconds to the sequence;
+abduction/adduction starts. These four buffers add 60 seconds to the sequence;
 they are pauses after completion, not replacements for feedback checks or
 operation timeouts. Fault/link/health checks and the e-stop remain active during
 every buffer.

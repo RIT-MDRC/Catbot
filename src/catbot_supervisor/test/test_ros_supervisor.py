@@ -253,7 +253,7 @@ def test_managed_orin_policy_pi_gate_scripts_and_stale_emergency(tmp_path):
         assert positions["flf"] == positions["frf"] == 30.0
         assert [
             ns for op, state, ns in operations if op == "state" and state == 11
-        ] == [[n] for n in ("flk", "frk", "blk", "brk", "flf", "frf", "blf", "brf")]
+        ] == [["flk", "frk", "blk", "brk", "flf", "frf", "blf", "brf"]]
         # No abduction operation may precede the operator's current confirmation.
         token = pi.runner.prompt["id"]
         call(RunScript, "/rpi/supervisor/respond", RunScript.Request(name=token))
@@ -261,21 +261,11 @@ def test_managed_orin_policy_pi_gate_scripts_and_stale_emergency(tmp_path):
         assert [
             ns for op, state, ns in operations if op == "state" and state == 11
         ] == [
-            [n]
-            for n in (
-                "flk",
-                "frk",
-                "blk",
-                "brk",
-                "flf",
-                "frf",
-                "blf",
-                "brf",
-                "fla",
-                "fra",
-                "bla",
-                "bra",
-            )
+            ["flk", "frk", "blk", "brk", "flf", "frf", "blf", "brf"],
+            ["fla"],
+            ["fra"],
+            ["bla"],
+            ["bra"],
         ]
         received.clear()
         call(Trigger, "/rpi/supervisor/policy_stop", Trigger.Request())
@@ -562,8 +552,7 @@ def test_local_homing_without_orin_or_policy():
         assert [
             ns for op, state, ns in operations if op == "state" and state == 11
         ] == [
-            ["flk", "frk", "blk", "brk"],
-            ["flf", "frf", "blf", "brf"],
+            ["flk", "frk", "blk", "brk", "flf", "frf", "blf", "brf"],
             ["bla", "bra"],
         ]
         assert positions["flf"] == positions["frf"] == 30.0
@@ -602,7 +591,7 @@ def test_local_homing_without_orin_or_policy():
         assert not pi.hold_healthy
         assert pi.recover(Trigger.Request(), Trigger.Response()).success
         until(lambda: pi.gate.mode == Mode.IDLE)
-        # A fault also aborts a local sequence, retaining the healthy homed knees.
+        # A fault also aborts a local sequence, retaining healthy knees/flexion.
         script()
         until(
             lambda: (
@@ -613,7 +602,9 @@ def test_local_homing_without_orin_or_policy():
         until(lambda: pi.gate.mode == Mode.EMERGENCY)
         until(lambda: not pi.runner.active)
         assert states["flk"] == 1
-        assert all(states[n] == 8 for n in ("frk", "blk", "brk"))
+        assert all(
+            states[n] == 8 for n in ("frk", "blk", "brk", "flf", "frf", "blf", "brf")
+        )
         faults["flk"] = 0
         until(lambda: pi.body["flk"].controller_error_flags == 0)
         assert pi.recover(Trigger.Request(), Trigger.Response()).success

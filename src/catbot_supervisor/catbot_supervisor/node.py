@@ -246,7 +246,7 @@ class RpiSupervisor(Node):
             if (
                 step.operation == "state"
                 and step.state == 8
-                and self.script_name in ("calibrate", "full_calibrate")
+                and self.script_name in ("home_robot", "calibrate", "full_calibrate")
                 and (
                     not self.body_fresh()
                     or any(a.axis_state == 11 for a in self.body.values())

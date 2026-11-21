@@ -88,8 +88,7 @@ def test_robot_calibration_batches_full_calibration_and_orders_homing_with_group
         (s.names, s.state) for s in steps if s.kind == "motor" and s.state == 3
     ] == [(NAMES, 3)]
     groups = [
-        ("flk", "frk", "blk", "brk"),
-        ("flf", "frf", "blf", "brf"),
+        ("flk", "frk", "blk", "brk", "flf", "frf", "blf", "brf"),
         ("bla", "bra"),
         ("fla", "fra"),
     ]
@@ -137,23 +136,23 @@ def test_robot_calibration_batches_full_calibration_and_orders_homing_with_group
 
 def test_homing_stages_arm_each_axis_and_gate_abduction_on_operator():
     steps = home_robot(NAMES)
-    homed = [s.names[0] for s in steps if s.kind == "motor" and s.state == 11]
-    assert homed == [
-        "flk",
-        "frk",
-        "blk",
-        "brk",
-        "flf",
-        "frf",
-        "blf",
-        "brf",
-        "fla",
-        "fra",
-        "bla",
-        "bra",
+    first = ("flk", "frk", "blk", "brk", "flf", "frf", "blf", "brf")
+    assert [s.names for s in steps if s.kind == "motor" and s.state == 11] == [
+        first,
+        ("fla",),
+        ("fra",),
+        ("bla",),
+        ("bra",),
     ]
+    barrier = next(i for i, s in enumerate(steps) if s.kind == "wait_cycle")
+    assert steps[barrier].names == first
+    for name in first:
+        arm = next(
+            i for i, s in enumerate(steps) if s.state == 8 and s.names == (name,)
+        )
+        assert arm > barrier
     assert not any(s.operation == "clear_errors" for s in steps)
-    for name in NAMES:
+    for name in ("fla", "fra", "bla", "bra"):
         start = next(
             i for i, s in enumerate(steps) if s.state == 11 and s.names == (name,)
         )
@@ -176,8 +175,8 @@ def test_homing_stages_arm_each_axis_and_gate_abduction_on_operator():
         "motor",
     ]
     assert steps[move + 5].names == ("fla",)
-    assert [s.timeout for s in steps if s.kind == "delay"] == [15.0] * 5
-    for name in ("brk", "brf", "bra"):
+    assert [s.timeout for s in steps if s.kind == "delay"] == [15.0] * 4
+    for name in ("brf", "bra"):
         ready = next(
             i
             for i, s in enumerate(steps)
