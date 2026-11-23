@@ -30,11 +30,45 @@ class Limits:
 
 
 def status_sequence(value):
+    return status_uint64(value)
+
+
+def status_uint32(value):
     try:
-        sequence = int(value)
-        return sequence if sequence >= 0 else 0
+        integer = int(value)
+        if integer < 0:
+            return 0
+        return integer if integer <= 0xFFFFFFFF else 0xFFFFFFFF
     except (TypeError, ValueError, OverflowError):
         return 0
+
+
+def status_uint64(value):
+    try:
+        integer = int(value)
+        if integer < 0:
+            return 0
+        return integer if integer <= 0xFFFFFFFFFFFFFFFF else 0xFFFFFFFFFFFFFFFF
+    except (TypeError, ValueError, OverflowError):
+        return 0
+
+
+def status_float(value):
+    try:
+        number = float(value)
+        return number if math.isfinite(number) else 0.0
+    except (TypeError, ValueError, OverflowError):
+        return 0.0
+
+
+def status_string(value):
+    return "" if value is None else str(value)
+
+
+def status_bool(value):
+    if isinstance(value, bool):
+        return value
+    return bool(value)
 
 
 class ActionGate:

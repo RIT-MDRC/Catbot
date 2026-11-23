@@ -28,7 +28,16 @@ from catbot_interfaces.msg import (
     SupervisorStatus,
 )
 from catbot_interfaces.srv import MotorCommand, RunScript, SupervisorJob
-from catbot_supervisor.core import ActionGate, Limits, Mode, status_sequence
+from catbot_supervisor.core import (
+    ActionGate,
+    Limits,
+    Mode,
+    status_bool,
+    status_float,
+    status_sequence,
+    status_string,
+    status_uint32,
+)
 from catbot_supervisor.health import PiHealth, health_reason
 from catbot_supervisor.homing import (
     StateCycle,
@@ -375,7 +384,7 @@ class RpiSupervisor(Node):
             and message.session != self.gate.session
         ):
             self.enter_emergency("Orin session changed during script")
-        self.orin_action_sequence = int(message.action_sequence)
+        self.orin_action_sequence = status_sequence(message.action_sequence)
         self.orin_policy_active = message.policy_active
         now = time.monotonic()
         self.gate.heartbeat(
@@ -597,81 +606,100 @@ class RpiSupervisor(Node):
         health = self.health_sample
 
         health_message = SupervisorHealth(
-            available=health is not None,
-            sample_monotonic_seconds=float(
-                health.get("sample_monotonic_seconds", 0.0)
-                if health is not None
-                else 0.0
+            available=status_bool(health is not None),
+            sample_monotonic_seconds=status_float(
+                health.get("sample_monotonic_seconds", 0.0) if health is not None else 0.0
             ),
-            cpu_count=int(health.get("cpu_count", 0) or 0)
-            if health is not None
-            else 0,
-            interface=health.get("interface", "") if health is not None else "",
-            interface_state=health.get("interface_state", "")
-            if health is not None
-            else "",
-            temperature_available=health is not None
-            and health.get("temperature_c") is not None,
-            temperature_c=float(health.get("temperature_c", 0.0))
+            cpu_count=status_uint32(
+                health.get("cpu_count", 0) if health is not None else 0
+            ),
+            interface=status_string(
+                health.get("interface", "") if health is not None else ""
+            ),
+            interface_state=status_string(
+                health.get("interface_state", "") if health is not None else ""
+            ),
+            temperature_available=status_bool(
+                health is not None and health.get("temperature_c") is not None
+            ),
+            temperature_c=status_float(health.get("temperature_c", 0.0))
             if health is not None and health.get("temperature_c") is not None
             else 0.0,
-            system_cpu_headroom_available=health is not None
-            and health.get("system_cpu_headroom_percent") is not None,
-            system_cpu_headroom_percent=float(
+            system_cpu_headroom_available=status_bool(
+                health is not None
+                and health.get("system_cpu_headroom_percent") is not None
+            ),
+            system_cpu_headroom_percent=status_float(
                 health.get("system_cpu_headroom_percent", 0.0)
             )
             if health is not None
             and health.get("system_cpu_headroom_percent") is not None
             else 0.0,
-            foundation_cpu_available=health is not None
-            and health.get("foundation_cpu_percent_one_core") is not None,
-            foundation_cpu_percent_one_core=float(
+            foundation_cpu_available=status_bool(
+                health is not None
+                and health.get("foundation_cpu_percent_one_core") is not None
+            ),
+            foundation_cpu_percent_one_core=status_float(
                 health.get("foundation_cpu_percent_one_core", 0.0)
             )
             if health is not None
             and health.get("foundation_cpu_percent_one_core") is not None
             else 0.0,
-            policy_only_baseline_percent_one_core=float(
+            policy_only_baseline_percent_one_core=status_float(
                 health.get("policy_only_baseline_percent_one_core", 0.0)
             )
             if health is not None
             else 0.0,
-            baseline_source=health.get("baseline_source", "")
-            if health is not None
-            else "",
-            foundation_pid=int(health.get("foundation_pid", 0) or 0)
-            if health is not None
-            else 0,
-            errors=list(health.get("errors", [])) if health is not None else [],
+            baseline_source=status_string(
+                health.get("baseline_source", "") if health is not None else ""
+            ),
+            foundation_pid=status_uint32(
+                health.get("foundation_pid", 0) if health is not None else 0
+            ),
+            errors=[
+                status_string(error)
+                for error in (health.get("errors", []) if health is not None else [])
+            ],
         )
         self.status.publish(
             SupervisorStatus(
                 stamp=self.get_clock().now().to_msg(),
-                mode=self.gate.mode.value,
-                reason=self.gate.reason,
-                stop_behavior="hold_healthy" if self.hold_healthy else "idle_all",
-                script=self.script_name,
-                script_step=int(self.runner.index),
-                script_error=self.runner.error,
+                mode=status_string(self.gate.mode.value),
+                reason=status_string(self.gate.reason),
+                stop_behavior=status_string(
+                    "hold_healthy" if self.hold_healthy else "idle_all"
+                ),
+                script=status_string(self.script_name),
+                script_step=status_uint32(self.runner.index),
+                script_error=status_string(self.runner.error),
                 operator_prompt=SupervisorOperatorPrompt(
-                    id="" if prompt is None else prompt["id"],
-                    text="" if prompt is None else prompt["text"],
+                    id=status_string(
+                        "" if prompt is None else prompt.get("id", "")
+                    ),
+                    text=status_string(
+                        "" if prompt is None else prompt.get("text", "")
+                    ),
                 ),
-                available_scripts=sorted(
-                    name for name in self.scripts if name != "emergency"
-                ),
-                session=self.gate.session,
+                available_scripts=[
+                    status_string(name)
+                    for name in sorted(
+                        name for name in self.scripts if name != "emergency"
+                    )
+                ],
+                session=status_string(self.gate.session),
                 action_sequence=status_sequence(self.gate.action_sequence),
                 heartbeat_sequence=status_sequence(self.gate.heartbeat_sequence),
                 orin_action_sequence=status_sequence(self.orin_action_sequence),
-                orin_policy_active=self.orin_policy_active,
-                orin_preflight_passed=self.orin_preflight_passed,
-                orin_policy_ready=self.orin_policy_ready,
-                orin_policy_verified=self.orin_policy_verified,
-                orin_bundle_id=self.orin_bundle_id,
-                rtt_available=self.gate.rtt is not None,
-                rtt_ms=0.0 if self.gate.rtt is None else self.gate.rtt * 1000,
-                jitter_ms=self.gate.jitter * 1000,
+                orin_policy_active=status_bool(self.orin_policy_active),
+                orin_preflight_passed=status_bool(self.orin_preflight_passed),
+                orin_policy_ready=status_bool(self.orin_policy_ready),
+                orin_policy_verified=status_bool(self.orin_policy_verified),
+                orin_bundle_id=status_string(self.orin_bundle_id),
+                rtt_available=status_bool(self.gate.rtt is not None),
+                rtt_ms=status_float(
+                    0.0 if self.gate.rtt is None else self.gate.rtt * 1000
+                ),
+                jitter_ms=status_float(self.gate.jitter * 1000),
                 health=health_message,
             )
         )

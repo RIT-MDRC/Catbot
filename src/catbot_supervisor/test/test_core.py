@@ -3,7 +3,17 @@
 import math
 
 import pytest
-from catbot_supervisor.core import ActionGate, Limits, Mode, status_sequence
+from catbot_supervisor.core import (
+    ActionGate,
+    Limits,
+    Mode,
+    status_bool,
+    status_float,
+    status_sequence,
+    status_string,
+    status_uint32,
+    status_uint64,
+)
 
 
 @pytest.mark.parametrize(
@@ -11,7 +21,59 @@ from catbot_supervisor.core import ActionGate, Limits, Mode, status_sequence
     [(None, 0), (-1, 0), (0, 0), (1.9, 1), ("7", 7), ("bad", 0)],
 )
 def test_status_sequence_normalizes_unsigned_values(value, expected):
-    assert status_sequence(value) == expected
+    result = status_sequence(value)
+    assert type(result) is int
+    assert result == expected
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [(None, 0), (-1, 0), (0, 0), (12, 12), (0x100000000, 0xFFFFFFFF)],
+)
+def test_status_uint32_normalizes_values(value, expected):
+    result = status_uint32(value)
+    assert type(result) is int
+    assert result == expected
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [(None, 0), (-1, 0), (0, 0), (12, 12), ("42", 42)],
+)
+def test_status_uint64_normalizes_values(value, expected):
+    result = status_uint64(value)
+    assert type(result) is int
+    assert result == expected
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [(None, 0.0), (float("nan"), 0.0), (float("inf"), 0.0), (3, 3.0)],
+)
+def test_status_float_normalizes_values(value, expected):
+    result = status_float(value)
+    assert type(result) is float
+    assert result == expected
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [(None, ""), (False, "False"), (7, "7"), ("ready", "ready")],
+)
+def test_status_string_normalizes_values(value, expected):
+    result = status_string(value)
+    assert type(result) is str
+    assert result == expected
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [(None, False), (0, False), (1, True), ("", False), ("false", True)],
+)
+def test_status_bool_normalizes_values(value, expected):
+    result = status_bool(value)
+    assert type(result) is bool
+    assert result is expected
 
 
 def healthy(mode=Mode.READY):
