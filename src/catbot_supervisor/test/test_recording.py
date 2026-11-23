@@ -53,3 +53,43 @@ def test_source_journal_freezes_payload_and_finishes_with_capture_status(tmp_pat
     assert rows[0]["payload"] == {"value": [1]}
     assert rows[-1]["payload"] == {"dropped": 0}
     assert (journal.recorder.path / "complete").exists()
+
+
+def test_stalled_writer_has_bounded_close_and_source_timestamps(tmp_path, monkeypatch):
+    import threading
+    import time
+
+    from catbot_policy import recording
+
+    entered, release = threading.Event(), threading.Event()
+    original = recording.SessionRecorder.append_encoded
+
+    def blocked(self, data):
+        entered.set()
+        assert release.wait(2)
+        original(self, data)
+
+    monkeypatch.setattr(recording.SessionRecorder, "append_encoded", blocked)
+    journal = recording.SourceJournal(tmp_path, {}, capacity=1)
+    journal.recorder.min_free_bytes = 0
+    monkeypatch.setattr(recording.time, "time_ns", lambda: 123)
+    assert journal.submit("first", {})
+    assert entered.wait(1)
+    assert journal.submit("second", {})
+    assert not journal.submit("overflow", {})
+    monkeypatch.setattr(recording.time, "time_ns", lambda: 456)
+    started = time.monotonic()
+    journal.close(timeout=0.02)
+    assert time.monotonic() - started < 0.5
+    assert journal.status()["dropped"] == 1
+    assert journal.error == "source journal shutdown timed out"
+    assert not (journal.recorder.path / "complete").exists()
+    release.set()
+    journal.thread.join(timeout=2)
+    assert not journal.thread.is_alive()
+    rows = [
+        json.loads(line)
+        for p in journal.recorder.path.glob("*.jsonl")
+        for line in p.read_text().splitlines()
+    ]
+    assert [row["wall_ns"] for row in rows[:2]] == [123, 123]

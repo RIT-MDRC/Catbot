@@ -150,6 +150,9 @@ class PolicyNode(Node):
             if directory
             else None
         )
+        self.recording_status = self.create_publisher(
+            String, "/policy/recording/status", 1
+        )
         ready = self.worker.ready
         self.metadata, self.mapping = ready["metadata"], ready["mapping"]
         self.dt = float(ready["dt"])
@@ -479,6 +482,13 @@ class PolicyNode(Node):
         ):
             self.get_logger().warning(
                 f"Source recording dropped={self.journal.dropped}: {self.journal.error}"
+            )
+        if (
+            getattr(self, "recording_status", None) is not None
+            and self.journal is not None
+        ):
+            self.recording_status.publish(
+                String(data=json.dumps(self.journal.status()))
             )
         self.worker_cpu_previous = self.worker_cpu
         self.samples.clear()

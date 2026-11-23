@@ -21,7 +21,7 @@ class Jobs:
         self.children, self.stopping, self.pending = {}, {}, set()
         self.exits, self.errors = {}, {}
 
-    def _known(self, name):
+    def validate_name(self, name):
         if name not in self.commands:
             raise ValueError("Unknown Orin job")
 
@@ -36,7 +36,7 @@ class Jobs:
         self.exits.pop(name, None)
 
     def start(self, name, now=None):
-        self._known(name)
+        self.validate_name(name)
         if self.running(name):
             return
         if name in self.children:
@@ -48,7 +48,7 @@ class Jobs:
             self._spawn(name)
 
     def restart(self, name, now):
-        self._known(name)
+        self.validate_name(name)
         if name in self.pending:
             return
         if name not in self.children:
@@ -58,7 +58,7 @@ class Jobs:
             self.stop(name, now, cancel_pending=False)
 
     def stop(self, name, now, cancel_pending=True):
-        self._known(name)
+        self.validate_name(name)
         if cancel_pending:
             self.pending.discard(name)
         child = self.children.get(name)
@@ -107,7 +107,7 @@ class Jobs:
     def status(self, name=""):
         names = [name] if name else list(self.commands)
         for value in names:
-            self._known(value)
+            self.validate_name(value)
         return {
             value: {
                 "state": "restarting"

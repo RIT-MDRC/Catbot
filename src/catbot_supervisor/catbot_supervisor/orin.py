@@ -126,6 +126,7 @@ class OrinSupervisor(Node):
                 "recording_topics",
                 [
                     "/policy/feedback",
+                    "/policy/recording/status",
                     "/orin/policy/action",
                     "/rpi/supervisor/action_ack",
                     "/tf",
@@ -306,7 +307,7 @@ class OrinSupervisor(Node):
                     self.offline.enqueue(request.name)
                 response.success, response.message = True, "offline request accepted"
                 return response
-            self.jobs._known(request.name)
+            self.jobs.validate_name(request.name)
             if operation != "stop":
                 reason = self.preflight_reason()
                 if reason:

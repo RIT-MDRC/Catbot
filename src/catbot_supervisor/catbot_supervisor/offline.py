@@ -13,9 +13,11 @@ class OfflineQueue:
         self.pending = deque()
         self.active = None
         self.max_pending = max_pending
+        self.cancelled = 0
+        self.last_cancellation_reason = ""
 
     def enqueue(self, name):
-        self.jobs._known(name)
+        self.jobs.validate_name(name)
         if name == self.active or name in self.pending:
             return
         if len(self.pending) >= self.max_pending:
@@ -23,12 +25,19 @@ class OfflineQueue:
         self.pending.append(name)
 
     def cancel(self, name, now):
-        self.jobs._known(name)
+        self.jobs.validate_name(name)
         self.pending = deque(value for value in self.pending if value != name)
         self.jobs.stop(name, now)
 
-    def tick(self, now, *, idle):
+    def tick(self, now, *, idle, reason="Robot is not idle"):
+        """Cancel on loss of eligibility; a cancelled job is never auto-resumed."""
         if not idle:
+            cancelled = len(self.pending) + sum(
+                self.jobs.running(name) for name in self.jobs.children
+            )
+            if cancelled:
+                self.cancelled += cancelled
+                self.last_cancellation_reason = reason
             self.pending.clear()
             for name in self.jobs.children:
                 self.jobs.stop(name, now)
@@ -46,6 +55,9 @@ class OfflineQueue:
     def status(self):
         return {
             "pending": list(self.pending),
+            "capacity": self.max_pending,
+            "cancelled": self.cancelled,
+            "last_cancellation_reason": self.last_cancellation_reason,
             "active": self.active,
             "jobs": self.jobs.status(),
         }

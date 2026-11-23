@@ -31,6 +31,8 @@ def test_work_starts_only_when_idle_and_is_cancelled_before_policy(monkeypatch):
     assert not queue.pending
     assert not queue.jobs.running("eval")
     assert signal.call_count == 1
+    assert queue.status()["cancelled"] == 2
+    assert queue.status()["last_cancellation_reason"] == "Robot is not idle"
     child.poll.return_value = 0
     queue.tick(5, idle=False)
     queue.tick(7, idle=False)

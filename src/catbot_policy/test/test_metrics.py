@@ -176,3 +176,27 @@ def test_hardware_provider_contract_mismatch_blocks_readiness(adapter):
         )
     assert not node.contract_ready
     node._publish_ready.assert_called_once_with(False, "provider contract mismatch")
+
+
+def test_recording_health_is_published_without_changing_policy_accounting(adapter):
+    import json
+
+    report, node = adapter
+    report.__globals__["String"] = SimpleNamespace
+    status = {
+        "dropped": 2,
+        "error": "disk reserve",
+        "queue_depth": 3,
+        "high_watermark": 8,
+        "capacity": 16,
+    }
+    node.journal = SimpleNamespace(
+        dropped=2, error="disk reserve", status=lambda: status
+    )
+    node.recording_status = Mock()
+    logger = Mock()
+    node.get_logger = lambda: logger
+    report(node)
+    assert json.loads(node.recording_status.publish.call_args.args[0].data) == status
+    logger.warning.assert_called_once()
+    assert node.metrics.publish.call_args.args[0].discarded_results == 5

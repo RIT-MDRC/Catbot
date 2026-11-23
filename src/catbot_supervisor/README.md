@@ -567,3 +567,6 @@ No parameter update arms a motor. Speed is motor turns/s and acceleration is mot
 turns/s², including nonlinear knees. Parameter changes are logged and recorded in
 MCAP through `/parameter_events`. CAN batches cannot be rolled back if a later
 write fails; rejection reports that earlier writes may have applied.
+
+Runtime profiling, capture status, shutdown semantics, and extension priorities
+are documented in [RUNTIME_PERFORMANCE.md](../../docs/RUNTIME_PERFORMANCE.md).
