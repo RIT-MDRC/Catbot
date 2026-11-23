@@ -1,0 +1,15 @@
+bool available
+float64 sample_monotonic_seconds
+uint32 cpu_count
+string interface
+string interface_state
+bool temperature_available
+float64 temperature_c
+bool system_cpu_headroom_available
+float64 system_cpu_headroom_percent
+bool foundation_cpu_available
+float64 foundation_cpu_percent_one_core
+float64 policy_only_baseline_percent_one_core
+string baseline_source
+uint32 foundation_pid
+string[] errors

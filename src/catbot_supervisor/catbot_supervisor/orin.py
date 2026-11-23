@@ -14,7 +14,7 @@ from catbot_policy.configuration import POLICY_DEFAULTS
 from catbot_policy.recording import SessionRecorder
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile
-from std_msgs.msg import String, UInt64
+from std_msgs.msg import UInt64
 
 from catbot_interfaces.msg import (
     ClockProbe,
@@ -23,6 +23,7 @@ from catbot_interfaces.msg import (
     OrinTelemetry,
     PolicyAction,
     PolicyReady,
+    SupervisorStatus,
 )
 from catbot_interfaces.srv import GetSupervisorStatus, SupervisorJob
 from catbot_supervisor.configuration import ORIN_DEFAULTS
@@ -118,7 +119,9 @@ class OrinSupervisor(Node):
             }
         )
         self.pi_idle_at = None
-        self.create_subscription(String, "/rpi/supervisor/status", self.pi_status, 1)
+        self.create_subscription(
+            SupervisorStatus, "/rpi/supervisor/status", self.pi_status, 1
+        )
         self.recording_root = str(
             param("recording_directory", "~/.local/share/catbot/recordings")
         )
@@ -270,15 +273,11 @@ class OrinSupervisor(Node):
         )
 
     def pi_status(self, message):
-        try:
-            value = json.loads(message.data)
-            self.pi_idle_at = (
-                time.monotonic()
-                if value.get("mode") == "idle" and not value.get("script")
-                else None
-            )
-        except (ValueError, AttributeError):
-            self.pi_idle_at = None
+        self.pi_idle_at = (
+            time.monotonic()
+            if message.mode == "idle" and not message.script
+            else None
+        )
 
     def probe(self, message):
         self.probe_id, self.probe_at = message.data, time.monotonic()

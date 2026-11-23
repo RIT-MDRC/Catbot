@@ -1,6 +1,5 @@
 """RPi Supervisor: sole policy-to-Foundation gateway and robot sequencer."""
 
-import json
 import math
 import signal
 import time
@@ -12,7 +11,7 @@ from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from rclpy.signals import SignalHandlerOptions
-from std_msgs.msg import String, UInt64
+from std_msgs.msg import UInt64
 from std_srvs.srv import Trigger
 
 from catbot_interfaces.msg import (
@@ -24,6 +23,9 @@ from catbot_interfaces.msg import (
     OrinHeartbeat,
     PolicyAction,
     PolicyActionAck,
+    SupervisorHealth,
+    SupervisorOperatorPrompt,
+    SupervisorStatus,
 )
 from catbot_interfaces.srv import MotorCommand, RunScript, SupervisorJob
 from catbot_supervisor.core import ActionGate, Limits, Mode
@@ -112,7 +114,7 @@ class RpiSupervisor(Node):
         )
         self.probes = self.create_publisher(UInt64, "/orin/supervisor/probe", 1)
         self.status = self.create_publisher(
-            String,
+            SupervisorStatus,
             "/rpi/supervisor/status",
             QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL),
         )
@@ -591,39 +593,81 @@ class RpiSupervisor(Node):
                     self.enter_emergency(self.gate.reason)
                 else:
                     self.gate.mode = Mode.READY
+        prompt = self.runner.prompt
+        health = self.health_sample
+        health_message = SupervisorHealth(
+            available=health is not None,
+            sample_monotonic_seconds=health.get("sample_monotonic_seconds", 0.0)
+            if health is not None
+            else 0.0,
+            cpu_count=health.get("cpu_count", 0) if health is not None else 0,
+            interface=health.get("interface", "") if health is not None else "",
+            interface_state=health.get("interface_state", "")
+            if health is not None
+            else "",
+            temperature_available=health is not None
+            and health.get("temperature_c") is not None,
+            temperature_c=health.get("temperature_c", 0.0)
+            if health is not None and health.get("temperature_c") is not None
+            else 0.0,
+            system_cpu_headroom_available=health is not None
+            and health.get("system_cpu_headroom_percent") is not None,
+            system_cpu_headroom_percent=health.get(
+                "system_cpu_headroom_percent", 0.0
+            )
+            if health is not None
+            and health.get("system_cpu_headroom_percent") is not None
+            else 0.0,
+            foundation_cpu_available=health is not None
+            and health.get("foundation_cpu_percent_one_core") is not None,
+            foundation_cpu_percent_one_core=health.get(
+                "foundation_cpu_percent_one_core", 0.0
+            )
+            if health is not None
+            and health.get("foundation_cpu_percent_one_core") is not None
+            else 0.0,
+            policy_only_baseline_percent_one_core=health.get(
+                "policy_only_baseline_percent_one_core", 0.0
+            )
+            if health is not None
+            else 0.0,
+            baseline_source=health.get("baseline_source", "")
+            if health is not None
+            else "",
+            foundation_pid=health.get("foundation_pid", 0)
+            if health is not None
+            else 0,
+            errors=list(health.get("errors", [])) if health is not None else [],
+        )
         self.status.publish(
-            String(
-                data=json.dumps(
-                    {
-                        "mode": self.gate.mode.value,
-                        "reason": self.gate.reason,
-                        "stop_behavior": "hold_healthy"
-                        if self.hold_healthy
-                        else "idle_all",
-                        "script": self.script_name,
-                        "script_step": self.runner.index,
-                        "script_error": self.runner.error,
-                        "operator_prompt": self.runner.prompt,
-                        "available_scripts": sorted(
-                            name for name in self.scripts if name != "emergency"
-                        ),
-                        "session": self.gate.session,
-                        "action_sequence": self.gate.action_sequence,
-                        "heartbeat_sequence": self.gate.heartbeat_sequence,
-                        "orin_action_sequence": self.orin_action_sequence,
-                        "orin_policy_active": self.orin_policy_active,
-                        "orin_preflight_passed": self.orin_preflight_passed,
-                        "orin_policy_ready": self.orin_policy_ready,
-                        "orin_policy_verified": self.orin_policy_verified,
-                        "orin_bundle_id": self.orin_bundle_id,
-                        "rtt_ms": None
-                        if self.gate.rtt is None
-                        else self.gate.rtt * 1000,
-                        "jitter_ms": self.gate.jitter * 1000,
-                        "health": self.health_sample,
-                    },
-                    allow_nan=False,
-                )
+            SupervisorStatus(
+                stamp=self.get_clock().now().to_msg(),
+                mode=self.gate.mode.value,
+                reason=self.gate.reason,
+                stop_behavior="hold_healthy" if self.hold_healthy else "idle_all",
+                script=self.script_name,
+                script_step=self.runner.index,
+                script_error=self.runner.error,
+                operator_prompt=SupervisorOperatorPrompt(
+                    id="" if prompt is None else prompt["id"],
+                    text="" if prompt is None else prompt["text"],
+                ),
+                available_scripts=sorted(
+                    name for name in self.scripts if name != "emergency"
+                ),
+                session=self.gate.session,
+                action_sequence=self.gate.action_sequence,
+                heartbeat_sequence=self.gate.heartbeat_sequence,
+                orin_action_sequence=self.orin_action_sequence,
+                orin_policy_active=self.orin_policy_active,
+                orin_preflight_passed=self.orin_preflight_passed,
+                orin_policy_ready=self.orin_policy_ready,
+                orin_policy_verified=self.orin_policy_verified,
+                orin_bundle_id=self.orin_bundle_id,
+                rtt_available=self.gate.rtt is not None,
+                rtt_ms=0.0 if self.gate.rtt is None else self.gate.rtt * 1000,
+                jitter_ms=self.gate.jitter * 1000,
+                health=health_message,
             )
         )
 

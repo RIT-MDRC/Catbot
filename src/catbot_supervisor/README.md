@@ -61,7 +61,7 @@ entering idle. Nothing automatically calibrates or arms at process startup.
 ```bash
 # Explicit startup includes sequential calibration and can move hardware.
 ros2 service call /rpi/supervisor/script catbot_interfaces/srv/RunScript "{name: startup}"
-ros2 topic echo /rpi/supervisor/status std_msgs/msg/String
+ros2 topic echo /rpi/supervisor/status catbot_interfaces/msg/SupervisorStatus
 # Wait for ready, then enable forwarding:
 ros2 service call /rpi/supervisor/run std_srvs/srv/Trigger '{}'
 # Pause forwarding, holding the last target in ready mode:
@@ -174,7 +174,7 @@ runs on Orin with Foundation, sensors, and network traffic under representative
 load:
 
 ```bash
-ros2 topic echo /rpi/supervisor/status std_msgs/msg/String > /tmp/pi-supervisor-health.yaml
+ros2 topic echo /rpi/supervisor/status catbot_interfaces/msg/SupervisorStatus
 ```
 
 The reported policy-only baseline is approximately 50% of one Pi core without
@@ -501,8 +501,9 @@ homing/endstop setup. Adapt the procedure and prompts before hardware use.
 3. Add a **Service Call** panel for `/rpi/supervisor/script`. Enter the JSON request
    `{"name":"sample_home"}` (or `{"name":"sample_calibrate"}`). Acceptance means
    the sequence started, not that calibration completed.
-4. Add a **Raw Messages** panel for `/rpi/supervisor/status`. Expand the String
-   message's JSON `data`; `operator_prompt` contains `id` and `text` while waiting.
+4. Add a **Raw Messages** panel for `/rpi/supervisor/status`. Expand the
+   `SupervisorStatus` message directly; `operator_prompt` contains `id` and `text`
+   while waiting.
 5. After checking the requested setup, use another **Service Call** panel for
    `/rpi/supervisor/respond`, entering `{"name":"<current operator_prompt.id>"}`.
    Each ID works once for that prompt only. Early, duplicate, expired and replaced
@@ -516,7 +517,7 @@ The same response works from a Pi terminal, without blocking a ROS callback:
 
 ```bash
 ros2 service call /rpi/supervisor/script catbot_interfaces/srv/RunScript '{name: sample_home}'
-ros2 topic echo /rpi/supervisor/status std_msgs/msg/String
+ros2 topic echo /rpi/supervisor/status catbot_interfaces/msg/SupervisorStatus
 # Copy the current prompt ID after checking the setup:
 ros2 service call /rpi/supervisor/respond catbot_interfaces/srv/RunScript '{name: REPLACE_WITH_CURRENT_PROMPT_ID}'
 ```

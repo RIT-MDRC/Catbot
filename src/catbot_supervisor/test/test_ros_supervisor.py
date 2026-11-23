@@ -23,6 +23,7 @@ from catbot_interfaces.msg import (
     BodyErrorState,
     BodyKinematicState,
     PolicyFeedback,
+    SupervisorStatus,
 )
 from catbot_interfaces.srv import (
     GetSupervisorStatus,
@@ -542,9 +543,17 @@ def test_local_homing_without_orin_or_policy():
         until(lambda: pi.gate.mode == Mode.IDLE)
         statuses = []
         body.create_subscription(
-            String,
+            SupervisorStatus,
             "/rpi/supervisor/status",
-            lambda msg: statuses.append(json.loads(msg.data)),
+            lambda msg: statuses.append(
+                {
+                    "available_scripts": list(msg.available_scripts),
+                    "operator_prompt": {
+                        "id": msg.operator_prompt.id,
+                        "text": msg.operator_prompt.text,
+                    },
+                }
+            ),
             1,
         )
         pi.scripts["future_check"] = lambda names: [
