@@ -595,46 +595,58 @@ class RpiSupervisor(Node):
                     self.gate.mode = Mode.READY
         prompt = self.runner.prompt
         health = self.health_sample
+
+        def status_sequence(value):
+            try:
+                sequence = int(value)
+                return sequence if sequence >= 0 else 0
+            except (TypeError, ValueError, OverflowError):
+                return 0
+
         health_message = SupervisorHealth(
             available=health is not None,
-            sample_monotonic_seconds=health.get("sample_monotonic_seconds", 0.0)
+            sample_monotonic_seconds=float(
+                health.get("sample_monotonic_seconds", 0.0)
+                if health is not None
+                else 0.0
+            ),
+            cpu_count=int(health.get("cpu_count", 0) or 0)
             if health is not None
-            else 0.0,
-            cpu_count=health.get("cpu_count", 0) if health is not None else 0,
+            else 0,
             interface=health.get("interface", "") if health is not None else "",
             interface_state=health.get("interface_state", "")
             if health is not None
             else "",
             temperature_available=health is not None
             and health.get("temperature_c") is not None,
-            temperature_c=health.get("temperature_c", 0.0)
+            temperature_c=float(health.get("temperature_c", 0.0))
             if health is not None and health.get("temperature_c") is not None
             else 0.0,
             system_cpu_headroom_available=health is not None
             and health.get("system_cpu_headroom_percent") is not None,
-            system_cpu_headroom_percent=health.get(
-                "system_cpu_headroom_percent", 0.0
+            system_cpu_headroom_percent=float(
+                health.get("system_cpu_headroom_percent", 0.0)
             )
             if health is not None
             and health.get("system_cpu_headroom_percent") is not None
             else 0.0,
             foundation_cpu_available=health is not None
             and health.get("foundation_cpu_percent_one_core") is not None,
-            foundation_cpu_percent_one_core=health.get(
-                "foundation_cpu_percent_one_core", 0.0
+            foundation_cpu_percent_one_core=float(
+                health.get("foundation_cpu_percent_one_core", 0.0)
             )
             if health is not None
             and health.get("foundation_cpu_percent_one_core") is not None
             else 0.0,
-            policy_only_baseline_percent_one_core=health.get(
-                "policy_only_baseline_percent_one_core", 0.0
+            policy_only_baseline_percent_one_core=float(
+                health.get("policy_only_baseline_percent_one_core", 0.0)
             )
             if health is not None
             else 0.0,
             baseline_source=health.get("baseline_source", "")
             if health is not None
             else "",
-            foundation_pid=health.get("foundation_pid", 0)
+            foundation_pid=int(health.get("foundation_pid", 0) or 0)
             if health is not None
             else 0,
             errors=list(health.get("errors", [])) if health is not None else [],
@@ -646,7 +658,7 @@ class RpiSupervisor(Node):
                 reason=self.gate.reason,
                 stop_behavior="hold_healthy" if self.hold_healthy else "idle_all",
                 script=self.script_name,
-                script_step=self.runner.index,
+                script_step=int(self.runner.index),
                 script_error=self.runner.error,
                 operator_prompt=SupervisorOperatorPrompt(
                     id="" if prompt is None else prompt["id"],
@@ -656,9 +668,9 @@ class RpiSupervisor(Node):
                     name for name in self.scripts if name != "emergency"
                 ),
                 session=self.gate.session,
-                action_sequence=self.gate.action_sequence,
-                heartbeat_sequence=self.gate.heartbeat_sequence,
-                orin_action_sequence=self.orin_action_sequence,
+                action_sequence=status_sequence(self.gate.action_sequence),
+                heartbeat_sequence=status_sequence(self.gate.heartbeat_sequence),
+                orin_action_sequence=status_sequence(self.orin_action_sequence),
                 orin_policy_active=self.orin_policy_active,
                 orin_preflight_passed=self.orin_preflight_passed,
                 orin_policy_ready=self.orin_policy_ready,
