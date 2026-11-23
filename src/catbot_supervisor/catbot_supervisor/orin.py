@@ -31,6 +31,7 @@ from catbot_supervisor.offline import OfflineQueue
 from catbot_supervisor.preflight import (
     ClockMonitor,
     ComputeProbe,
+    pi_link_status,
     policy_fault,
     seconds,
     verdict,
@@ -201,7 +202,13 @@ class OrinSupervisor(Node):
             command += ["-p", f"{name}:={json.dumps(value)}"]
         return command
 
+    def pi_status_snapshot(self):
+        return pi_link_status(self.probe_at, time.monotonic(), self.lease_timeout)
+
     def preflight_reason(self):
+        pi = self.pi_status_snapshot()
+        if not pi["available"]:
+            return pi["reason"]
         return verdict(
             self.resource_sample,
             self.clock,
@@ -218,7 +225,7 @@ class OrinSupervisor(Node):
             if self.offline.jobs.children:
                 raise ValueError("Offline processes are stopping; retry after cleanup")
         if self.probe_at is None or now - self.probe_at > self.lease_timeout:
-            raise ValueError("No fresh Pi lease")
+            raise ValueError(self.pi_status_snapshot()["reason"])
         reason = self.preflight_reason()
         if reason:
             raise ValueError("Preflight failed: " + reason)
@@ -316,7 +323,7 @@ class OrinSupervisor(Node):
                     self.probe_at is None
                     or time.monotonic() - self.probe_at > self.lease_timeout
                 ):
-                    raise ValueError("No fresh Pi lease")
+                    raise ValueError(self.pi_status_snapshot()["reason"])
             getattr(self.jobs, operation)(request.name, time.monotonic())
             if request.name == "policy" and operation == "stop":
                 self.policy_ready = self.policy_verified = False
@@ -338,6 +345,7 @@ class OrinSupervisor(Node):
                 if request.name not in self.offline.jobs.commands
                 else {},
                 "offline": self.offline.status(),
+                "pi": self.pi_status_snapshot(),
                 "policy": {
                     "state": self.jobs.status("policy")["policy"]["state"],
                     "session": self.session,
@@ -410,7 +418,7 @@ class OrinSupervisor(Node):
             and "policy" not in self.jobs.pending,
         )
         preflight = self.preflight_reason()
-        reason = "Pi probe lease expired" if lease_lost else preflight
+        reason = self.pi_status_snapshot()["reason"] if lease_lost else preflight
         if not reason:
             reason = policy_fault(
                 running=self.jobs.running("policy"),

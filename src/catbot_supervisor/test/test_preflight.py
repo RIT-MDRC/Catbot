@@ -73,3 +73,21 @@ def test_policy_standby_is_healthy_but_failures_are_not(
         timeout=0.25,
     )
     assert (reason in result) if reason else result == ""
+
+
+@pytest.mark.parametrize(
+    "received,now,state",
+    [(None, 10, "waiting"), (9, 10, "lost"), (11, 10, "lost"), (9.9, 10, "connected")],
+)
+def test_pi_absence_has_actionable_reason_and_recovery(received, now, state):
+    from catbot_supervisor.preflight import pi_link_status
+
+    status = pi_link_status(received, now, 0.5)
+    assert status["state"] == state
+    assert status["available"] == (state == "connected")
+    if state != "connected":
+        assert "Pi unavailable" in status["reason"]
+        assert "powered off" in status["reason"]
+        assert "motion remain blocked" in status["reason"]
+    else:
+        assert status["reason"] == ""

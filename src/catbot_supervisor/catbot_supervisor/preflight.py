@@ -13,6 +13,33 @@ from catbot_policy.configuration import inference_python
 from catbot_policy.worker_launch import WorkerLaunchSpec
 
 
+def pi_link_status(received, now, timeout):
+    """Report observed supervisor availability without guessing physical power state."""
+    age = None if received is None else now - received
+    available = age is not None and 0 <= age <= timeout
+    return {
+        "available": available,
+        "state": "connected"
+        if available
+        else "waiting"
+        if received is None
+        else "lost",
+        "last_probe_age_seconds": age,
+        "reason": ""
+        if available
+        else (
+            "Pi unavailable: "
+            + (
+                "no supervisor probes received"
+                if received is None
+                else "supervisor connection lost"
+            )
+            + ". Pi may be powered off, disconnected, or its supervisor stopped. "
+            "Power on the Pi and start its supervisor; policy and motion remain blocked."
+        ),
+    }
+
+
 def policy_fault(*, running, error, ready, action_at, now, timeout):
     """An intentionally stopped policy is standby; failures remain visible."""
     if not running:
