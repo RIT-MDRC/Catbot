@@ -1,5 +1,6 @@
 """Catbot ROS node for sparse, position-controlled body actuation."""
 
+import json
 import os
 import signal
 import time
@@ -27,11 +28,13 @@ from component.motor.odrive_enums import (
     MotorState,
     SensorlessError,
 )
+from rcl_interfaces.msg import SetParametersResult
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy
 from rclpy.signals import SignalHandlerOptions
 from state_management import configure_device
+from tuning import validate_tuning
 
 from catbot_interfaces.msg import (
     ActuatorErrorState,
@@ -64,6 +67,32 @@ class BodyControlNode(Node):
         self.last_error_request_times = {}
         self.invalid_kinematics = set()
 
+        self.tuning = {"policy_gain_scale": 0.1}
+        for name in self.actuator_names:
+            self.tuning.update(
+                {
+                    f"{name}.speed_motor_turns_s": actuator_actions.get_trajectory_velocity_motor_turns(
+                        name
+                    ),
+                    f"{name}.accel_motor_turns_s2": actuator_actions.get_trajectory_acceleration_motor_turns(
+                        name
+                    ),
+                    f"{name}.position_gain": -1.0,
+                    f"{name}.velocity_gain": -1.0,
+                    f"{name}.integrator_gain": -1.0,
+                }
+            )
+        self.tuning = {
+            name: self.declare_parameter(name, float(value)).value
+            for name, value in self.tuning.items()
+        }
+        validate_tuning(
+            {name: value for name, value in self.tuning.items() if value != -1.0}
+        )
+        self.applied_gain_scale = 0.1
+        self.gains_dirty = True
+        self.add_on_set_parameters_callback(self._tune)
+        self.create_timer(0.1, self._apply_gains)
         position_qos = QoSProfile(
             history=HistoryPolicy.KEEP_LAST,
             depth=1,
@@ -130,6 +159,64 @@ class BodyControlNode(Node):
             and encoder_available(motor, now, ENCODER_STALE_SECONDS)
             and kinematic_values(name, now, ENCODER_STALE_SECONDS, motor_state=motor)[0]
         )
+
+    def _tune(self, parameters):
+        updates = {p.name: p.value for p in parameters if p.name in self.tuning}
+        try:
+            validate_tuning(updates)
+            proposed = {**self.tuning, **updates}
+            if "policy_gain_scale" in updates and any(
+                proposed[f"{axis}.{gain}_gain"] < 0
+                for axis in self.actuator_names
+                for gain in ("position", "velocity", "integrator")
+            ):
+                raise ValueError("Configure all per-axis gain baselines before scaling")
+            for key, value in updates.items():
+                axis, _, field = key.rpartition(".")
+                if field == "speed_motor_turns_s":
+                    if not actuator_actions.set_trajectory_speed(
+                        axis, value, "motor_turns_per_second"
+                    ):
+                        raise ValueError(
+                            f"CAN rejected {key}; earlier writes may have applied"
+                        )
+                elif (
+                    field == "accel_motor_turns_s2"
+                    and not actuator_actions.set_trajectory_acceleration(axis, value)
+                ):
+                    raise ValueError(
+                        f"CAN rejected {key}; earlier writes may have applied"
+                    )
+            self.tuning = proposed
+            self.gains_dirty = True
+            self.get_logger().info("Runtime tuning: " + json.dumps(updates))
+            return SetParametersResult(successful=True)
+        except (ValueError, TypeError) as error:
+            return SetParametersResult(successful=False, reason=str(error))
+
+    def _apply_gains(self):
+        target = self.tuning["policy_gain_scale"]
+        scale = self.applied_gain_scale + max(
+            -0.05, min(0.05, target - self.applied_gain_scale)
+        )
+        if not self.gains_dirty and scale == self.applied_gain_scale:
+            return
+        complete = True
+        for axis in self.actuator_names:
+            gains = [
+                self.tuning[f"{axis}.{gain}_gain"]
+                for gain in ("position", "velocity", "integrator")
+            ]
+            if any(value < 0 for value in gains):
+                continue
+            if not actuator_actions.set_controller_gains(
+                axis, *(value * scale for value in gains)
+            ):
+                complete = False
+                self.get_logger().error(f"CAN gain update failed: {axis}")
+        if complete:
+            self.applied_gain_scale = scale
+            self.gains_dirty = False
 
     def _motor_command(self, request, response):
         names = list(request.actuator_names) or self.ordered_motor_names

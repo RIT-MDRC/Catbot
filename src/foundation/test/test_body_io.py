@@ -15,6 +15,7 @@ def body_io(monkeypatch):
     monkeypatch.syspath_prepend(str(root))
     modules = {
         "rclpy": {},
+        "rcl_interfaces.msg": {"SetParametersResult": SimpleNamespace},
         "rclpy.node": {"Node": object},
         "rclpy.executors": {
             "ExternalShutdownException": type(
@@ -560,3 +561,34 @@ def test_main_disarms_and_closes_can_before_context_shutdown(
     module.rclpy.init.assert_called_once_with(
         args=None, signal_handler_options=module.SignalHandlerOptions.NO
     )
+
+
+def test_tuning_validates_whole_batch_before_can_and_ramps_gains(body_io, monkeypatch):
+    module, node = body_io[:2]
+    node.get_logger = lambda: Mock()
+    node.tuning = {
+        "policy_gain_scale": 0.1,
+        "a.speed_motor_turns_s": 1.0,
+        "a.accel_motor_turns_s2": 1.0,
+        "a.position_gain": 20.0,
+        "a.velocity_gain": 0.2,
+        "a.integrator_gain": 0.3,
+    }
+    node.actuator_names = ("a",)
+    speed = Mock(return_value=True)
+    gains = Mock(return_value=True)
+    monkeypatch.setattr(module.actuator_actions, "set_trajectory_speed", speed)
+    monkeypatch.setattr(module.actuator_actions, "set_controller_gains", gains)
+    bad = [
+        SimpleNamespace(name="a.speed_motor_turns_s", value=2.0),
+        SimpleNamespace(name="policy_gain_scale", value=4.0),
+    ]
+    assert not module.BodyControlNode._tune(node, bad).successful
+    speed.assert_not_called()
+    assert module.BodyControlNode._tune(
+        node, [SimpleNamespace(name="policy_gain_scale", value=0.5)]
+    ).successful
+    node.applied_gain_scale = 0.1
+    module.BodyControlNode._apply_gains(node)
+    assert node.applied_gain_scale == pytest.approx(0.15)
+    assert gains.call_args.args[1:] == pytest.approx((3.0, 0.03, 0.045))

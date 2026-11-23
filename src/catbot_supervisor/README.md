@@ -530,3 +530,40 @@ these same endpoints, avoiding manual ID copying. A terminal helper could likewi
 use `input()` in its own process and call the response service afterwards.
 
 Foxglove reference: [Service Call panel](https://docs.foxglove.dev/docs/visualization/panels/service-call).
+
+## Session capture and idle jobs
+
+Orin's `/orin/supervisor/job` service reserves `recording` for primary rosbag2
+MCAP capture (`start` / `stop`). Install `ros-humble-rosbag2-storage-mcap` on
+Humble. Bags split every 60 seconds or 256 MiB. `recording_directory` defaults to
+`~/.local/share/catbot/recordings`; metadata includes configuration, run/scenario,
+operator, git revision, bundle identity, and measured clock status. Explicit
+`recording_topics` include policy feedback/actions, state, supervisor status and
+parameter changes. Disk-reserve exhaustion stops the managed bag process.
+Completed sessions rotate to retain ten; active/incomplete captures are preserved.
+
+The supervised policy also writes a segmented source JSONL backup in this root.
+It freezes feedback/actions before ROS delivery and records gate acknowledgements.
+A bounded writer thread keeps filesystem I/O off control callbacks. Overflow and
+write errors are reported; capture is not claimed lossless under arbitrary disk
+stalls. Segments contain ordered complete lines and both wall and monotonic times;
+an interrupted final partial line can be discarded during recovery.
+
+`offline_jobs_json` is a name-to-argv allowlist for rollout/evaluation/replay
+commands. Submit these names through the same job service. Requests coalesce in
+a bounded FIFO. Only one runs, with a fresh Pi idle/no-script confirmation and no
+policy process. Leaving idle or losing the lease cancels active and queued work.
+Policy startup waits for process-group cleanup. Workers run at nice 15 with a
+600 CPU-second limit and 2 GiB address-space limit. The worker entry point also
+accepts `--cpu` affinity when configuring a different envelope. Live shadow
+simulation remains disabled pending an on-device A/B timing test.
+
+Foundation exposes `policy_gain_scale` (0.1–1.0), plus each actuator's
+`position_gain`, `velocity_gain`, `integrator_gain`, `speed_motor_turns_s`, and
+`accel_motor_turns_s2` through ROS parameters for Foxglove. Supply the three gain
+baselines from the actual ODrive configuration; the initial -1 sentinel disables
+gain writes until configured. Scale starts at 0.1 and moves at most 0.05 per 100 ms.
+No parameter update arms a motor. Speed is motor turns/s and acceleration is motor
+turns/s², including nonlinear knees. Parameter changes are logged and recorded in
+MCAP through `/parameter_events`. CAN batches cannot be rolled back if a later
+write fails; rejection reports that earlier writes may have applied.

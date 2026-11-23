@@ -2,16 +2,19 @@
 
 import json
 import math
+import shutil
 import subprocess
+import sys
 import time
 import uuid
 from pathlib import Path
 
 import rclpy
 from catbot_policy.configuration import POLICY_DEFAULTS
+from catbot_policy.recording import SessionRecorder
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile
-from std_msgs.msg import UInt64
+from std_msgs.msg import String, UInt64
 
 from catbot_interfaces.msg import (
     ClockProbe,
@@ -24,6 +27,7 @@ from catbot_interfaces.msg import (
 from catbot_interfaces.srv import GetSupervisorStatus, SupervisorJob
 from catbot_supervisor.configuration import ORIN_DEFAULTS
 from catbot_supervisor.jobs import Jobs
+from catbot_supervisor.offline import OfflineQueue
 from catbot_supervisor.preflight import (
     ClockMonitor,
     ComputeProbe,
@@ -91,6 +95,57 @@ class OrinSupervisor(Node):
         commands = json.loads(str(param("jobs_json", "{}")))
         if not isinstance(commands, dict) or "policy" in commands:
             raise ValueError("jobs_json must be an object; policy is reserved")
+        offline_commands = json.loads(str(param("offline_jobs_json", "{}")))
+        if (
+            not isinstance(offline_commands, dict)
+            or set(offline_commands) & set(commands)
+            or "policy" in offline_commands
+        ):
+            raise ValueError("offline job names must be distinct from managed jobs")
+        # Validate raw argv before wrapping it in the resource envelope.
+        Jobs(offline_commands)
+        self.offline = OfflineQueue(
+            {
+                name: [
+                    sys.executable,
+                    "-m",
+                    "catbot_supervisor.offline_worker",
+                    "--",
+                    *argv,
+                ]
+                for name, argv in offline_commands.items()
+            }
+        )
+        self.pi_idle_at = None
+        self.create_subscription(String, "/rpi/supervisor/status", self.pi_status, 1)
+        self.recording_root = str(
+            param("recording_directory", "~/.local/share/catbot/recordings")
+        )
+        self.recording_topics = list(
+            param(
+                "recording_topics",
+                [
+                    "/policy/feedback",
+                    "/orin/policy/action",
+                    "/rpi/supervisor/action_ack",
+                    "/tf",
+                    "/tf_static",
+                    "/diagnostics",
+                    "/body/state/error",
+                    "/zed/zed_node/imu/data",
+                    "/zed/zed_node/odom",
+                    "/body/state/position",
+                    "/parameter_events",
+                    "/orin/supervisor/telemetry",
+                    "/rpi/supervisor/status",
+                ],
+            )
+        )
+        self.recording = None
+        if "recording" in commands or "recording" in offline_commands:
+            raise ValueError("recording is a reserved managed job")
+        commands["recording"] = ["ros2", "bag", "record", "-s", "mcap"]
+        self.operator = str(param("operator", ""))
         self.session = uuid.uuid4().hex
         self.policy_ready = self.policy_verified = False
         self.bundle_id = self.load_error = ""
@@ -135,6 +190,7 @@ class OrinSupervisor(Node):
         parameters = {
             **self.policy_parameters,
             "action_session": self.session,
+            "recording_directory": self.recording_root,
             "simulation_mode": self.simulation_mode,
             "supervised_actions": True,
             "require_provider_contract": True,
@@ -156,11 +212,31 @@ class OrinSupervisor(Node):
 
     def before_start(self, name):
         now = time.monotonic()
+        if name == "policy":
+            self.offline.tick(now, idle=False)
+            if self.offline.jobs.children:
+                raise ValueError("Offline processes are stopping; retry after cleanup")
         if self.probe_at is None or now - self.probe_at > self.lease_timeout:
             raise ValueError("No fresh Pi lease")
         reason = self.preflight_reason()
         if reason:
             raise ValueError("Preflight failed: " + reason)
+        if name == "recording":
+            if self.recording is not None:
+                self.recording.close()
+            self.recording = SessionRecorder(
+                self.recording_root,
+                {
+                    **self.tags,
+                    "operator": self.operator,
+                    "policy_bundle_id": self.bundle_id,
+                    "configuration": self.policy_parameters,
+                    "clock": self.clock.status(now),
+                },
+            )
+            self.jobs.commands[name] = self.recording.mcap_command(
+                self.recording_topics
+            )
         if name == "policy":
             self.session = uuid.uuid4().hex
             self.sequence = self.action_sequence = 0
@@ -184,6 +260,17 @@ class OrinSupervisor(Node):
             self.get_clock().now().nanoseconds * 1e-9,
             time.monotonic(),
         )
+
+    def pi_status(self, message):
+        try:
+            value = json.loads(message.data)
+            self.pi_idle_at = (
+                time.monotonic()
+                if value.get("mode") == "idle" and not value.get("script")
+                else None
+            )
+        except (ValueError, AttributeError):
+            self.pi_idle_at = None
 
     def probe(self, message):
         self.probe_id, self.probe_at = message.data, time.monotonic()
@@ -210,6 +297,15 @@ class OrinSupervisor(Node):
             operation = request.operation or ("start" if request.start else "stop")
             if operation not in ("start", "stop", "restart"):
                 raise ValueError("Operation must be start, stop, or restart")
+            if request.name in self.offline.jobs.commands:
+                if operation == "stop":
+                    self.offline.cancel(request.name, time.monotonic())
+                else:
+                    if self.jobs.children.get("policy") is not None:
+                        raise ValueError("Offline work requires policy stopped")
+                    self.offline.enqueue(request.name)
+                response.success, response.message = True, "offline request accepted"
+                return response
             self.jobs._known(request.name)
             if operation != "stop":
                 reason = self.preflight_reason()
@@ -237,7 +333,10 @@ class OrinSupervisor(Node):
         try:
             value = {
                 "version": 1,
-                "jobs": self.jobs.status(request.name),
+                "jobs": self.jobs.status(request.name)
+                if request.name not in self.offline.jobs.commands
+                else {},
+                "offline": self.offline.status(),
                 "policy": {
                     "state": self.jobs.status("policy")["policy"]["state"],
                     "session": self.session,
@@ -294,7 +393,21 @@ class OrinSupervisor(Node):
         if lease_lost:
             for name in self.jobs.commands:
                 self.jobs.stop(name, now)
+        if self.recording is not None:
+            if shutil.disk_usage(self.recording.path).free < self.min_disk:
+                self.jobs.stop("recording", now)
+            if "recording" not in self.jobs.children:
+                self.recording.close()
+                self.recording = None
         self.jobs.tick(now)
+        self.offline.tick(
+            now,
+            idle=not lease_lost
+            and self.pi_idle_at is not None
+            and 0 <= now - self.pi_idle_at <= self.lease_timeout
+            and "policy" not in self.jobs.children
+            and "policy" not in self.jobs.pending,
+        )
         preflight = self.preflight_reason()
         reason = "Pi probe lease expired" if lease_lost else preflight
         if not reason:
@@ -333,7 +446,10 @@ class OrinSupervisor(Node):
 
     def destroy_node(self):
         self.compute.close()
+        self.offline.close()
         self.jobs.close()
+        if self.recording is not None:
+            self.recording.close()
         return super().destroy_node()
 
 

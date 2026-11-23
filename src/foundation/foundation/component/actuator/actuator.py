@@ -297,3 +297,17 @@ def _nonlinear_motor_turns_per_degree(actuator: Actuator, angle: float) -> float
     )
     pitch = profile_actions.ballscrew_pitch_centimeters(linkage)
     return dx_per_radian * math.pi / 180.0 / pitch * _direction(actuator)
+
+
+@device_action(ctx)
+def get_trajectory_acceleration_motor_turns(actuator: Actuator) -> float:
+    return actuator.trajectory_acceleration_motor_turns
+
+
+@device_action(ctx)
+def set_controller_gains(
+    actuator: Actuator, position: float, velocity: float, integrator: float
+) -> bool:
+    return motor_actions.set_controller_gains(
+        actuator.motor, position, velocity, integrator
+    )

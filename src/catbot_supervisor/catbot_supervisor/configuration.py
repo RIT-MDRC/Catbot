@@ -2,6 +2,9 @@
 
 ORIN_DEFAULTS = {
     "jobs_json": "{}",
+    "offline_jobs_json": "{}",
+    "recording_directory": "~/.local/share/catbot/recordings",
+    "operator": "",
     "pi_lease_timeout": 0.5,
     "action_timeout": 0.25,
     "simulation_mode": False,

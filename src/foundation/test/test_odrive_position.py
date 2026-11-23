@@ -1102,3 +1102,39 @@ def test_command_session_dispatches_state_shortcuts(command_runtime, command, st
 
     runtime.actions.set_state.assert_called_once_with("rear", state)
     runtime.actions.clear.assert_called_once_with("rear")
+
+
+def test_controller_gain_messages_preserve_cascade_and_reject_nonfinite():
+    motor = make_motor()
+    with patch("component.motor.odrive_motor.send_message", return_value=True) as send:
+        assert motor_actions.set_controller_gains(motor, 2.0, 0.03, 0.04)
+        assert send.call_args_list == [
+            call(motor, "Set_Pos_Gain", {"Pos_Gain": 2.0}),
+            call(
+                motor, "Set_Vel_Gains", {"Vel_Gain": 0.03, "Vel_Integrator_Gain": 0.04}
+            ),
+        ]
+        send.reset_mock()
+        with pytest.raises(ValueError):
+            motor_actions.set_controller_gains(motor, float("nan"), 0.03, 0.04)
+        send.assert_not_called()
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), -1.0, 0.0])
+def test_live_motion_tuning_rejects_invalid_limits(value):
+    from tuning import validate_tuning
+
+    with pytest.raises(ValueError):
+        validate_tuning({"axis.speed_motor_turns_s": value})
+    with pytest.raises(ValueError):
+        validate_tuning({"axis.accel_motor_turns_s2": value})
+
+
+def test_gain_scale_bounds_and_explicit_baselines():
+    from tuning import validate_tuning
+
+    validate_tuning({"policy_gain_scale": 0.1, "axis.position_gain": 20.0})
+    with pytest.raises(ValueError):
+        validate_tuning({"policy_gain_scale": 1.01})
+    with pytest.raises(ValueError):
+        validate_tuning({"axis.velocity_gain": -1.0})

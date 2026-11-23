@@ -189,3 +189,22 @@ def test_idle_or_degraded_orin_does_not_interrupt_local_hold():
     # Missing/degraded Orin is irrelevant to local holding; never enters RUNNING.
     gate.heartbeat("session", 2, True, 0, 10.03)
     assert gate.mode == Mode.HOLDING
+
+
+def test_delayed_queue_never_refreshes_action_watchdog():
+    from catbot_supervisor.core import ActionGate, Mode
+
+    gate = ActionGate()
+    gate.mode = Mode.RUNNING
+    gate.session = "session"
+    gate.heartbeat_at = gate.probe_at = 10.0
+    gate.orin_degraded = False
+    gate.rtt = 0.001
+    gate.action_at = 9.99
+    # DDS delivers a previously queued action while monotonic link health is fresh.
+    assert not gate.action("session", 1, 100.0, 100.4, 10.0, ["motor"], [0.0])
+    assert gate.action_at == 9.99
+    assert gate.mode == Mode.DEGRADED
+    # Later queued messages cannot reopen a fail-latched gate.
+    assert not gate.action("session", 2, 100.4, 100.4, 10.01, ["motor"], [1.0])
+    assert gate.action_at == 9.99

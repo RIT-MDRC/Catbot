@@ -27,6 +27,7 @@ from catbot_interfaces.msg import (
 from catbot_policy.artifacts import available_models, resolve_downloaded
 from catbot_policy.configuration import POLICY_DEFAULTS, POLICY_PARAMETERS
 from catbot_policy.protocol import FEEDBACK_FIELDS, finite_values, validate_feedback
+from catbot_policy.recording import SourceJournal
 from catbot_policy.worker_client import WorkerClient
 
 
@@ -136,6 +137,19 @@ class PolicyNode(Node):
             raise
 
     def initialize(self):
+        directory = str(self.declare_parameter("recording_directory", "").value)
+        self.journal = (
+            SourceJournal(
+                directory,
+                {
+                    "session": self.action_session,
+                    "worker": self.worker.ready,
+                    "parameters": self.policy_parameters,
+                },
+            )
+            if directory
+            else None
+        )
         ready = self.worker.ready
         self.metadata, self.mapping = ready["metadata"], ready["mapping"]
         self.dt = float(ready["dt"])
@@ -230,6 +244,17 @@ class PolicyNode(Node):
                 else:
                     values[name] = [float(value) for value in raw]
             self.feedback = validate_feedback(values)
+            if getattr(self, "journal", None) is not None:
+                self.journal.submit(
+                    "feedback",
+                    {
+                        "stamp": {
+                            "sec": message.stamp.sec,
+                            "nanosec": message.stamp.nanosec,
+                        },
+                        "values": self.feedback,
+                    },
+                )
             self.received = time.monotonic()
         except (KeyError, TypeError, ValueError) as error:
             self.feedback = None
@@ -333,6 +358,16 @@ class PolicyNode(Node):
                     and self.epoch == pending["epoch"]
                     and 0 <= now - pending["received"] <= self.feedback_timeout
                 )
+                if getattr(self, "journal", None) is not None:
+                    self.journal.submit(
+                        "action",
+                        {
+                            "id": pending["id"],
+                            "accepted": accepted,
+                            "actuator_names": names,
+                            "positions_degrees": targets,
+                        },
+                    )
                 if accepted:
                     message = ActuatorPositionCommand()
                     message.actuator_names, message.positions_degrees = names, targets
@@ -386,6 +421,11 @@ class PolicyNode(Node):
             or pending.get("gate_acknowledged")
         ):
             return
+        if getattr(self, "journal", None) is not None:
+            self.journal.submit(
+                "action_ack",
+                {"sequence": message.sequence, "forwarded": message.forwarded},
+            )
         pending["gate_acknowledged"] = True
         pending["accepted"] = message.forwarded
         if message.forwarded:
@@ -434,6 +474,12 @@ class PolicyNode(Node):
             ).items():
                 report[f"{prefix}_{percentile}_ms"] = value
         self.metrics.publish(PolicyMetrics(**report))
+        if getattr(self, "journal", None) is not None and (
+            self.journal.dropped or self.journal.error
+        ):
+            self.get_logger().warning(
+                f"Source recording dropped={self.journal.dropped}: {self.journal.error}"
+            )
         self.worker_cpu_previous = self.worker_cpu
         self.samples.clear()
         self.published = self.discarded = self.busy_ticks = self.missed = 0
@@ -442,6 +488,8 @@ class PolicyNode(Node):
 
     def destroy_node(self):
         self.worker.close()
+        if getattr(self, "journal", None) is not None:
+            self.journal.close()
         return super().destroy_node()
 
 

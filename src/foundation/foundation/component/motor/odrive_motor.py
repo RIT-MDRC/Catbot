@@ -666,3 +666,17 @@ def set_axis_state(motor: ODriveMotor, state: MotorState) -> bool:
 
 
 # endregion
+
+
+@device_action(ctx)
+def set_controller_gains(
+    motor: ODriveMotor, position: float, velocity: float, integrator: float
+) -> bool:
+    """ODrive 0.5.6 cascaded position/velocity gains; no mode or arming changes."""
+    if any(not math.isfinite(v) or v < 0 for v in (position, velocity, integrator)):
+        raise ValueError("controller gains must be finite and nonnegative")
+    return send_message(motor, "Set_Pos_Gain", {"Pos_Gain": position}) and send_message(
+        motor,
+        "Set_Vel_Gains",
+        {"Vel_Gain": velocity, "Vel_Integrator_Gain": integrator},
+    )
