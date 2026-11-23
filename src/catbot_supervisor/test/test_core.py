@@ -3,7 +3,15 @@
 import math
 
 import pytest
-from catbot_supervisor.core import ActionGate, Limits, Mode
+from catbot_supervisor.core import ActionGate, Limits, Mode, status_sequence
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [(None, 0), (-1, 0), (0, 0), (1.9, 1), ("7", 7), ("bad", 0)],
+)
+def test_status_sequence_normalizes_unsigned_values(value, expected):
+    assert status_sequence(value) == expected
 
 
 def healthy(mode=Mode.READY):

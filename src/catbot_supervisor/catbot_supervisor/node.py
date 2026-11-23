@@ -28,7 +28,7 @@ from catbot_interfaces.msg import (
     SupervisorStatus,
 )
 from catbot_interfaces.srv import MotorCommand, RunScript, SupervisorJob
-from catbot_supervisor.core import ActionGate, Limits, Mode
+from catbot_supervisor.core import ActionGate, Limits, Mode, status_sequence
 from catbot_supervisor.health import PiHealth, health_reason
 from catbot_supervisor.homing import (
     StateCycle,
@@ -375,7 +375,7 @@ class RpiSupervisor(Node):
             and message.session != self.gate.session
         ):
             self.enter_emergency("Orin session changed during script")
-        self.orin_action_sequence = message.action_sequence
+        self.orin_action_sequence = int(message.action_sequence)
         self.orin_policy_active = message.policy_active
         now = time.monotonic()
         self.gate.heartbeat(
@@ -595,13 +595,6 @@ class RpiSupervisor(Node):
                     self.gate.mode = Mode.READY
         prompt = self.runner.prompt
         health = self.health_sample
-
-        def status_sequence(value):
-            try:
-                sequence = int(value)
-                return sequence if sequence >= 0 else 0
-            except (TypeError, ValueError, OverflowError):
-                return 0
 
         health_message = SupervisorHealth(
             available=health is not None,

@@ -29,6 +29,14 @@ class Limits:
             raise ValueError("Link limits must be positive and finite")
 
 
+def status_sequence(value):
+    try:
+        sequence = int(value)
+        return sequence if sequence >= 0 else 0
+    except (TypeError, ValueError, OverflowError):
+        return 0
+
+
 class ActionGate:
     def __init__(self, limits=None):
         self.limits = limits or Limits()
