@@ -268,7 +268,7 @@ simulation scheduling remain deferred and are not implemented by these APIs.
 For homing and policy controls together, import
 [foxglove/main-dashboard.json](foxglove/main-dashboard.json). It includes:
 
-- **Home robot**: runs local `home_robot`; no policy or Orin supervisor required.
+- **Zero all** runs local `zero_all` and moves every configured actuator to its existing logical zero.
 - **Motor calibration**: explicitly runs the existing motor calibration script.
   `calibrate` and `full_calibrate` run the complete sequence below. They can move
   hardware, clear faults, and finish with all motors armed/holding. `home_robot`
@@ -490,9 +490,18 @@ for this test and starts a kinematics worker that depends on saved policy files.
 
 The registered scripts `zero_flk`, `zero_fra`, and so on select one configured
 actuator by name. `zero_all` selects the entire configured roster. Start the
-chosen script using the existing Foxglove **Run named script** control and
+all-axis move using the Foxglove **Zero all** button and
 monitor `/rpi/supervisor/status` for progress or errors. For example, its request
-for the front-left knee is `{"name":"zero_flk"}`.
+for all axes is `{"name":"zero_all"}`.
+
+The supervisor accepts this script in idle, ready, or holding mode with no active
+script. Pi network and temperature health must pass, and the complete Foundation
+roster must have fresh heartbeats and clear fault flags. Foundation separately
+checks the motion latch, encoder feedback and target limits when it receives the
+move. An accepted service response means the sequence has started. Watch the
+status reason and script error, plus Foundation logs for rejected commands.
+The script allows 5 seconds for closed-loop readiness, then 15 seconds for fresh
+positions within 1 degree of zero and speeds at or below 1 degree per second.
 
 `zero_all` requires fresh, fault-free feedback and idle or closed-loop axes. It
 requests a zero-degree position through Foundation's automatic closed-loop move

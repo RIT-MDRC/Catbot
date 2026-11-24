@@ -68,13 +68,13 @@
     },
     "CallService!home": {
       "serviceName": "/rpi/supervisor/script",
-      "requestPayload": "{\"name\": \"home_robot\"}",
-      "buttonText": "Home robot",
+      "requestPayload": "{\"name\": \"zero_all\"}",
+      "buttonText": "Zero all",
       "buttonColor": "#546e7a",
-      "buttonTooltip": "Home and arm using the operator-approved sequence",
+      "buttonTooltip": "Move every configured actuator to its existing logical zero",
       "editingMode": false,
       "timeoutSeconds": 3,
-      "foxglovePanelTitle": "Home robot",
+      "foxglovePanelTitle": "Zero all",
       "layout": "vertical"
     },
     "CallService!policyStop": {

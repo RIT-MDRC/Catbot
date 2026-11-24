@@ -66,6 +66,6 @@ def test_policy_start_and_script_execution_are_independent_controls():
         "name": "policy",
         "operation": "start",
     }
-    home = next(c for c in configs if c.get("buttonText") == "Home robot")
-    assert home["serviceName"] == "/rpi/supervisor/script"
-    assert json.loads(home["requestPayload"]) == {"name": "home_robot"}
+    zero = next(c for c in configs if c.get("buttonText") == "Zero all")
+    assert zero["serviceName"] == "/rpi/supervisor/script"
+    assert json.loads(zero["requestPayload"]) == {"name": "zero_all"}
