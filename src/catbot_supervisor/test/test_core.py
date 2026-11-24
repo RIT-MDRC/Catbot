@@ -160,6 +160,27 @@ def test_closed_gate_resynchronizes_forward_gaps_without_forwarding(mode):
     assert gate.action_sequence == 5
 
 
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"session": "other"},
+        {"stamp": 99.0},
+        {"stamp": 101.0},
+        {"stamp": math.nan},
+        {"names": []},
+        {"positions": [math.nan]},
+    ],
+)
+def test_idle_gap_cannot_bypass_action_validation(changes):
+    gate = healthy(Mode.IDLE)
+    action(gate, sequence=1)
+    assert not action(gate, sequence=4, **changes)
+    assert gate.action_sequence == 1
+    assert gate.action_at == 10.02
+    assert not action(gate, sequence=4, stamp=100.02)
+    assert gate.action_sequence == 4
+
+
 @pytest.mark.parametrize("mode", [Mode.READY, Mode.HOLDING, Mode.RUNNING])
 def test_open_or_armed_gate_never_resynchronizes_a_gap(mode):
     gate = healthy(mode)
