@@ -614,3 +614,25 @@ write fails; rejection reports that earlier writes may have applied.
 
 Runtime profiling, capture status, shutdown semantics, and extension priorities
 are documented in [RUNTIME_PERFORMANCE.md](../../docs/RUNTIME_PERFORMANCE.md).
+
+### Rebooting motor controllers
+
+On the Pi, select either actuator on a board, several actuators, or all six boards:
+
+```sh
+ros2 service call /rpi/supervisor/reboot_controllers catbot_interfaces/srv/RebootControllers '{actuator_names: [bla, brf]}'
+ros2 service call /rpi/supervisor/reboot_controllers catbot_interfaces/srv/RebootControllers '{all_controllers: true}'
+ros2 topic echo /rpi/supervisor/status --field missing_controller_heartbeat_axes
+ros2 param set /rpi_supervisor controller_reconnect_timeout 15.0
+```
+
+The six boards pair adjacent CAN axes (0/1 through 10/11). The response identifies
+each board by its even axis ID. Foundation sends one frame per selected board in
+a batch. The supervisor tracks both axes of each board concurrently. The command
+requires disarmed idle mode or operator emergency. The normal emergency recovery
+procedure is required afterward. The response distinguishes successful CAN sends
+from boards observed with fresh heartbeats on both axes. The status topic keeps
+listing missing axes after the service returns, including after a timeout.
+The Pi supervisor parameter `controller_reconnect_timeout` defaults to 10.0
+seconds and applies to the next request. Set it in the node's ROS parameter
+file for a persistent override.

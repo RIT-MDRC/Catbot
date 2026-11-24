@@ -43,7 +43,7 @@ from catbot_interfaces.msg import (
     BodyErrorState,
     BodyKinematicState,
 )
-from catbot_interfaces.srv import MotorCommand
+from catbot_interfaces.srv import MotorCommand, RebootControllers
 
 POSITION_STATE_PERIOD_SECONDS = 0.02
 STATE_CHECK_PERIOD_SECONDS = 0.05
@@ -151,6 +151,11 @@ class BodyControlNode(Node):
             BodyErrorState,
             "/body/state/error",
             error_state_qos,
+        )
+        self.create_service(
+            RebootControllers,
+            "/body/control/reboot_controllers",
+            self._reboot_controllers,
         )
         self.create_service(MotorCommand, "/body/control/motor", self._motor_command)
         self.create_timer(POSITION_STATE_PERIOD_SECONDS, self._publish_position_state)
@@ -283,6 +288,42 @@ class BodyControlNode(Node):
             self.applied_gain_scale = scale
             self.applied_group_scales = group_scales
             self.gains_dirty = False
+
+    def _reboot_controllers(self, request, response):
+        names = set(request.actuator_names)
+        axes = {
+            name: motor_actions.get_state_snapshot(name)
+            for name in self.ordered_motor_names
+        }
+        by_id = {axis.axis_id: name for name, axis in axes.items()}
+        if set(by_id) != set(range(12)) or len(axes) != 12:
+            response.message = (
+                "Controller reboot requires the configured six axis pairs"
+            )
+            return response
+        if bool(names) == request.all_controllers or not names.issubset(axes):
+            response.message = "Select known actuators or all_controllers"
+            return response
+        now = time.monotonic()
+        if not self.emergency_disarm and not all(
+            heartbeat_available(axis, now, HEARTBEAT_STALE_SECONDS)
+            and axis.current_state == MotorState.IDLE
+            for axis in axes.values()
+        ):
+            response.message = (
+                "Reboot requires disarmed axes or an all-axis emergency stop"
+            )
+            return response
+        self.motion_inhibited = self.emergency_disarm = True
+        boards = sorted({axes[name].axis_id & ~1 for name in (names or axes)})
+        for board in boards:
+            if motor_actions.reboot(by_id[board]):
+                response.sent_boards.append(board)
+        response.success = len(response.sent_boards) == len(boards)
+        response.message = (
+            "Commands sent" if response.success else "Some CAN sends failed"
+        )
+        return response
 
     def _motor_command(self, request, response):
         names = list(request.actuator_names) or self.ordered_motor_names
@@ -446,6 +487,7 @@ class BodyControlNode(Node):
             actuator = ActuatorErrorState()
             actuator.actuator_name = name
             actuator.axis_id = motor.axis_id
+            actuator.heartbeat_monotonic_seconds = motor.last_heartbeat_time or 0.0
             actuator.heartbeat_available = heartbeat_ok
             actuator.ready = ready
             actuator.axis_state = int(motor.current_state)

@@ -6,6 +6,7 @@ class ActuatorErrorState:
     actuator_name: str
     axis_id: int
     heartbeat_available: bool
+    heartbeat_monotonic_seconds: float
     ready: bool
     axis_state: int
     axis_error_flags: int

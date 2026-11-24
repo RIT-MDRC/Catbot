@@ -7,10 +7,12 @@ from concurrent.futures import Future
 from types import SimpleNamespace
 
 import rclpy
+from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from rclpy.signals import SignalHandlerOptions
+from rclpy.task import Future as RosFuture
 from std_msgs.msg import UInt64
 from std_srvs.srv import Trigger
 
@@ -27,7 +29,12 @@ from catbot_interfaces.msg import (
     SupervisorOperatorPrompt,
     SupervisorStatus,
 )
-from catbot_interfaces.srv import MotorCommand, RunScript, SupervisorJob
+from catbot_interfaces.srv import (
+    MotorCommand,
+    RebootControllers,
+    RunScript,
+    SupervisorJob,
+)
 from catbot_supervisor.core import (
     ActionGate,
     Limits,
@@ -105,6 +112,18 @@ class RpiSupervisor(Node):
         self.recovery_generation = 0
         self.recovery_deadline = None
         self.motor = self.create_client(MotorCommand, "/body/control/motor")
+        param("controller_reconnect_timeout", 10.0)
+        self.reboot_wait = None
+        self.reboot_since = {}
+        self.reboot_client = self.create_client(
+            RebootControllers, "/body/control/reboot_controllers"
+        )
+        self.create_service(
+            RebootControllers,
+            "/rpi/supervisor/reboot_controllers",
+            self.reboot_controllers,
+            callback_group=ReentrantCallbackGroup(),
+        )
         self.jobs = self.create_client(SupervisorJob, "/orin/supervisor/job")
         self.output = self.create_publisher(
             ActuatorPositionCommand, "/body/control/position", 1
@@ -522,8 +541,96 @@ class RpiSupervisor(Node):
             self.remote_stop_at = time.monotonic()
             self.jobs.call_async(SupervisorJob.Request(name="policy", start=False))
 
+    def missing_controller_axes(self):
+        online = (
+            {
+                axis.axis_id
+                for axis in self.body.values()
+                if axis.heartbeat_available
+                and axis.heartbeat_monotonic_seconds
+                > self.reboot_since.get(axis.axis_id, -1)
+            }
+            if self.body_fresh()
+            else set()
+        )
+        return sorted(set(range(12)) - online)
+
+    async def reboot_controllers(self, request, response):
+        names = set(request.actuator_names)
+        if bool(names) == request.all_controllers or not names.issubset(self.names):
+            response.message = "Select known actuator names or all_controllers"
+            return response
+        operator_stop = (
+            self.gate.mode == Mode.EMERGENCY
+            and self.gate.reason == "operator emergency"
+        )
+        disarmed = (
+            self.gate.mode == Mode.IDLE
+            and not self.runner.active
+            and self.emergency_stopped()
+        )
+        if (
+            not (operator_stop or disarmed)
+            or self.reboot_wait
+            or self.recovery_deadline is not None
+        ):
+            response.message = "Requires disarmed or operator emergency with no recovery or reboot in progress"
+            return response
+        timeout = self.get_parameter("controller_reconnect_timeout").value
+        if (
+            not math.isfinite(timeout)
+            or timeout <= 0
+            or not self.reboot_client.service_is_ready()
+        ):
+            response.message = "Invalid reconnect timeout or Foundation unavailable"
+            return response
+        if disarmed:
+            self.enter_emergency("operator emergency")
+        done = RosFuture()
+        try:
+            future = self.reboot_client.call_async(request)
+            self.reboot_wait = (time.monotonic() + timeout, future, done, response)
+            await done
+        finally:
+            self.reboot_wait = None
+        return response
+
+    def update_reboot(self, now):
+        if self.reboot_wait is None:
+            return
+        deadline, future, done, response = self.reboot_wait
+        if done.done():
+            return
+        if future.done():
+            if future.exception() is not None:
+                response.message = str(future.exception())
+                done.set_result(None)
+                return
+            result = future.result()
+            if not response.sent_boards:
+                response.sent_boards = list(result.sent_boards)
+                for board in response.sent_boards:
+                    self.reboot_since.update({board: now, board + 1: now})
+            missing = set(self.missing_controller_axes())
+            response.reconnected_boards = [
+                board
+                for board in response.sent_boards
+                if not {board, board + 1} & missing
+            ]
+            if len(response.reconnected_boards) == len(response.sent_boards):
+                response.success = result.success
+                response.message = result.message + "; heartbeat monitoring complete"
+                done.set_result(None)
+                return
+        if now >= deadline:
+            response.message = (
+                "Timed out waiting for Foundation or controller heartbeats"
+            )
+            done.set_result(None)
+
     def tick(self):
         now = time.monotonic()
+        self.update_reboot(now)
         if self.recovery_deadline is not None and now >= self.recovery_deadline:
             self.enter_emergency("Foundation recovery timed out")
         if self.gate.mode == Mode.EMERGENCY and self.hold_healthy:
@@ -721,6 +828,7 @@ class RpiSupervisor(Node):
                     0.0 if self.gate.rtt is None else self.gate.rtt * 1000
                 ),
                 jitter_ms=status_float(self.gate.jitter * 1000),
+                missing_controller_heartbeat_axes=self.missing_controller_axes(),
                 health=health_message,
             )
         )
@@ -748,9 +856,7 @@ class RpiSupervisor(Node):
                 reason = self.homing_fault()
                 if reason:
                     raise ValueError(reason)
-            if request.name in {
-                f"zero_{axis}" for axis in self.names
-            }:
+            if request.name in {f"zero_{axis}" for axis in self.names}:
                 reason = self.local_reason()
                 if reason:
                     raise ValueError(reason)
@@ -832,6 +938,7 @@ class RpiSupervisor(Node):
         if (
             self.gate.mode != Mode.EMERGENCY
             or self.runner.active
+            or self.reboot_wait is not None
             or not self.emergency_stopped()
             or (self.hold_healthy and bool(fault_reason(self.body, self.names)))
         ):
@@ -864,6 +971,7 @@ class RpiSupervisor(Node):
                     if (
                         self.gate.mode != Mode.EMERGENCY
                         or self.runner.active
+                        or self.reboot_wait is not None
                         or not self.emergency_stopped()
                         or (
                             self.hold_healthy

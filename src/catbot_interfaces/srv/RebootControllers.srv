@@ -1,0 +1,9 @@
+# Select by either actuator on a board, or select all six boards explicitly.
+string[] actuator_names
+bool all_controllers
+---
+bool success
+string message
+# Each board is identified by its lower CAN axis ID.
+uint8[] sent_boards
+uint8[] reconnected_boards

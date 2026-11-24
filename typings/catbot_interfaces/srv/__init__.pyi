@@ -38,3 +38,15 @@ class GetSupervisorStatus:
         message: str
         status_json: str
         def __init__(self, **kwargs: object) -> None: ...
+
+class RebootControllers:
+    class Request:
+        actuator_names: list[str]
+        all_controllers: bool
+        def __init__(self, **kwargs: object) -> None: ...
+    class Response:
+        success: bool
+        message: str
+        sent_boards: list[int]
+        reconnected_boards: list[int]
+        def __init__(self, **kwargs: object) -> None: ...

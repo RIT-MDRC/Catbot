@@ -14,3 +14,4 @@ uint64 sensorless_error_flags
 string[] sensorless_error_messages
 uint64 controller_error_flags
 string[] controller_error_messages
+float64 heartbeat_monotonic_seconds

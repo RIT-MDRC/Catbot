@@ -20,3 +20,4 @@ bool rtt_available
 float64 rtt_ms
 float64 jitter_ms
 SupervisorHealth health
+uint8[] missing_controller_heartbeat_axes

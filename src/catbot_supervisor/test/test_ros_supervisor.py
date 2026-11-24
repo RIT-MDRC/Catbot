@@ -814,3 +814,86 @@ def test_cpu_health_warning_is_advisory_and_rate_limited(monkeypatch):
     clock[0] = 131.0
     RpiSupervisor.sample_health(node)
     assert logger.warning.call_count == 2
+
+
+@pytest.mark.ros
+def test_reboot_reports_partial_reconnection_and_late_heartbeat():
+    from catbot_interfaces.srv import RebootControllers
+
+    names = ["axis" + str(i) for i in range(12)]
+    rclpy.init(
+        args=[
+            "--ros-args",
+            "-p",
+            "actuator_names:=" + json.dumps(names),
+            "-p",
+            "controller_reconnect_timeout:=0.5",
+        ]
+    )
+    executor = SingleThreadedExecutor()
+    pi, body = RpiSupervisor(), Node("reboot_test_body")
+    try:
+        executor.add_node(pi)
+        executor.add_node(body)
+        body.create_service(
+            MotorCommand, "/body/control/motor", lambda _, response: response
+        )
+        requests = []
+
+        def reboot(request, response):
+            requests.append(list(request.actuator_names))
+            response.sent_boards = [0, 2]
+            response.success = True
+            return response
+
+        body.create_service(
+            RebootControllers, "/body/control/reboot_controllers", reboot
+        )
+        client = body.create_client(
+            RebootControllers, "/rpi/supervisor/reboot_controllers"
+        )
+        assert client.wait_for_service(timeout_sec=3)
+        assert pi.reboot_client.wait_for_service(timeout_sec=3)
+        initial = time.monotonic()
+
+        def feedback(late=False):
+            pi.body_state(
+                BodyErrorState(
+                    actuators=[
+                        ActuatorErrorState(
+                            actuator_name=name,
+                            axis_id=i,
+                            axis_state=1,
+                            heartbeat_available=True,
+                            heartbeat_monotonic_seconds=(
+                                initial if i == 3 and not late else time.monotonic()
+                            ),
+                        )
+                        for i, name in enumerate(names)
+                    ]
+                )
+            )
+
+        feedback()
+        pi.enter_emergency("operator emergency")
+        future = client.call_async(
+            RebootControllers.Request(actuator_names=[names[1], names[2]])
+        )
+        deadline = time.monotonic() + 4
+        while not future.done() and time.monotonic() < deadline:
+            feedback()
+            executor.spin_once(timeout_sec=0.01)
+        assert future.done()
+        result = future.result()
+        assert requests == [[names[1], names[2]]]
+        assert not result.success and list(result.sent_boards) == [0, 2]
+        assert list(result.reconnected_boards) == [0]
+        assert pi.missing_controller_axes() == [3]
+        feedback(late=True)
+        assert pi.missing_controller_axes() == []
+        assert pi.gate.mode == Mode.EMERGENCY
+    finally:
+        executor.shutdown()
+        pi.destroy_node()
+        body.destroy_node()
+        rclpy.shutdown()

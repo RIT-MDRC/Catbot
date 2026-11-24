@@ -25,6 +25,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/SupervisorHealth.msg"
   "msg/SupervisorStatus.msg"
   "srv/MotorCommand.srv"
+  "srv/RebootControllers.srv"
   "srv/RunScript.srv"
   "srv/SupervisorJob.srv"
   DEPENDENCIES builtin_interfaces

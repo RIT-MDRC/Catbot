@@ -37,7 +37,7 @@ def body_io(monkeypatch):
             ),
             object,
         ),
-        "catbot_interfaces.srv": {"MotorCommand": object},
+        "catbot_interfaces.srv": {"MotorCommand": object, "RebootControllers": object},
     }
     for name, attrs in modules.items():
         module = ModuleType(name)
@@ -693,3 +693,23 @@ def test_group_gain_baselines_enable_group_scale_in_one_batch(body_io):
     assert all(
         node.tuning[f"{axis}.position_gain"] == 20.0 for axis in node.actuator_names
     )
+
+
+def test_reboot_checks_disarm_and_attempts_each_selected_board(body_io, monkeypatch):
+    module, node, axes = body_io
+    for i in range(2, 12):
+        axes[str(i)] = SimpleNamespace(**{**vars(axes["a"]), "axis_id": i})
+    node.ordered_motor_names = list(axes)
+    send = Mock(side_effect=[False, True])
+    monkeypatch.setattr(module.motor_actions, "reboot", send)
+    request = SimpleNamespace(actuator_names=["a", "b", "3"], all_controllers=False)
+    response = SimpleNamespace(sent_boards=[], success=False)
+    axes["3"].current_state = module.MotorState.CLOSED_LOOP_CONTROL
+    reboot = module.BodyControlNode._reboot_controllers
+    reboot(node, request, response)
+    send.assert_not_called()
+    axes["3"].current_state = module.MotorState.IDLE
+    reboot(node, request, response)
+    assert send.call_args_list == [call("a"), call("2")]
+    assert response.sent_boards == [2] and not response.success
+    assert node.motion_inhibited and node.emergency_disarm
