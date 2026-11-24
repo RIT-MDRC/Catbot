@@ -50,6 +50,11 @@ STATE_CHECK_PERIOD_SECONDS = 0.05
 HEARTBEAT_STALE_SECONDS = 0.5
 ENCODER_STALE_SECONDS = 0.25
 ERROR_REQUEST_PERIOD_SECONDS = 1.0
+JOINT_GROUPS = {
+    "abduction": ("fla", "fra", "bla", "bra"),
+    "flexion": ("flf", "frf", "blf", "brf"),
+    "knee": ("flk", "frk", "blk", "brk"),
+}
 
 
 class BodyControlNode(Node):
@@ -82,6 +87,21 @@ class BodyControlNode(Node):
                     f"{name}.integrator_gain": -1.0,
                 }
             )
+        for group, axes in JOINT_GROUPS.items():
+            for field in ("speed_motor_turns_s", "accel_motor_turns_s2"):
+                values = [
+                    self.tuning[f"{axis}.{field}"]
+                    for axis in axes
+                    if axis in self.actuator_names
+                ]
+                self.tuning[f"{group}.{field}"] = (
+                    values[0]
+                    if values and all(v == values[0] for v in values)
+                    else -1.0
+                )
+            self.tuning[f"{group}.gain_scale"] = 1.0
+            for gain in ("position", "velocity", "integrator"):
+                self.tuning[f"{group}.{gain}_gain"] = -1.0
         self.tuning = {
             name: self.declare_parameter(name, float(value)).value
             for name, value in self.tuning.items()
@@ -90,6 +110,7 @@ class BodyControlNode(Node):
             {name: value for name, value in self.tuning.items() if value != -1.0}
         )
         self.applied_gain_scale = 0.1
+        self.applied_group_scales = {group: 1.0 for group in JOINT_GROUPS}
         self.gains_dirty = True
         self.add_on_set_parameters_callback(self._tune)
         self.create_timer(0.1, self._apply_gains)
@@ -164,14 +185,43 @@ class BodyControlNode(Node):
         updates = {p.name: p.value for p in parameters if p.name in self.tuning}
         try:
             validate_tuning(updates)
-            proposed = {**self.tuning, **updates}
+            expanded = {}
+            group_fields = (
+                "speed_motor_turns_s",
+                "accel_motor_turns_s2",
+                "position_gain",
+                "velocity_gain",
+                "integrator_gain",
+            )
+            for key, value in updates.items():
+                group, _, field = key.rpartition(".")
+                if group in JOINT_GROUPS and field in group_fields:
+                    for axis in JOINT_GROUPS[group]:
+                        if axis in self.actuator_names:
+                            axis_key = f"{axis}.{field}"
+                            if axis_key in updates:
+                                raise ValueError(
+                                    f"Cannot combine group and per-axis updates for {axis_key}"
+                                )
+                            expanded[axis_key] = value
+                elif group not in JOINT_GROUPS:
+                    expanded[key] = value
+            proposed = {**self.tuning, **updates, **expanded}
             if "policy_gain_scale" in updates and any(
                 proposed[f"{axis}.{gain}_gain"] < 0
                 for axis in self.actuator_names
                 for gain in ("position", "velocity", "integrator")
             ):
                 raise ValueError("Configure all per-axis gain baselines before scaling")
-            for key, value in updates.items():
+            for group, axes in JOINT_GROUPS.items():
+                if f"{group}.gain_scale" in updates and any(
+                    proposed[f"{axis}.{gain}_gain"] < 0
+                    for axis in axes
+                    if axis in self.actuator_names
+                    for gain in ("position", "velocity", "integrator")
+                ):
+                    raise ValueError(f"Configure {group} gain baselines before scaling")
+            for key, value in expanded.items():
                 axis, _, field = key.rpartition(".")
                 if field == "speed_motor_turns_s":
                     if not actuator_actions.set_trajectory_speed(
@@ -199,7 +249,18 @@ class BodyControlNode(Node):
         scale = self.applied_gain_scale + max(
             -0.05, min(0.05, target - self.applied_gain_scale)
         )
-        if not self.gains_dirty and scale == self.applied_gain_scale:
+        group_scales = {
+            group: current
+            + max(
+                -0.05, min(0.05, self.tuning.get(f"{group}.gain_scale", 1.0) - current)
+            )
+            for group, current in getattr(self, "applied_group_scales", {}).items()
+        }
+        if (
+            not self.gains_dirty
+            and scale == self.applied_gain_scale
+            and group_scales == getattr(self, "applied_group_scales", {})
+        ):
             return
         complete = True
         for axis in self.actuator_names:
@@ -209,13 +270,18 @@ class BodyControlNode(Node):
             ]
             if any(value < 0 for value in gains):
                 continue
+            group = next(
+                (group for group, axes in JOINT_GROUPS.items() if axis in axes), None
+            )
+            group_scale = group_scales.get(group, 1.0)
             if not actuator_actions.set_controller_gains(
-                axis, *(value * scale for value in gains)
+                axis, *(value * scale * group_scale for value in gains)
             ):
                 complete = False
                 self.get_logger().error(f"CAN gain update failed: {axis}")
         if complete:
             self.applied_gain_scale = scale
+            self.applied_group_scales = group_scales
             self.gains_dirty = False
 
     def _motor_command(self, request, response):

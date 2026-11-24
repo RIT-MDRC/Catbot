@@ -592,3 +592,104 @@ def test_tuning_validates_whole_batch_before_can_and_ramps_gains(body_io, monkey
     module.BodyControlNode._apply_gains(node)
     assert node.applied_gain_scale == pytest.approx(0.15)
     assert gains.call_args.args[1:] == pytest.approx((3.0, 0.03, 0.045))
+
+
+def test_joint_group_tuning_validates_and_updates_only_selected_axes(
+    body_io, monkeypatch
+):
+    module, node = body_io[:2]
+    node.get_logger = lambda: Mock()
+    node.actuator_names = tuple(
+        axis for axes in module.JOINT_GROUPS.values() for axis in axes
+    )
+    node.tuning = {"policy_gain_scale": 0.1}
+    for group, axes in module.JOINT_GROUPS.items():
+        node.tuning[f"{group}.speed_motor_turns_s"] = 2.0
+        node.tuning[f"{group}.accel_motor_turns_s2"] = 3.0
+        node.tuning[f"{group}.gain_scale"] = 1.0
+        for gain in ("position", "velocity", "integrator"):
+            node.tuning[f"{group}.{gain}_gain"] = -1.0
+        for axis in axes:
+            node.tuning[f"{axis}.speed_motor_turns_s"] = 2.0
+            node.tuning[f"{axis}.accel_motor_turns_s2"] = 3.0
+            for gain, value in (
+                ("position", 20.0),
+                ("velocity", 0.2),
+                ("integrator", 0.3),
+            ):
+                node.tuning[f"{axis}.{gain}_gain"] = value
+    speed = Mock(return_value=True)
+    acceleration = Mock(return_value=True)
+    gains = Mock(return_value=True)
+    monkeypatch.setattr(module.actuator_actions, "set_trajectory_speed", speed)
+    monkeypatch.setattr(
+        module.actuator_actions, "set_trajectory_acceleration", acceleration
+    )
+    monkeypatch.setattr(module.actuator_actions, "set_controller_gains", gains)
+    params = [
+        SimpleNamespace(name="flexion.speed_motor_turns_s", value=4.0),
+        SimpleNamespace(name="knee.accel_motor_turns_s2", value=5.0),
+        SimpleNamespace(name="abduction.gain_scale", value=0.5),
+    ]
+    assert module.BodyControlNode._tune(node, params).successful
+    assert {call.args[0] for call in speed.call_args_list} == set(
+        module.JOINT_GROUPS["flexion"]
+    )
+    assert {call.args[0] for call in acceleration.call_args_list} == set(
+        module.JOINT_GROUPS["knee"]
+    )
+    node.applied_gain_scale = 0.1
+    node.applied_group_scales = {group: 1.0 for group in module.JOINT_GROUPS}
+    module.BodyControlNode._apply_gains(node)
+    assert node.applied_group_scales["abduction"] == pytest.approx(0.95)
+    assert node.applied_group_scales["knee"] == 1.0
+    assert gains.call_count == 12
+    speed.reset_mock()
+    assert not module.BodyControlNode._tune(
+        node,
+        [
+            SimpleNamespace(name="flexion.speed_motor_turns_s", value=4.0),
+            SimpleNamespace(name="flf.speed_motor_turns_s", value=2.0),
+        ],
+    ).successful
+    speed.assert_not_called()
+    node.tuning["fla.position_gain"] = -1.0
+    assert not module.BodyControlNode._tune(
+        node, [SimpleNamespace(name="abduction.gain_scale", value=0.4)]
+    ).successful
+
+
+def test_group_speed_failure_reports_partial_can_writes(body_io, monkeypatch):
+    module, node = body_io[:2]
+    node.get_logger = lambda: Mock()
+    node.actuator_names = module.JOINT_GROUPS["knee"]
+    node.tuning = {"knee.speed_motor_turns_s": 2.0}
+    send = Mock(side_effect=[True, False])
+    monkeypatch.setattr(module.actuator_actions, "set_trajectory_speed", send)
+    result = module.BodyControlNode._tune(
+        node, [SimpleNamespace(name="knee.speed_motor_turns_s", value=3.0)]
+    )
+    assert not result.successful
+    assert "earlier writes may have applied" in result.reason
+    assert node.tuning["knee.speed_motor_turns_s"] == 2.0
+    assert send.call_count == 2
+
+
+def test_group_gain_baselines_enable_group_scale_in_one_batch(body_io):
+    module, node = body_io[:2]
+    node.get_logger = lambda: Mock()
+    node.actuator_names = module.JOINT_GROUPS["flexion"]
+    node.tuning = {"flexion.gain_scale": 1.0}
+    for gain in ("position", "velocity", "integrator"):
+        node.tuning[f"flexion.{gain}_gain"] = -1.0
+        for axis in node.actuator_names:
+            node.tuning[f"{axis}.{gain}_gain"] = -1.0
+    params = [
+        SimpleNamespace(name=f"flexion.{gain}_gain", value=value)
+        for gain, value in (("position", 20.0), ("velocity", 0.2), ("integrator", 0.3))
+    ]
+    params.append(SimpleNamespace(name="flexion.gain_scale", value=0.5))
+    assert module.BodyControlNode._tune(node, params).successful
+    assert all(
+        node.tuning[f"{axis}.position_gain"] == 20.0 for axis in node.actuator_names
+    )

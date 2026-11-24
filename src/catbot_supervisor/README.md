@@ -564,6 +564,26 @@ Foundation exposes `policy_gain_scale` (0.1–1.0), plus each actuator's
 `accel_motor_turns_s2` through ROS parameters for Foxglove. Supply the three gain
 baselines from the actual ODrive configuration; the initial -1 sentinel disables
 gain writes until configured. Scale starts at 0.1 and moves at most 0.05 per 100 ms.
+For group control, Foundation exposes `abduction.speed_motor_turns_s`,
+`abduction.accel_motor_turns_s2`, and `abduction.gain_scale`, with corresponding
+`flexion.*` and `knee.*` parameters. The groups are abduction (fla/fra/bla/bra),
+flexion (flf/frf/blf/brf), and knee (flk/frk/blk/brk). A speed or acceleration
+update writes that limit to each axis in the group. The group field records the
+last group request, and per-axis ROS parameter fields record their last individual
+requests. They are not synchronized with one another or read back from firmware.
+A group limit initially shows -1 when its axes have different configured limits.
+An individual update can subsequently make the group field nonrepresentative.
+Use runtime parameter updates for group limits.
+
+Group gain scales range from 0.1 to 1.0 and multiply the global
+`policy_gain_scale` and each axis's three configured gain baselines. They start
+at 1.0 and ramp by at most 0.05 every 100 ms. Set `<group>.position_gain`, `<group>.velocity_gain`, and
+`<group>.integrator_gain` to the actual ODrive baselines to configure all axes
+in a group at once, or set their existing per-axis baselines individually.
+Every axis in the selected group must have all three gain baselines configured
+before its scale can be changed.
+The global scale remains available and requires all axes' baselines.
+
 No parameter update arms a motor. Speed is motor turns/s and acceleration is motor
 turns/s², including nonlinear knees. Parameter changes are logged and recorded in
 MCAP through `/parameter_events`. CAN batches cannot be rolled back if a later
