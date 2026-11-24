@@ -9,6 +9,7 @@ from catbot_supervisor.scripts import (
     arm_steps,
     maintenance,
     registry,
+    zero_position,
 )
 
 
@@ -226,3 +227,24 @@ def test_buffer_waits_full_duration_without_dispatch_and_can_be_preempted():
     runner.start([Step("motor", "idle")])
     runner.tick(30.01)
     assert dispatch.call_args == call(Step("motor", "idle"))
+
+
+def test_zero_scripts_target_selected_motor_and_wait_for_settled_feedback():
+    names = tuple(
+        f"{leg}{joint}" for leg in ("fl", "fr", "bl", "br") for joint in ("a", "f", "k")
+    )
+    scripts = registry()
+    steps = scripts["zero_flk"](names)
+    assert steps == [
+        Step("wait_ready", names=names, timeout=5.0),
+        Step("position_armed", names=("flk",), positions=(0.0,)),
+        Step("wait_position", names=("flk",), positions=(0.0,), timeout=15.0),
+    ]
+    all_steps = scripts["zero_all"](names)
+    assert all_steps[1].names == names
+    assert all_steps[1].positions == (0.0,) * len(names)
+    assert scripts["zero_bra"](names)[1].names == ("bra",)
+    with pytest.raises(ValueError):
+        scripts["zero_flk"](("fra",))
+    with pytest.raises(ValueError):
+        zero_position(("flk",), ("flk", "flk"))

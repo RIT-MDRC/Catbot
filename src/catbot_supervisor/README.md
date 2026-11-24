@@ -485,6 +485,21 @@ the ROS domain/discovery configuration. Connect Foxglove to `ws://<ORIN-IP>:8765
 and call `home_robot` as above. The physical scenario launcher is unnecessary
 for this test and starts a kinematics worker that depends on saved policy files.
 
+## Move to logical zero
+
+The registered scripts `zero_flk`, `zero_fra`, and so on select one configured
+actuator by name. `zero_all` selects the entire configured roster. Start the
+chosen script using the existing Foxglove **Run named script** control and
+monitor `/rpi/supervisor/status` for progress or errors. For example, its request
+for the front-left knee is `{"name":"zero_flk"}`.
+
+These scripts require fresh healthy state and all configured axes already ready
+in closed loop. They send a zero-degree logical position only to the selected
+axis or axes, then wait for fresh measured feedback to settle at zero. They do
+not arm, home, calibrate, set encoder zero, or start policy forwarding. Check
+the physical zero reference, clearance, and robot support before requesting
+motion. The existing emergency control preempts the script.
+
 ## Example: operator prompted homing/calibration from Foxglove
 
 `sample_home` and `sample_calibrate` are editable examples in

@@ -212,7 +212,7 @@ class RpiSupervisor(Node):
             reason = self.homing_fault()
             if reason:
                 raise RuntimeError(reason)
-        if step.kind == "position":
+        if step.kind in ("position", "position_armed"):
             if self.script_link_required and not self.gate.check(
                 time.monotonic(), require_action=False
             ):
@@ -235,10 +235,21 @@ class RpiSupervisor(Node):
                 raise RuntimeError(
                     "Position move requires fresh idle or closed-loop axes"
                 )
-            if not self.moves.get_subscription_count():
+            if step.kind == "position_armed":
+                if not all(
+                    self.body[n].ready and self.body[n].axis_state == 8
+                    for n in step.names
+                ):
+                    raise RuntimeError(
+                        "Zero position requires selected axes in closed loop"
+                    )
+                publisher = self.output
+            else:
+                publisher = self.moves
+            if not publisher.get_subscription_count():
                 return None
             self.script_position_at = time.monotonic()
-            self.moves.publish(
+            publisher.publish(
                 ActuatorPositionCommand(
                     actuator_names=list(step.names),
                     positions_degrees=list(step.positions),
@@ -723,6 +734,16 @@ class RpiSupervisor(Node):
                 reason = self.homing_fault()
                 if reason:
                     raise ValueError(reason)
+            if request.name == "zero_all" or request.name in {
+                f"zero_{axis}" for axis in self.names
+            }:
+                reason = self.local_reason()
+                if reason:
+                    raise ValueError(reason)
+                if not all(
+                    self.body[name].axis_state == 8 for name in self.names
+                ):
+                    raise ValueError("Zero position requires all axes in closed loop")
             if request.name == "shutdown":
                 # Shutdown preempts every script and closes the gate immediately.
                 self.gate.mode = Mode.SHUTDOWN

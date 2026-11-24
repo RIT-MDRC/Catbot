@@ -83,12 +83,38 @@ def registry():
         "sample_home": lambda names: prompted_maintenance(names, 11),
         "sample_calibrate": lambda names: prompted_maintenance(names, 4),
         "home_robot": home_robot,
+        "zero_all": lambda names: zero_position(names, names),
     }
+    for leg in ("fl", "fr", "bl", "br"):
+        for joint in ("a", "f", "k"):
+            axis = leg + joint
+            scripts[f"zero_{axis}"] = lambda names, selected=axis: zero_position(
+                names, (selected,)
+            )
     for plugin in entry_points(group="catbot_supervisor.scripts"):
         if plugin.name in scripts:
             raise ValueError(f"Script already registered: {plugin.name}")
         scripts[plugin.name] = plugin.load()
     return scripts
+
+
+def zero_position(names, selected):
+    """Move selected already-ready axes to logical zero without arming them."""
+    names, selected = tuple(names), tuple(selected)
+    if (
+        not names
+        or len(set(names)) != len(names)
+        or not selected
+        or len(set(selected)) != len(selected)
+        or not set(selected).issubset(names)
+    ):
+        raise ValueError("Zero position requires distinct configured actuator names")
+    zero = (0.0,) * len(selected)
+    return [
+        Step("wait_ready", names=names, timeout=5.0),
+        Step("position_armed", names=selected, positions=zero),
+        Step("wait_position", names=selected, positions=zero, timeout=15.0),
+    ]
 
 
 def calibrate_robot(names):

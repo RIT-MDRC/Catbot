@@ -751,3 +751,43 @@ record('context_shutdown')
         if child.poll() is None:
             child.kill()
             child.communicate()
+
+
+@pytest.mark.ros
+def test_zero_dispatch_publishes_only_to_non_arming_position_path(monkeypatch):
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+
+    import catbot_supervisor.node as supervisor_node
+
+    monkeypatch.setattr(supervisor_node, "health_reason", lambda *_: "")
+    axis = SimpleNamespace(
+        heartbeat_available=True, axis_error_flags=0, axis_state=8, ready=True
+    )
+    output = Mock()
+    output.get_subscription_count.return_value = 1
+    moves = Mock()
+    moves.get_subscription_count.return_value = 1
+    pi = SimpleNamespace(
+        script_name="zero_flk",
+        state_cycle=None,
+        script_link_required=False,
+        health_sample={},
+        min_headroom=0,
+        max_temperature=80,
+        body_fresh=lambda: True,
+        body={"flk": axis},
+        output=output,
+        moves=moves,
+    )
+    step = Step("position_armed", names=("flk",), positions=(0.0,))
+    result = RpiSupervisor.dispatch(pi, step)
+    assert result.result().success
+    msg = output.publish.call_args.args[0]
+    assert list(msg.actuator_names) == ["flk"]
+    assert list(msg.positions_degrees) == [0.0]
+    moves.publish.assert_not_called()
+    axis.axis_state = 1
+    with pytest.raises(RuntimeError, match="closed loop"):
+        RpiSupervisor.dispatch(pi, step)
+    assert output.publish.call_count == 1
