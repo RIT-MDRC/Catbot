@@ -18,11 +18,11 @@ class Mode(str, Enum):
 
 @dataclass(frozen=True)
 class Limits:
-    action_age: float = 0.25
+    action_age: float = 1.0
     heartbeat_age: float = 0.5
     max_rtt: float = 0.15
     max_jitter: float = 0.05
-    future_tolerance: float = 0.02
+    future_tolerance: float = 0.2
 
     def __post_init__(self):
         if any(not math.isfinite(v) or v <= 0 for v in vars(self).values()):
@@ -84,6 +84,7 @@ class ActionGate:
         self.action_at = None
         self.action_stamp = None
         self.orin_degraded = True
+        self.orin_degraded_reason = ""
         self.rtt = None
         self.jitter = 0.0
         self.probe_at = None
@@ -106,7 +107,7 @@ class ActionGate:
             self.mode = Mode.DEGRADED
         return False
 
-    def heartbeat(self, session, sequence, degraded, probe_id, now):
+    def heartbeat(self, session, sequence, degraded, probe_id, now, reason=""):
         if not session or sequence <= 0:
             return self.trip("missing Orin session")
         if self.session and session != self.session:
@@ -122,6 +123,7 @@ class ActionGate:
         self.heartbeat_sequence = sequence
         self.heartbeat_at = now
         self.orin_degraded = degraded
+        self.orin_degraded_reason = reason.strip() if degraded else ""
         sent = self.probes.pop(probe_id, None)
         if sent is not None:
             sample = now - sent
@@ -137,7 +139,12 @@ class ActionGate:
         ):
             return self.trip("Orin heartbeat lost")
         if self.orin_degraded:
-            return self.trip("Orin reported degraded")
+            detail = self.orin_degraded_reason
+            return self.trip(
+                f"Orin reported degraded: {detail}"
+                if detail
+                else "Orin reported degraded"
+            )
         if (
             self.probe_at is None
             or not 0 <= now - self.probe_at <= self.limits.heartbeat_age

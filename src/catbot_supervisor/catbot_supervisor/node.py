@@ -404,6 +404,7 @@ class RpiSupervisor(Node):
             message.degraded,
             message.probe_id,
             now,
+            reason=message.reason,
         )
         if self.gate.heartbeat_at == now and self.gate.session == message.session:
             self.orin_preflight_passed = message.preflight_passed
@@ -628,7 +629,9 @@ class RpiSupervisor(Node):
         health_message = SupervisorHealth(
             available=status_bool(health is not None),
             sample_monotonic_seconds=status_float(
-                health.get("sample_monotonic_seconds", 0.0) if health is not None else 0.0
+                health.get("sample_monotonic_seconds", 0.0)
+                if health is not None
+                else 0.0
             ),
             cpu_count=status_uint32(
                 health.get("cpu_count", 0) if health is not None else 0
@@ -693,9 +696,7 @@ class RpiSupervisor(Node):
                 script_step=status_uint32(self.runner.index),
                 script_error=status_string(self.runner.error),
                 operator_prompt=SupervisorOperatorPrompt(
-                    id=status_string(
-                        "" if prompt is None else prompt.get("id", "")
-                    ),
+                    id=status_string("" if prompt is None else prompt.get("id", "")),
                     text=status_string(
                         "" if prompt is None else prompt.get("text", "")
                     ),
@@ -749,9 +750,7 @@ class RpiSupervisor(Node):
                 reason = self.local_reason()
                 if reason:
                     raise ValueError(reason)
-                if not all(
-                    self.body[name].axis_state == 8 for name in self.names
-                ):
+                if not all(self.body[name].axis_state == 8 for name in self.names):
                     raise ValueError("Zero position requires all axes in closed loop")
             if request.name == "shutdown":
                 # Shutdown preempts every script and closes the gate immediately.

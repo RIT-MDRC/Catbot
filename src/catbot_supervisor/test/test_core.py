@@ -347,3 +347,13 @@ def test_holding_run_reports_the_actual_link_failure(changes, expected):
     with pytest.raises(ValueError, match=expected):
         gate.start(10.02)
     assert gate.mode == Mode.HOLDING
+
+
+def test_degraded_heartbeat_reports_orin_reason():
+    gate = healthy(Mode.READY)
+    assert not gate.heartbeat(
+        "session", 2, True, 0, 10.02, reason="Pi clock skew bound exceeds tolerance"
+    )
+    assert (
+        gate.reason == "Orin reported degraded: Pi clock skew bound exceeds tolerance"
+    )
