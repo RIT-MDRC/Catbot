@@ -32,6 +32,7 @@ from catbot_supervisor.offline import OfflineQueue
 from catbot_supervisor.preflight import (
     ClockMonitor,
     ComputeProbe,
+    compute_warning,
     pi_link_status,
     policy_fault,
     seconds,
@@ -397,6 +398,14 @@ class OrinSupervisor(Node):
     def tick(self):
         now = time.monotonic()
         self.compute.tick(now)
+        warning = compute_warning(self.resource_sample, self.compute)
+        if warning and (
+            not getattr(self, "last_compute_warning", "")
+            or now - getattr(self, "compute_warning_at", float("-inf")) >= 30.0
+        ):
+            self.get_logger().warning("Compute advisory: " + warning)
+            self.compute_warning_at = now
+        self.last_compute_warning = warning
         lease_lost = self.probe_at is None or now - self.probe_at > self.lease_timeout
         if lease_lost:
             for name in self.jobs.commands:

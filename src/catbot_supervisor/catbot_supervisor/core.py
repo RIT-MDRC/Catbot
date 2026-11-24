@@ -76,6 +76,7 @@ class ActionGate:
         self.limits = limits or Limits()
         self.mode = Mode.BOOT
         self.reason = "boot"
+        self.last_rejection = ""
         self.session = ""
         self.heartbeat_sequence = -1
         self.action_sequence = None
@@ -98,6 +99,7 @@ class ActionGate:
         return self.probe_sequence
 
     def trip(self, reason):
+        self.last_rejection = reason
         if self.mode not in (Mode.EMERGENCY, Mode.SHUTDOWN, Mode.HOLDING):
             self.reason = reason
         if self.mode in (Mode.READY, Mode.RUNNING):
@@ -199,9 +201,7 @@ class ActionGate:
             raise ValueError("Robot must be ready or holding before running")
         if not self.check(now):
             if self.mode == Mode.HOLDING:
-                raise ValueError(
-                    "Policy control requires a healthy Orin link and fresh actions"
-                )
+                raise ValueError("Cannot start policy motion: " + self.last_rejection)
             raise ValueError(self.reason)
         self.mode = Mode.RUNNING
 

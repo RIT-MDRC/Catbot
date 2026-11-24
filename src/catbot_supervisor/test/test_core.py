@@ -295,7 +295,7 @@ def test_running_requires_ready_and_fresh_action():
 
 def test_local_holding_requires_explicit_run_and_fresh_policy():
     gate = healthy(Mode.HOLDING)
-    with pytest.raises(ValueError, match="fresh"):
+    with pytest.raises(ValueError, match="Orin action stream stale"):
         gate.start(10.02)
     assert not action(gate)
     assert gate.mode == Mode.HOLDING
@@ -327,3 +327,23 @@ def test_delayed_queue_never_refreshes_action_watchdog():
     # Later queued messages cannot reopen a fail-latched gate.
     assert not gate.action("session", 2, 100.4, 100.4, 10.01, ["motor"], [1.0])
     assert gate.action_at == 9.99
+
+
+@pytest.mark.parametrize(
+    "changes,expected",
+    [
+        ({"heartbeat_at": None}, "Orin heartbeat lost"),
+        ({"orin_degraded": True}, "Orin reported degraded"),
+        ({"probe_at": None}, "Orin probe echo lost"),
+        ({"rtt": None}, "Orin RTT or jitter exceeds limit"),
+        ({"action_at": None}, "Orin action stream stale"),
+    ],
+)
+def test_holding_run_reports_the_actual_link_failure(changes, expected):
+    gate = healthy(Mode.HOLDING)
+    gate.action_at = 10.01
+    for name, value in changes.items():
+        setattr(gate, name, value)
+    with pytest.raises(ValueError, match=expected):
+        gate.start(10.02)
+    assert gate.mode == Mode.HOLDING

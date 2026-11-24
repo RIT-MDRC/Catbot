@@ -113,8 +113,9 @@ recovery. A holding fault also escalates to all-axis IDLE if the Pi or Foundatio
 state stream becomes unhealthy.
 
 Defaults: 250 ms action age, 500 ms heartbeat/probe/body age, 150 ms RTT, 50 ms
-jitter, 20 ms future-clock tolerance, 10% aggregate idle CPU headroom, 80 C Pi
-temperature. ROS parameters on the nodes configure these thresholds. Jitter is an
+jitter, 20 ms future-clock tolerance, and 80 C Pi temperature. CPU headroom
+below 10% produces a warning but does not block the supervisor. ROS parameters
+on the nodes configure these thresholds. Jitter is an
 EWMA (alpha 0.2) of successive RTT differences. Heartbeats carry their own sequence
 and latest action sequence; status reports both alongside the accepted sequence.
 Probe echoes are matched to outstanding Pi requests and consumed once.
@@ -168,9 +169,10 @@ link. Foundation has no worker, job registry, script registry, or policy imports
 `/rpi/supervisor/status` includes one-second Linux `/proc` samples for aggregate
 CPU headroom and Foundation process CPU (100% means one core), NIC operstate, and
 Pi thermal-zone temperature. The first CPU sample is unknown until two counters
-exist. Missing telemetry is reported as unknown and prevents ready/running.
-Foundation process restarts reset the CPU delta. Record status while the policy
-runs on Orin with Foundation, sensors, and network traffic under representative
+exist. Low or unavailable CPU headroom and unavailable Foundation CPU measurements
+produce warnings rather than blocking ready/running; missing network or temperature
+health remains a blocker. Foundation process restarts reset the CPU delta. Record
+status while the policy runs on Orin with Foundation, sensors, and network traffic under representative
 load:
 
 ```bash
@@ -237,20 +239,21 @@ Orin publishes `ClockProbe` and Pi returns `ClockReply` with receive/send times.
 Orin computes the four-timestamp offset and half-RTT uncertainty bound, rejects
 replays, delayed replies and local clock steps, and requires
 `abs(offset) + uncertainty <= clock_tolerance` (20 ms default). Estimates expire
-after two seconds. Orin also requires known temperature below 80 C, at least 1 GiB
-free disk, and a successful bounded compute allocation probe in the selected
-CPU/CUDA inference environment. The ROS interpreter never imports PyTorch.
-Preflight failure is visible in the heartbeat and get_status; it blocks starts
-and replacements. A failed compute probe requires repairing/restarting the Orin
-host; it is not automatically retried during robot operation.
+after two seconds. Orin also requires known temperature below 80 C and at least
+1 GiB free disk. The bounded compute allocation probe in the selected CPU/CUDA
+inference environment and CPU/memory telemetry failures produce log warnings
+rather than blocking preflight. Actual policy load, verified contract, and fresh
+actions are still required before policy motion. The ROS interpreter never imports
+PyTorch. Other preflight failures remain visible in the heartbeat and get_status
+and block starts and replacements.
 
 `/orin/supervisor/telemetry` is typed `OrinTelemetry`, published at 1 Hz: aggregate
 CPU use, Jetson sysfs GPU load where available, maximum exposed thermal-zone
 temperature, memory used/total, disk free/total, run ID, git commit, scenario and
 verified policy bundle ID. Unknown floating measurements are NaN, with validity
-and GPU-availability flags; status JSON uses null. Missing temperature/memory/disk
-facts fail preflight. A missing GPU load sensor is explicitly unavailable and
-never treated as zero usage. Policy inference metrics remain `/policy/metrics`.
+and GPU-availability flags; status JSON uses null. Missing temperature or disk
+facts fail preflight; CPU/memory telemetry errors are advisory. A missing GPU load
+sensor is explicitly unavailable and never treated as zero usage. Policy inference metrics remain `/policy/metrics`.
 Run ID defaults to the selected policy run ID or a generated session tag; it can
 be set using `supervisor_run_id`. Set `git_commit` explicitly if launching outside
 a Git checkout. `disk_path`, resource sys/proc roots and thresholds are parameters.

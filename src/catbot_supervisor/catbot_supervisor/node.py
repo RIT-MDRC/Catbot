@@ -38,7 +38,7 @@ from catbot_supervisor.core import (
     status_string,
     status_uint32,
 )
-from catbot_supervisor.health import PiHealth, health_reason
+from catbot_supervisor.health import PiHealth, compute_warning, health_reason
 from catbot_supervisor.homing import (
     StateCycle,
     at_position,
@@ -488,7 +488,16 @@ class RpiSupervisor(Node):
         )
 
     def sample_health(self):
-        self.health_sample = self.health.sample(time.monotonic())
+        now = time.monotonic()
+        self.health_sample = self.health.sample(now)
+        warning = compute_warning(self.health_sample, self.min_headroom)
+        if warning and (
+            not getattr(self, "last_compute_warning", "")
+            or now - getattr(self, "compute_warning_at", float("-inf")) >= 30.0
+        ):
+            self.get_logger().warning(warning)
+            self.compute_warning_at = now
+        self.last_compute_warning = warning
 
     def enter_emergency(self, reason, *, hold_healthy=False):
         self.recovery_generation += 1

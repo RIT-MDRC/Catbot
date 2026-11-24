@@ -1,5 +1,5 @@
 import pytest
-from catbot_supervisor.health import PiHealth, health_reason
+from catbot_supervisor.health import PiHealth, compute_warning, health_reason
 
 
 def write(path, value):
@@ -24,7 +24,8 @@ def test_health_cpu_temperature_interface_and_process_restart(tmp_path):
     health.ticks_per_second = 100
     first = health.sample(1)
     assert first["foundation_cpu_percent_one_core"] is None
-    assert health_reason(first, min_headroom=20, max_temperature=65)
+    assert not health_reason(first, min_headroom=20, max_temperature=65)
+    assert "unavailable" in compute_warning(first, min_headroom=20)
     process(proc, 30)
     write(proc / "stat", "cpu 30 0 0 170 0 0 0 0 0 0\n")
     sample = health.sample(2)
@@ -60,8 +61,6 @@ def test_missing_health_is_explicit_unknown(tmp_path):
     [
         ("interface_state", "down", "network"),
         ("temperature_c", 66, "temperature"),
-        ("system_cpu_headroom_percent", 19, "headroom"),
-        ("foundation_cpu_percent_one_core", None, "Foundation"),
     ],
 )
 def test_unhealthy_samples_prevent_ready(field, value, reason):
@@ -80,3 +79,36 @@ def test_unhealthy_samples_prevent_ready(field, value, reason):
 def test_interface_path_traversal_is_rejected():
     with pytest.raises(ValueError):
         PiHealth(interface="../etc")
+
+
+@pytest.mark.parametrize(
+    "headroom,foundation,errors,expected",
+    [
+        (5.0, 15.0, [], "headroom low"),
+        (None, 15.0, [], "headroom unavailable"),
+        (80.0, None, [], "Foundation CPU measurement unavailable"),
+        (80.0, 15.0, ["cpu: permission denied"], "cpu: permission denied"),
+        (80.0, 15.0, ["foundation: process unavailable"], "foundation:"),
+    ],
+)
+def test_compute_telemetry_is_advisory(headroom, foundation, errors, expected):
+    sample = {
+        "errors": errors,
+        "interface_state": "up",
+        "temperature_c": 50,
+        "system_cpu_headroom_percent": headroom,
+        "foundation_cpu_percent_one_core": foundation,
+    }
+    assert expected in compute_warning(sample, 10.0)
+    assert not health_reason(sample)
+
+
+def test_non_compute_health_errors_still_prevent_ready():
+    sample = {
+        "errors": ["cpu: unavailable", "network: unavailable"],
+        "interface_state": "unknown",
+        "temperature_c": 50,
+        "system_cpu_headroom_percent": None,
+        "foundation_cpu_percent_one_core": None,
+    }
+    assert "network:" in health_reason(sample)

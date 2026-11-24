@@ -210,8 +210,11 @@ class ComputeProbe:
 def verdict(resources, clock, compute, now, max_temperature, min_disk):
     if resources is None:
         return "resource sample unavailable"
-    if resources["errors"]:
-        return "; ".join(resources["errors"])
+    errors = [
+        error for error in resources["errors"] if not error.startswith("cpu/memory:")
+    ]
+    if errors:
+        return "; ".join(errors)
     if (
         resources["temperature_c"] is None
         or resources["temperature_c"] >= max_temperature
@@ -219,6 +222,16 @@ def verdict(resources, clock, compute, now, max_temperature, min_disk):
         return "Orin temperature exceeds limit"
     if resources["disk_free_bytes"] < min_disk:
         return "Orin disk space below limit"
-    if not compute.available:
-        return compute.reason
     return clock.verdict(now)
+
+
+def compute_warning(resources, compute):
+    """Report compute probe and CPU telemetry issues without blocking startup."""
+    issues = (
+        []
+        if resources is None
+        else [error for error in resources["errors"] if error.startswith("cpu/memory:")]
+    )
+    if not compute.available and compute.reason != "compute probe pending":
+        issues.append(compute.reason or "compute device unavailable")
+    return "; ".join(issues)

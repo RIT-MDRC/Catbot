@@ -113,19 +113,32 @@ class PiHealth:
         return result
 
 
+def compute_warning(sample, min_headroom=10.0):
+    """Report CPU telemetry and capacity without gating motion."""
+    issues = [
+        error for error in sample["errors"] if error.startswith(("cpu:", "foundation:"))
+    ]
+    headroom = sample["system_cpu_headroom_percent"]
+    if headroom is None:
+        issues.append("Pi CPU headroom unavailable")
+    elif headroom < min_headroom:
+        issues.append(f"Pi CPU headroom low: {headroom:.1f}%")
+    if sample["foundation_cpu_percent_one_core"] is None:
+        issues.append("Foundation CPU measurement unavailable")
+    return "; ".join(issues)
+
+
 def health_reason(sample, min_headroom=10.0, max_temperature=80.0):
-    """Missing telemetry is unknown health, never a fabricated success."""
-    if sample["errors"]:
-        return "Pi health unavailable: " + "; ".join(sample["errors"])
+    """Require network and temperature health; CPU conditions are advisory."""
+    errors = [
+        error
+        for error in sample["errors"]
+        if not error.startswith(("cpu:", "foundation:"))
+    ]
+    if errors:
+        return "Pi health unavailable: " + "; ".join(errors)
     if sample["interface_state"] != "up":
         return "Pi network interface is not up"
     if sample["temperature_c"] is None or sample["temperature_c"] >= max_temperature:
         return "Pi temperature exceeds limit or is unknown"
-    if (
-        sample["system_cpu_headroom_percent"] is None
-        or sample["system_cpu_headroom_percent"] < min_headroom
-    ):
-        return "Pi CPU headroom below limit or is unknown"
-    if sample["foundation_cpu_percent_one_core"] is None:
-        return "Foundation CPU measurement unavailable"
     return ""

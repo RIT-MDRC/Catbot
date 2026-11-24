@@ -1,7 +1,7 @@
 from types import SimpleNamespace
 
 import pytest
-from catbot_supervisor.preflight import ClockMonitor, verdict
+from catbot_supervisor.preflight import ClockMonitor, compute_warning, verdict
 
 
 @pytest.mark.parametrize("offset,passes", [(0.0, True), (0.05, False), (-0.05, False)])
@@ -32,7 +32,7 @@ def test_invalid_or_delayed_clock_exchange_cannot_pass(origin, rx, tx, end, now)
     assert clock.verdict(now)
 
 
-def test_preflight_rejects_temperature_disk_device_and_unknown():
+def test_preflight_rejects_temperature_disk_and_unknown():
     resources = {"errors": [], "temperature_c": 50, "disk_free_bytes": 100}
     compute = SimpleNamespace(available=True, reason="no CUDA")
     clock = ClockMonitor()
@@ -45,7 +45,13 @@ def test_preflight_rejects_temperature_disk_device_and_unknown():
     resources["temperature_c"] = 50
     assert "disk" in verdict(resources, clock, compute, 10.01, 80, 101)
     compute.available = False
-    assert "CUDA" in verdict(resources, clock, compute, 10.01, 80, 10)
+    assert not verdict(resources, clock, compute, 10.01, 80, 10)
+    assert "CUDA" in compute_warning(resources, compute)
+    resources["errors"] = ["cpu/memory: unavailable"]
+    assert not verdict(resources, clock, compute, 10.01, 80, 10)
+    assert "cpu/memory" in compute_warning(resources, compute)
+    resources["errors"] = ["disk: unavailable"]
+    assert "disk" in verdict(resources, clock, compute, 10.01, 80, 10)
 
 
 @pytest.mark.parametrize(

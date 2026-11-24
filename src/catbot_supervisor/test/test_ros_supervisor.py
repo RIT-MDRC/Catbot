@@ -791,3 +791,36 @@ def test_zero_dispatch_publishes_only_to_non_arming_position_path(monkeypatch):
     with pytest.raises(RuntimeError, match="closed loop"):
         RpiSupervisor.dispatch(pi, step)
     assert output.publish.call_count == 1
+
+
+@pytest.mark.ros
+def test_cpu_health_warning_is_advisory_and_rate_limited(monkeypatch):
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+
+    import catbot_supervisor.node as supervisor_node
+
+    clock = [100.0]
+    monkeypatch.setattr(supervisor_node.time, "monotonic", lambda: clock[0])
+    sample = {
+        "errors": [],
+        "interface_state": "up",
+        "temperature_c": 50.0,
+        "system_cpu_headroom_percent": 3.0,
+        "foundation_cpu_percent_one_core": 95.0,
+    }
+    logger = Mock()
+    node = SimpleNamespace(
+        health=SimpleNamespace(sample=lambda _: dict(sample)),
+        min_headroom=10.0,
+        get_logger=lambda: logger,
+    )
+    RpiSupervisor.sample_health(node)
+    assert "headroom low" in logger.warning.call_args.args[0]
+    assert supervisor_node.health_reason(node.health_sample) == ""
+    clock[0] = 101.0
+    RpiSupervisor.sample_health(node)
+    assert logger.warning.call_count == 1
+    clock[0] = 131.0
+    RpiSupervisor.sample_health(node)
+    assert logger.warning.call_count == 2
