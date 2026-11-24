@@ -68,7 +68,7 @@
     },
     "CallService!home": {
       "serviceName": "/rpi/supervisor/script",
-      "requestPayload": "{\"name\": \"zero_all\"}",
+      "requestPayload": "{\"name\": \"home_robot\"}",
       "buttonText": "Home robot",
       "buttonColor": "#546e7a",
       "buttonTooltip": "Home and arm using the operator-approved sequence",

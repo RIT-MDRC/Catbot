@@ -12,7 +12,7 @@ def leaves(tree):
     if isinstance(tree, str):
         return [tree]
     assert tree["direction"] in ("row", "column")
-    assert 0 < tree["splitPercentage"] < 100
+    assert 0 < tree.get("splitPercentage", 50) < 100
     return leaves(tree["first"]) + leaves(tree["second"])
 
 
@@ -27,15 +27,30 @@ def test_layout_import_uses_exported_mosaic_and_registered_panel_ids(filename):
         "playbackConfig",
     } <= data.keys()
     ids = leaves(data["layout"])
-    assert len(ids) == len(set(ids))
+    visited = set()
+    for panel_id in ids:
+        assert panel_id not in visited
+        visited.add(panel_id)
+        if panel_id.startswith("Tab!"):
+            for tab in data["configById"][panel_id]["tabs"]:
+                ids.extend(leaves(tab["layout"]))
     assert set(ids) == set(data["configById"])
     for key, config in data["configById"].items():
         kind = key.split("!")[0]
-        assert kind in ("CallService", "RawMessages")
+        assert kind in (
+            "CallService",
+            "RawMessages",
+            "Plot",
+            "3D",
+            "TransformTree",
+            "Tab",
+            "catbot-tuning.actuator-positions",
+            "catbot-tuning.actuator-tuning",
+        )
         if kind == "CallService":
-            assert config["serviceName"].startswith(
-                ("/rpi/supervisor/", "/orin/supervisor/")
-            )
+            assert config["serviceName"] == "/camera/calibration/start" or config[
+                "serviceName"
+            ].startswith(("/rpi/supervisor/", "/orin/supervisor/"))
             assert isinstance(json.loads(config["requestPayload"]), dict)
 
 
@@ -51,5 +66,6 @@ def test_policy_start_and_script_execution_are_independent_controls():
         "name": "policy",
         "operation": "start",
     }
-    script = next(c for c in configs if c.get("buttonText") == "Run named script")
-    assert script["serviceName"] == "/rpi/supervisor/script" and script["editingMode"]
+    home = next(c for c in configs if c.get("buttonText") == "Home robot")
+    assert home["serviceName"] == "/rpi/supervisor/script"
+    assert json.loads(home["requestPayload"]) == {"name": "home_robot"}

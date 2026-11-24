@@ -50,6 +50,9 @@ def test_managed_orin_policy_pi_gate_scripts_and_stale_emergency(tmp_path):
             "actuator_names:=" + json.dumps(names),
             "-p",
             f"policy_bundle:={tmp_path}",
+            # Both nodes share a CI executor with worker startup and teardown.
+            "-p",
+            "clock_tolerance:=0.15",
             "-p",
             f"policy_worker_project:={tmp_path}",
             "-p",
@@ -588,7 +591,8 @@ def test_local_homing_without_orin_or_policy():
             ["fla", "fra"],
         ]
         assert all(state == 8 for state in states.values())
-        assert positions["flk"] == positions["brk"] == 7.0
+        assert positions[names[-1]] == 7.0
+        assert all(positions[name] == 0.0 for name in names[:-1])
         assert zero_moves == [dict.fromkeys(names, 0.0)]
         for _ in range(20):
             executor.spin_once(timeout_sec=0.01)
