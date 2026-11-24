@@ -83,7 +83,7 @@ def registry():
         "sample_home": lambda names: prompted_maintenance(names, 11),
         "sample_calibrate": lambda names: prompted_maintenance(names, 4),
         "home_robot": home_robot,
-        "zero_all": lambda names: zero_position(names, names),
+        "zero_all": zero_all,
     }
     for leg in ("fl", "fr", "bl", "br"):
         for joint in ("a", "f", "k"):
@@ -96,6 +96,16 @@ def registry():
             raise ValueError(f"Script already registered: {plugin.name}")
         scripts[plugin.name] = plugin.load()
     return scripts
+
+
+def zero_all(names):
+    names = tuple(names)
+    steps = zero_position(names, names)
+    return [
+        Step("position", names=names, positions=steps[1].positions),
+        Step("wait_ready", names=names, timeout=5.0),
+        steps[2],
+    ]
 
 
 def zero_position(names, selected):
@@ -145,12 +155,6 @@ def calibrate_robot(names):
                 Step("position", names=front, positions=(30.0, 30.0)),
                 Step(
                     "wait_position", names=front, positions=(30.0, 30.0), timeout=15.0
-                ),
-                Step(
-                    "wait_operator",
-                    "Confirm that objects are cleared before front abduction homing. "
-                    "Confirming allows fla and fra to move.",
-                    timeout=120.0,
                 ),
             ]
         steps += [

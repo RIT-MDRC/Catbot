@@ -172,13 +172,12 @@ def test_robot_calibration_batches_full_calibration_and_orders_homing_with_group
             assert arm > start + 1
     move = next(i for i, s in enumerate(steps) if s.kind == "position")
     assert steps[move].names == ("flf", "frf") and steps[move].positions == (30.0, 30.0)
-    assert [s.kind for s in steps[move : move + 4]] == [
+    assert [s.kind for s in steps[move : move + 3]] == [
         "position",
         "wait_position",
-        "wait_operator",
         "motor",
     ]
-    assert steps[move + 3].names == ("fla", "fra")
+    assert steps[move + 2].names == ("fla", "fra")
     assert steps[-2:] == [
         Step("position", names=NAMES, positions=(0.0,) * len(NAMES)),
         Step("wait_position", names=NAMES, positions=(0.0,) * len(NAMES), timeout=15.0),

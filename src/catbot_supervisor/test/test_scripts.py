@@ -241,8 +241,11 @@ def test_zero_scripts_target_selected_motor_and_wait_for_settled_feedback():
         Step("wait_position", names=("flk",), positions=(0.0,), timeout=15.0),
     ]
     all_steps = scripts["zero_all"](names)
-    assert all_steps[1].names == names
-    assert all_steps[1].positions == (0.0,) * len(names)
+    assert all_steps == [
+        Step("position", names=names, positions=(0.0,) * len(names)),
+        Step("wait_ready", names=names, timeout=5.0),
+        Step("wait_position", names=names, positions=(0.0,) * len(names), timeout=15.0),
+    ]
     assert scripts["zero_bra"](names)[1].names == ("bra",)
     with pytest.raises(ValueError):
         scripts["zero_flk"](("fra",))

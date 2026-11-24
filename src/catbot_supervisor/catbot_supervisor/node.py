@@ -205,7 +205,7 @@ class RpiSupervisor(Node):
         )
 
     def dispatch(self, step):
-        if self.script_name == "home_robot" or (
+        if self.script_name in ("home_robot", "zero_all") or (
             self.script_name in ("calibrate", "full_calibrate")
             and self.state_cycle is not None
         ):
@@ -533,7 +533,7 @@ class RpiSupervisor(Node):
         if (
             self.runner.active
             and (
-                self.script_name == "home_robot"
+                self.script_name in ("home_robot", "zero_all")
                 or (
                     self.script_name in ("calibrate", "full_calibrate")
                     and self.state_cycle is not None
@@ -744,7 +744,11 @@ class RpiSupervisor(Node):
                 reason = self.homing_fault()
                 if reason:
                     raise ValueError(reason)
-            if request.name == "zero_all" or request.name in {
+            if request.name == "zero_all":
+                reason = self.homing_fault()
+                if reason:
+                    raise ValueError(reason)
+            if request.name in {
                 f"zero_{axis}" for axis in self.names
             }:
                 reason = self.local_reason()

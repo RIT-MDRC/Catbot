@@ -576,7 +576,7 @@ def test_local_homing_without_orin_or_policy():
             RunScript.Request(name="calibrate"), RunScript.Response()
         )
         assert result.success
-        until(lambda: pi.runner.prompt is not None)
+        until(lambda: bool(zero_moves), timeout=60)
         assert [ns for op, state, ns in operations if op == "state" and state == 3] == [
             names
         ]
@@ -585,20 +585,10 @@ def test_local_homing_without_orin_or_policy():
         ] == [
             ["flk", "frk", "blk", "brk", "flf", "frf", "blf", "brf"],
             ["bla", "bra"],
+            ["fla", "fra"],
         ]
-        assert positions["flf"] == positions["frf"] == 30.0
         assert all(state == 8 for state in states.values())
         assert positions["flk"] == positions["brk"] == 7.0
-        for _ in range(10):
-            executor.spin_once(timeout_sec=0.01)
-        assert not any(
-            op == "state" and state == 11 and ns == ["fla", "fra"]
-            for op, state, ns in operations
-        )  # Confirmation remains necessary even though these axes are holding.
-        assert pi.respond(
-            RunScript.Request(name=pi.runner.prompt["id"]), RunScript.Response()
-        ).success
-        until(lambda: bool(zero_moves))
         assert zero_moves == [dict.fromkeys(names, 0.0)]
         for _ in range(20):
             executor.spin_once(timeout_sec=0.01)

@@ -56,7 +56,7 @@ def seconds(stamp):
 
 
 class ClockMonitor:
-    def __init__(self, tolerance=0.02, max_age=2.0, max_rtt=0.15):
+    def __init__(self, tolerance=0.05, max_age=2.0, max_rtt=0.15):
         if not all(math.isfinite(v) and v > 0 for v in (tolerance, max_age, max_rtt)):
             raise ValueError("Clock limits must be positive and finite")
         self.tolerance, self.max_age, self.max_rtt = tolerance, max_age, max_rtt
@@ -108,10 +108,15 @@ class ClockMonitor:
         return ""
 
     def status(self, now):
+        reason = self.verdict(now)
+        bound = (abs(self.offset) + self.uncertainty
+                 if self.offset is not None and self.uncertainty is not None else None)
         return {
             "offset_seconds": self.offset,
             "uncertainty_seconds": self.uncertainty,
-            "reason": self.verdict(now),
+            "bound_seconds": bound,
+            "warning": not reason and bound is not None and bound >= 0.02,
+            "reason": reason,
         }
 
 

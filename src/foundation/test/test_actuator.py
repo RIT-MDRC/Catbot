@@ -93,6 +93,11 @@ def make_knee_actuator(name="knee", *, x_offset=0.0):
     return actuator, motor
 
 
+def test_logical_position_limits_follow_profile_not_motor_direction():
+    actuator, _ = make_actuator("axis", inverted=True, minimum=-27, maximum=41)
+    assert actuator_actions.get_logical_position_limits(actuator) == (-27, 41)
+
+
 @pytest.fixture(autouse=True)
 def clear_component_stores():
     contexts = (

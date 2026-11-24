@@ -16,7 +16,7 @@ def leaves(tree):
     return leaves(tree["first"]) + leaves(tree["second"])
 
 
-@pytest.mark.parametrize("filename", ["operator-controls.json", "software-estop.json"])
+@pytest.mark.parametrize("filename", ["main-dashboard.json", "software-estop.json"])
 def test_layout_import_uses_exported_mosaic_and_registered_panel_ids(filename):
     data = json.loads((ROOT / filename).read_text())
     assert {
@@ -40,7 +40,7 @@ def test_layout_import_uses_exported_mosaic_and_registered_panel_ids(filename):
 
 
 def test_policy_start_and_script_execution_are_independent_controls():
-    configs = json.loads((ROOT / "operator-controls.json").read_text())[
+    configs = json.loads((ROOT / "main-dashboard.json").read_text())[
         "configById"
     ].values()
     start = next(

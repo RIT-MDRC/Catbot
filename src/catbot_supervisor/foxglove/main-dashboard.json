@@ -1,0 +1,366 @@
+{
+  "configById": {
+    "CallService!estop": {
+      "serviceName": "/rpi/supervisor/emergency",
+      "requestPayload": "{}",
+      "buttonText": "E-STOP — DISARM",
+      "buttonColor": "#d32f2f",
+      "buttonTooltip": "Latch emergency and disarm all motors",
+      "editingMode": false,
+      "timeoutSeconds": 3,
+      "foxglovePanelTitle": "E-STOP — DISARM",
+      "layout": "vertical"
+    },
+    "CallService!30r3qs3": {
+      "serviceName": "/rpi/supervisor/recover",
+      "requestPayload": "{}",
+      "buttonText": "Clear Errors",
+      "buttonColor": "#00cf49",
+      "buttonTooltip": "Home and arm using the operator-approved sequence",
+      "editingMode": false,
+      "timeoutSeconds": 3,
+      "foxglovePanelTitle": "Home robot",
+      "layout": "vertical"
+    },
+    "CallService!calibrate": {
+      "serviceName": "/rpi/supervisor/script",
+      "requestPayload": "{\"name\": \"calibrate\"}",
+      "buttonText": "Motor calibration",
+      "buttonColor": "#546e7a",
+      "buttonTooltip": "Full calibration in parallel, ordered group homing/arming, then front-abduction homing after clearance confirmation",
+      "editingMode": false,
+      "timeoutSeconds": 3,
+      "foxglovePanelTitle": "Motor calibration",
+      "layout": "vertical"
+    },
+    "CallService!policyStart": {
+      "serviceName": "/orin/supervisor/job",
+      "requestPayload": "{\"name\": \"policy\", \"operation\": \"start\"}",
+      "buttonText": "Start policy (no motor commands)",
+      "buttonColor": "#1565c0",
+      "buttonTooltip": "Start inference only; does not arm, calibrate or enable forwarding",
+      "editingMode": true,
+      "timeoutSeconds": 3,
+      "foxglovePanelTitle": "Start policy (no motor commands)",
+      "layout": "vertical"
+    },
+    "CallService!pause": {
+      "serviceName": "/rpi/supervisor/idle",
+      "requestPayload": "{}",
+      "buttonText": "Pause policy motion — hold",
+      "buttonColor": "#546e7a",
+      "buttonTooltip": "",
+      "editingMode": false,
+      "timeoutSeconds": 3,
+      "foxglovePanelTitle": "Pause policy motion — hold",
+      "layout": "vertical"
+    },
+    "CallService!confirm": {
+      "serviceName": "/rpi/supervisor/respond",
+      "requestPayload": "{\"name\":\"b08b7902c6ca4a39b6f473040df4dc4f\"}",
+      "buttonText": "Confirm current operator prompt",
+      "buttonColor": "#546e7a",
+      "buttonTooltip": "",
+      "editingMode": true,
+      "timeoutSeconds": 3,
+      "foxglovePanelTitle": "Confirm current operator prompt",
+      "layout": "vertical"
+    },
+    "CallService!home": {
+      "serviceName": "/rpi/supervisor/script",
+      "requestPayload": "{\"name\": \"zero_all\"}",
+      "buttonText": "Home robot",
+      "buttonColor": "#546e7a",
+      "buttonTooltip": "Home and arm using the operator-approved sequence",
+      "editingMode": false,
+      "timeoutSeconds": 3,
+      "foxglovePanelTitle": "Home robot",
+      "layout": "vertical"
+    },
+    "CallService!policyStop": {
+      "serviceName": "/rpi/supervisor/policy_stop",
+      "requestPayload": "{}",
+      "buttonText": "Stop policy — keep holding",
+      "buttonColor": "#546e7a",
+      "buttonTooltip": "Close forwarding before stopping the policy; motors remain armed",
+      "editingMode": false,
+      "timeoutSeconds": 3,
+      "foxglovePanelTitle": "Stop policy — keep holding",
+      "layout": "vertical"
+    },
+    "CallService!run": {
+      "serviceName": "/rpi/supervisor/run",
+      "requestPayload": "{}",
+      "buttonText": "RUN — ENABLE POLICY MOTION",
+      "buttonColor": "#ed6c02",
+      "buttonTooltip": "Requires homed/armed motors and a healthy fresh policy stream",
+      "editingMode": true,
+      "timeoutSeconds": 3,
+      "foxglovePanelTitle": "RUN — ENABLE POLICY MOTION",
+      "layout": "vertical"
+    },
+    "CallService!2e9ltkj": {
+      "serviceName": "/camera/calibration/start",
+      "requestPayload": "{}",
+      "buttonText": "camera calibration",
+      "buttonColor": "#546e7a",
+      "buttonTooltip": "",
+      "editingMode": false,
+      "timeoutSeconds": 3,
+      "foxglovePanelTitle": "Refresh Orin status",
+      "layout": "vertical"
+    },
+    "Tab!u52eju": {
+      "activeTabIdx": 0,
+      "tabs": [
+        {
+          "title": "Scene",
+          "layout": "3D!wh2k34"
+        },
+        {
+          "title": "Transforms",
+          "layout": "TransformTree!6lpkp7"
+        }
+      ]
+    },
+    "Plot!3lky2jk": {
+      "paths": [
+        {
+          "value": "/policy/feedback.base_angular_velocity[0]",
+          "enabled": true,
+          "color": "#4e98e2",
+          "id": "b108dfa3-361d-42d6-a222-f65d3206991c"
+        },
+        {
+          "value": "/policy/feedback.base_angular_velocity[1]",
+          "enabled": true,
+          "color": "#f5774d",
+          "id": "139cc97c-5f6d-4df5-9115-14c33bb21385"
+        },
+        {
+          "value": "/policy/feedback.base_angular_velocity[2]",
+          "enabled": true,
+          "color": "#f7df71",
+          "id": "e202df06-06e7-4068-b72b-45bb1f56d263"
+        }
+      ],
+      "showLegend": false,
+      "foxglovePanelTitle": "/zed/zed_node/imu/data"
+    },
+    "Plot!48gibye": {
+      "paths": [
+        {
+          "value": "/policy/feedback.heading_linear_velocity[0]",
+          "enabled": true,
+          "color": "#5cd6a9",
+          "id": "d9b460eb-1518-4be6-950a-08054e6165b4"
+        },
+        {
+          "value": "/policy/feedback.heading_linear_velocity[1]",
+          "enabled": true,
+          "color": "#61cbff",
+          "id": "2dd670d8-c2b3-45d9-80a9-9b6b28e636db"
+        },
+        {
+          "value": "/policy/feedback.heading_linear_velocity[2]",
+          "enabled": true,
+          "color": "#a395e2",
+          "id": "158047bb-6db2-4ea3-b5b7-f815e9936397"
+        }
+      ],
+      "showLegend": false,
+      "foxglovePanelTitle": "/zed/zed_node/imu/data"
+    },
+    "RawMessages!3rgq3vs": {
+      "expansion": {
+        "text~operator_prompt": "c",
+        "operator_prompt": "e",
+        "available_scripts": "c"
+      },
+      "defaultExpanded": true,
+      "topicPath": "/rpi/supervisor/status"
+    },
+    "RawMessages!rdljqx": {
+      "topicPath": "/foxglove_bridge/sysinfo",
+      "defaultExpanded": false
+    },
+    "3D!wh2k34": {
+      "topics": {
+        "/zed/zed_node/point_cloud/cloud_registered": {
+          "visible": true,
+          "colorField": "rgb",
+          "colorMode": "rgb",
+          "colorMap": "turbo"
+        },
+        "/body/model": {
+          "visible": true,
+          "showOutlines": true
+        },
+        "/initialpose": {
+          "visible": false
+        }
+      },
+      "layers": {
+        "e3304099-62c0-4c05-a2a1-e76b21251d58": {
+          "layerId": "foxglove.Grid",
+          "instanceId": "e3304099-62c0-4c05-a2a1-e76b21251d58",
+          "drawBehind": false
+        }
+      },
+      "cameraState": {
+        "perspective": true,
+        "distance": 5.547791462409769,
+        "phi": 83.24191323379199,
+        "thetaOffset": 127.05239940380443,
+        "targetOffset": [
+          2.6555161403197785,
+          -1.7543162106845132,
+          -0.10863857206073864
+        ],
+        "target": [
+          0,
+          0,
+          0
+        ],
+        "targetOrientation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "fovy": 45,
+        "near": 0.5,
+        "far": 5000
+      },
+      "followMode": "follow-position",
+      "followTf": "robot/world",
+      "fixedFrame": "robot/world",
+      "scene": {
+        "transforms": {
+          "showLabel": false,
+          "offsetReferenceFrame": "parent",
+          "axisSize": 0.131,
+          "lineWidth": 1.2
+        }
+      },
+      "transforms": {
+        "frame:sim/world": {
+          "visible": true
+        }
+      },
+      "publish": {
+        "type": "point",
+        "poseTopic": "/move_base_simple/goal",
+        "pointTopic": "/clicked_point",
+        "poseEstimateTopic": "/initialpose",
+        "poseEstimateXDeviation": 0.5,
+        "poseEstimateYDeviation": 0.5,
+        "poseEstimateThetaDeviation": 0.26179939
+      },
+      "synchronize": false,
+      "imageMode": {}
+    },
+    "TransformTree!6lpkp7": {},
+    "Tab!4grm453": {
+      "activeTabIdx": 0,
+      "tabs": [
+        {
+          "title": "Overview",
+          "layout": {
+            "direction": "column",
+            "first": "Tab!u52eju",
+            "second": {
+              "direction": "column",
+              "first": {
+                "direction": "column",
+                "first": "Plot!3lky2jk",
+                "second": "Plot!48gibye",
+                "splitPercentage": 50
+              },
+              "second": {
+                "first": "RawMessages!3rgq3vs",
+                "second": "RawMessages!rdljqx",
+                "direction": "row",
+                "splitPercentage": 57.64499121265377
+              },
+              "splitPercentage": 50.40436365929407
+            },
+            "splitPercentage": 41.28205128205128
+          }
+        }
+      ]
+    },
+    "catbot-tuning.actuator-tuning!catbot-controls": {
+      "foxglovePanelTitle": "Actuator tuning"
+    },
+    "catbot-tuning.actuator-positions!positions": {
+      "foxglovePanelTitle": "Actuator angles"
+    }
+  },
+  "globalVariables": {},
+  "userNodes": {},
+  "linkedGlobalVariables": [],
+  "playbackConfig": {
+    "speed": 1
+  },
+  "layout": {
+    "direction": "row",
+    "first": {
+      "direction": "row",
+      "first": {
+        "direction": "column",
+        "first": "CallService!estop",
+        "second": {
+          "direction": "column",
+          "first": "CallService!30r3qs3",
+          "second": {
+            "direction": "column",
+            "first": "CallService!calibrate",
+            "second": {
+              "direction": "column",
+              "first": "CallService!policyStart",
+              "second": "CallService!pause",
+              "splitPercentage": 61.59169550173013
+            },
+            "splitPercentage": 19.560878243512978
+          },
+          "splitPercentage": 15.497783151954861
+        },
+        "splitPercentage": 14.285714285714286
+      },
+      "second": {
+        "direction": "column",
+        "first": {
+          "first": {
+            "first": "CallService!confirm",
+            "second": "CallService!home",
+            "direction": "column",
+            "splitPercentage": 94.7867298578199
+          },
+          "second": {
+            "first": "catbot-tuning.actuator-tuning!catbot-controls",
+            "second": {
+              "first": "CallService!policyStop",
+              "second": "CallService!run",
+              "direction": "row"
+            },
+            "direction": "column",
+            "splitPercentage": 35.714285714285715
+          },
+          "direction": "column",
+          "splitPercentage": 29.510489510489517
+        },
+        "second": "CallService!2e9ltkj",
+        "splitPercentage": 86.57799274486095
+      },
+      "splitPercentage": 45
+    },
+    "second": {
+      "direction": "row",
+      "first": "Tab!4grm453",
+      "second": "catbot-tuning.actuator-positions!positions",
+      "splitPercentage": 70
+    },
+    "splitPercentage": 42
+  }
+}

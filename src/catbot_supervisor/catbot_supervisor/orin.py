@@ -66,7 +66,7 @@ class OrinSupervisor(Node):
             or self.min_disk < 0
         ):
             raise ValueError("Invalid Orin preflight limits")
-        self.clock = ClockMonitor(float(param("clock_tolerance", 0.02)))
+        self.clock = ClockMonitor(float(param("clock_tolerance", 0.05)))
         self.clock_sequence = time.monotonic_ns()
         self.resources = Resources(
             str(param("disk_path", "/")),
@@ -397,6 +397,13 @@ class OrinSupervisor(Node):
 
     def tick(self):
         now = time.monotonic()
+        clock_status = self.clock.status(now)
+        if clock_status["warning"] and now - getattr(self, "clock_warning_at", float("-inf")) >= 30.0:
+            self.get_logger().warning(
+                "Pi clock offset %.3f ms, uncertainty %.3f ms, bound %.3f ms"
+                % (clock_status["offset_seconds"] * 1000, clock_status["uncertainty_seconds"] * 1000, clock_status["bound_seconds"] * 1000)
+            )
+            self.clock_warning_at = now
         self.compute.tick(now)
         warning = compute_warning(self.resource_sample, self.compute)
         if warning and (

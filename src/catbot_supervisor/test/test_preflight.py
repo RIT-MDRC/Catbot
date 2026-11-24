@@ -4,6 +4,18 @@ import pytest
 from catbot_supervisor.preflight import ClockMonitor, compute_warning, verdict
 
 
+@pytest.mark.parametrize("bound,warning,rejected", [(0.019, False, False), (0.02, True, False), (0.05, True, False), (0.051, False, True)])
+def test_clock_status_warning_and_rejection(bound, warning, rejected):
+    clock = ClockMonitor()
+    clock.offset, clock.uncertainty, clock.received = bound, 0.0, 10.0
+    clock.reason = ""
+    status = clock.status(10.1)
+    assert status["bound_seconds"] == pytest.approx(bound)
+    assert status["warning"] is warning
+    assert bool(status["reason"]) is rejected
+    assert clock.status(13.0)["reason"] == "clock exchange stale"
+
+
 @pytest.mark.parametrize("offset,passes", [(0.0, True), (0.05, False), (-0.05, False)])
 def test_clock_exchange_bounds_skew_in_both_directions(offset, passes):
     clock = ClockMonitor()

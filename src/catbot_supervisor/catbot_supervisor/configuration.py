@@ -11,7 +11,7 @@ ORIN_DEFAULTS = {
     "scenario": "unspecified",
     "supervisor_run_id": "",
     "git_commit": "",
-    "clock_tolerance": 0.02,
+    "clock_tolerance": 0.05,
     "max_temperature_c": 80.0,
     "min_disk_free_bytes": 1073741824,
     "disk_path": "/",

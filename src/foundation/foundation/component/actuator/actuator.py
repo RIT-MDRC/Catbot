@@ -67,6 +67,16 @@ def _profile(actuator: Actuator) -> profile_actions.ActuatorMotionProfile:
     return profile_actions.get_profile(actuator.profile)
 
 
+@device_action(ctx)
+def get_logical_position_limits(actuator: Actuator) -> tuple[float, float]:
+    """Return the active motion profile's logical bounds in degrees."""
+    profile = _profile(actuator)
+    return (
+        profile_actions.position_to_degrees(profile, profile.position_min),
+        profile_actions.position_to_degrees(profile, profile.position_max),
+    )
+
+
 def _direction(actuator: Actuator) -> float:
     return -1.0 if _profile(actuator).inverted else 1.0
 

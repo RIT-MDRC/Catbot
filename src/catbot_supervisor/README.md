@@ -266,7 +266,7 @@ simulation scheduling remain deferred and are not implemented by these APIs.
 ## Clickable software e-stop in Foxglove
 
 For homing and policy controls together, import
-[foxglove/operator-controls.json](foxglove/operator-controls.json). It includes:
+[foxglove/main-dashboard.json](foxglove/main-dashboard.json). It includes:
 
 - **Home robot**: runs local `home_robot`; no policy or Orin supervisor required.
 - **Motor calibration**: explicitly runs the existing motor calibration script.
@@ -313,9 +313,7 @@ for the same robot sequence. It does not start policy or enable forwarding:
 5. Repeat that homing/completion/arming barrier for `bla, bra`.
 6. Command the already armed `flf, frf` to absolute logical **+30 degrees** and
    wait for valid, settled measured feedback (15-second timeout).
-7. Pause for the operator's clearance confirmation. Use the current prompt ID
-   from `/rpi/supervisor/status` with the layout's confirmation control. No front
-   abduction homing is issued before that confirmation (120-second timeout).
+7. Continue automatically after the front flexion joints settle.
 8. Home `fla, fra` together, wait until both have finished and returned to IDLE,
    then arm/confirm them as above.
 9. Move **all 12 actuators** together to absolute logical **0 degrees** and wait
@@ -496,12 +494,13 @@ chosen script using the existing Foxglove **Run named script** control and
 monitor `/rpi/supervisor/status` for progress or errors. For example, its request
 for the front-left knee is `{"name":"zero_flk"}`.
 
-These scripts require fresh healthy state and all configured axes already ready
-in closed loop. They send a zero-degree logical position only to the selected
-axis or axes, then wait for fresh measured feedback to settle at zero. They do
-not arm, home, calibrate, set encoder zero, or start policy forwarding. Check
-the physical zero reference, clearance, and robot support before requesting
-motion. The existing emergency control preempts the script.
+`zero_all` requires fresh, fault-free feedback and idle or closed-loop axes. It
+requests a zero-degree position through Foundation's automatic closed-loop move
+path, then waits for all axes to report ready and settle at zero. Individual
+`zero_<axis>` scripts require all axes already ready in closed loop. Neither
+operation homes, calibrates, establishes the encoder zero, or starts policy.
+Check that the existing logical reference is valid, the robot is supported, and
+its path is clear before requesting motion. Emergency control preempts the script.
 
 ## Example: operator prompted homing/calibration from Foxglove
 
