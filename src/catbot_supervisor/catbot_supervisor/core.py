@@ -165,8 +165,17 @@ class ActionGate:
             return self.trip("action session mismatch")
         if sequence <= 0:
             return self.trip("invalid action sequence")
-        if self.action_sequence is not None and sequence != self.action_sequence + 1:
-            return self.trip("action out of sequence")
+        if self.action_sequence is not None:
+            # The gate is closed during boot and idle. Resynchronize after a
+            # dropped action only in these non-forwarding modes, while still
+            # rejecting duplicates and replayed/reordered messages.
+            if sequence <= self.action_sequence or (
+                self.mode not in (Mode.BOOT, Mode.IDLE)
+                and sequence != self.action_sequence + 1
+            ):
+                if self.mode == Mode.HOLDING:
+                    self.action_at = None
+                return self.trip("action out of sequence")
         age = wall_now - stamp
         if (
             not math.isfinite(age)

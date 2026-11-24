@@ -143,6 +143,34 @@ def test_duplicate_reordered_or_gapped_actions_fail(sequence):
     assert gate.mode == Mode.DEGRADED
 
 
+@pytest.mark.parametrize("mode", [Mode.BOOT, Mode.IDLE])
+def test_closed_gate_resynchronizes_forward_gaps_without_forwarding(mode):
+    gate = healthy(mode)
+    assert not action(gate, sequence=1)
+    assert gate.action_sequence == 1
+    assert not action(gate, sequence=4, stamp=99.0)
+    assert gate.action_sequence == 1
+    assert not action(gate, sequence=4, stamp=100.02)
+    assert gate.action_sequence == 4
+    assert not action(gate, sequence=4, stamp=100.03)
+    assert gate.action_sequence == 4
+    assert not action(gate, sequence=3, stamp=100.03)
+    assert gate.action_sequence == 4
+    assert not action(gate, sequence=5, stamp=100.03)
+    assert gate.action_sequence == 5
+
+
+@pytest.mark.parametrize("mode", [Mode.READY, Mode.HOLDING, Mode.RUNNING])
+def test_open_or_armed_gate_never_resynchronizes_a_gap(mode):
+    gate = healthy(mode)
+    action(gate, sequence=1)
+    assert not action(gate, sequence=3, stamp=100.02)
+    assert gate.action_sequence == 1
+    assert gate.mode == (Mode.DEGRADED if mode != Mode.HOLDING else Mode.HOLDING)
+    with pytest.raises(ValueError):
+        gate.start(10.03)
+
+
 def test_timestamp_regression_even_if_age_is_fresh():
     gate = healthy(Mode.RUNNING)
     assert action(gate)

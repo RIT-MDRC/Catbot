@@ -192,6 +192,12 @@ cannot execute after the Pi has died.
 
 ## Orin service contract (status JSON version 1)
 
+In boot and idle, a fresh valid action may advance past a missing sequence while
+the gate remains closed. Duplicate or reordered actions remain rejected. Ready,
+holding, and running require consecutive action sequences; a gap while ready or
+running triggers the existing fail-latched emergency path. A gap while holding
+invalidates action freshness, so a run request cannot use the prior action.
+
 The watchdog remains fail-latched. There is no automatic policy restart. A stale
 250 ms action stream is reported as degraded; the Pi owns sequence verdicts and
 emergency/recovery. Losing the Pi's probes for 500 ms cancels queued restarts and
