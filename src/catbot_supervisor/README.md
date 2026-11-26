@@ -100,7 +100,13 @@ homing and calibrating axes receive IDLE. Status names the unavailable actuator
 or the actuator and raw fault flags. Hardware may independently drop a faulted
 axis out of closed loop.
 
-After clearing the underlying fault/errors, call `/rpi/supervisor/recover`.
+After resolving the underlying cause, call `/rpi/supervisor/recover` with `{}`.
+Recovery automatically clears latched min/max endstop faults on stopped axes,
+waits for fresh fault-free feedback, then clears the motion latch. Other motor,
+encoder, or controller faults require separate diagnosis. Persistent faults or
+missing feedback leave emergency latched. Recovery does not calibrate, home,
+arm motors, or send position targets. Release the physical switch before later
+re-arming, and wait for idle status before continuing.
 Recovery requires fresh feedback, no actuator faults, and every axis either IDLE
 or healthy in closed loop. It clears the command latch without changing states
 or targets; status becomes `idle`, and scripts/policy require explicit requests.

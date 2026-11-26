@@ -45,6 +45,7 @@ from catbot_supervisor.homing import (
     fault_reason,
     readiness_reason,
 )
+from catbot_supervisor.recovery import endstop_axes
 from catbot_supervisor.scripts import ScriptRunner, Step, registry
 
 
@@ -104,6 +105,7 @@ class RpiSupervisor(Node):
         self.hold_healthy = False
         self.recovery_generation = 0
         self.recovery_deadline = None
+        self.recovery_clear_at = None
         self.motor = self.create_client(MotorCommand, "/body/control/motor")
         self.jobs = self.create_client(SupervisorJob, "/orin/supervisor/job")
         self.output = self.create_publisher(
@@ -502,6 +504,7 @@ class RpiSupervisor(Node):
     def enter_emergency(self, reason, *, hold_healthy=False):
         self.recovery_generation += 1
         self.recovery_deadline = None
+        self.recovery_clear_at = None
         # Record degraded verdict before the immediate transition to emergency.
         self.get_logger().error(f"Emergency: {reason}")
         # A subsequent actuator fault cannot weaken an all-axis e-stop.
@@ -523,6 +526,7 @@ class RpiSupervisor(Node):
 
     def tick(self):
         now = time.monotonic()
+        self._advance_recovery()
         if self.recovery_deadline is not None and now >= self.recovery_deadline:
             self.enter_emergency("Foundation recovery timed out")
         if self.gate.mode == Mode.EMERGENCY and self.hold_healthy:
@@ -825,59 +829,84 @@ class RpiSupervisor(Node):
         response.success, response.message = True, "emergency latched"
         return response
 
-    def recover(self, request, response):
+    def _advance_recovery(self):
+        if self.recovery_clear_at is None:
+            return
         if (
-            self.gate.mode != Mode.EMERGENCY
-            or self.runner.active
-            or not self.emergency_stopped()
-            or (self.hold_healthy and bool(fault_reason(self.body, self.names)))
+            self.body_fresh()
+            and self.body_at > self.recovery_clear_at
+            and not fault_reason(self.body, self.names)
         ):
-            response.success, response.message = (
-                False,
-                "Recovery requires confirmed stopped axes and cleared actuator faults",
-            )
-        else:
+            self.recovery_clear_at = None
+            self._recover_foundation(self.recovery_generation)
+
+    def _recover_foundation(self, generation):
+        if generation != self.recovery_generation:
+            return
+        if not self.emergency_stopped():
+            self.enter_emergency("Recovery lost confirmed stopped axes")
+            return
+        future = self.motor.call_async(MotorCommand.Request(operation="recover"))
+
+        def complete(result_future):
+            if generation != self.recovery_generation:
+                return
+            try:
+                result = result_future.result()
+                if result is None or not result.success:
+                    raise RuntimeError(getattr(result, "message", "Foundation recovery failed"))
+                if (
+                    self.gate.mode != Mode.EMERGENCY
+                    or self.runner.active
+                    or not self.emergency_stopped()
+                    or fault_reason(self.body, self.names)
+                ):
+                    raise RuntimeError("Recovery lost stopped, fault-free feedback")
+                self.recovery_deadline = None
+                self.gate.recover()
+                self.hold_healthy = False
+            except (OSError, RuntimeError, ValueError) as error:
+                self.enter_emergency(str(error), hold_healthy=self.hold_healthy)
+
+        future.add_done_callback(complete)
+
+    def recover(self, request, response):
+        try:
+            if (
+                self.gate.mode != Mode.EMERGENCY
+                or self.runner.active
+                or self.recovery_deadline is not None
+                or not self.emergency_stopped()
+            ):
+                raise ValueError("Recovery requires confirmed stopped axes and no pending recovery")
+            selected = endstop_axes(self.body, self.names)
             if not self.motor.service_is_ready():
-                response.success, response.message = (
-                    False,
-                    "Foundation motor service unavailable",
-                )
-                return response
+                raise ValueError("Foundation motor service unavailable")
             self.recovery_generation += 1
             generation = self.recovery_generation
             self.recovery_deadline = time.monotonic() + 3.0
-            future = self.motor.call_async(MotorCommand.Request(operation="recover"))
+            if selected:
+                future = self.motor.call_async(MotorCommand.Request(
+                    operation="clear_errors", actuator_names=list(selected)))
 
-            def complete(result_future):
-                if generation != self.recovery_generation:
-                    return
-                self.recovery_deadline = None
-                try:
-                    result = result_future.result()
-                    if result is None or not result.success:
-                        raise RuntimeError(
-                            getattr(result, "message", "Foundation recovery failed")
-                        )
-                    if (
-                        self.gate.mode != Mode.EMERGENCY
-                        or self.runner.active
-                        or not self.emergency_stopped()
-                        or (
-                            self.hold_healthy
-                            and bool(fault_reason(self.body, self.names))
-                        )
-                    ):
-                        raise RuntimeError("Recovery lost confirmed stopped axes")
-                    self.gate.recover()
-                    self.hold_healthy = False
-                except (OSError, RuntimeError, ValueError) as error:
-                    self.enter_emergency(str(error), hold_healthy=self.hold_healthy)
+                def cleared(result_future):
+                    if generation != self.recovery_generation:
+                        return
+                    try:
+                        result = result_future.result()
+                        if result is None or not result.success:
+                            raise RuntimeError(getattr(result, "message", "Endstop clear failed"))
+                        # CAN send success is not controller acknowledgement.
+                        self.recovery_clear_at = time.monotonic()
+                    except (OSError, RuntimeError, ValueError) as error:
+                        self.enter_emergency(str(error), hold_healthy=self.hold_healthy)
 
-            future.add_done_callback(complete)
-            response.success, response.message = (
-                True,
-                "recovery requested; wait for idle status",
-            )
+                future.add_done_callback(cleared)
+            else:
+                self._recover_foundation(generation)
+            response.success, response.message = True, "recovery requested; clearing endstop faults if present; wait for idle status"
+        except (OSError, RuntimeError, ValueError) as error:
+            response.success, response.message = False, str(error)
         return response
 
 

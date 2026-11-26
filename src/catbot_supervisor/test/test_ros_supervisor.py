@@ -385,6 +385,7 @@ def test_local_homing_without_orin_or_policy():
             dict.fromkeys(names, 7.0),
             dict.fromkeys(names, 0),
         )
+        axis_faults = dict.fromkeys(names, 0)
         operations, completing = [], {}
         calibrating = set()
         zero_moves = []
@@ -424,6 +425,8 @@ def test_local_homing_without_orin_or_policy():
                 if request.operation in ("idle", "emergency"):
                     states[name] = 1
                     completing.pop(name, None)
+                elif request.operation == "clear_errors":
+                    axis_faults[name] = 0
                 elif request.operation == "state":
                     states[name] = 4 if request.state == 3 else request.state
                     if request.state == 3:
@@ -431,7 +434,7 @@ def test_local_homing_without_orin_or_policy():
                     if request.state in (3, 4, 11):
                         completing[name] = time.monotonic() + 0.1 + index * 0.04
                 elif request.operation == "fault_stop" and (
-                    states[name] != 8 or faults[name]
+                    states[name] != 8 or faults[name] or axis_faults[name]
                 ):
                     states[name] = 1
                     completing.pop(name, None)
@@ -480,6 +483,7 @@ def test_local_homing_without_orin_or_policy():
                             ready=states[name] == 8,
                             axis_state=states[name],
                             controller_error_flags=faults[name],
+                            axis_error_flags=axis_faults[name],
                         )
                         for name in names
                     ]
@@ -631,8 +635,15 @@ def test_local_homing_without_orin_or_policy():
         pi.emergency(Trigger.Request(), Trigger.Response())
         until(lambda: not pi.runner.active and all(s == 1 for s in states.values()))
         assert not pi.hold_healthy
+        axis_faults["bra"] = 8192
+        until(lambda: pi.body["bra"].axis_error_flags == 8192)
+        recovery_start = len(operations)
         assert pi.recover(Trigger.Request(), Trigger.Response()).success
         until(lambda: pi.gate.mode == Mode.IDLE)
+        assert operations[recovery_start:] == [
+            ("clear_errors", 0, ["bra"]), ("recover", 0, [])
+        ]
+        assert all(state == 1 for state in states.values())
         # A fault also aborts a local sequence, retaining healthy knees/flexion.
         script()
         until(
@@ -824,3 +835,61 @@ def test_cpu_health_warning_is_advisory_and_rate_limited(monkeypatch):
     clock[0] = 131.0
     RpiSupervisor.sample_health(node)
     assert logger.warning.call_count == 2
+
+
+@pytest.mark.ros
+@pytest.mark.parametrize('outcome', ['clear', 'persistent', 'send_failure', 'superseded'])
+def test_recover_clears_endstops_waits_for_feedback_and_never_arms(outcome):
+    from concurrent.futures import Future
+    from types import MethodType, SimpleNamespace
+    from unittest.mock import Mock
+    from catbot_supervisor.homing import ERROR_FIELDS
+
+    axis = SimpleNamespace(**dict.fromkeys(ERROR_FIELDS, 0), axis_state=1, heartbeat_available=True)
+    axis.axis_error_flags = 8192
+    calls, futures = [], []
+    def send(request):
+        calls.append(request)
+        future = Future()
+        futures.append(future)
+        return future
+    pi = SimpleNamespace(
+        body={'a': axis}, names=('a',), body_at=0.0,
+        body_fresh=lambda: True, emergency_stopped=lambda: True,
+        gate=SimpleNamespace(mode=Mode.EMERGENCY, recover=Mock()),
+        runner=SimpleNamespace(active=False), reboot_wait=None,
+        recovery_deadline=None, recovery_generation=0, recovery_clear_at=None,
+        hold_healthy=False, enter_emergency=Mock(),
+        motor=SimpleNamespace(service_is_ready=lambda: True, call_async=send),
+    )
+    pi._recover_foundation = MethodType(RpiSupervisor._recover_foundation, pi)
+    pi._advance_recovery = MethodType(RpiSupervisor._advance_recovery, pi)
+    response = RpiSupervisor.recover(pi, Trigger.Request(), Trigger.Response())
+    assert response.success
+    assert [(r.operation, list(r.actuator_names)) for r in calls] == [('clear_errors', ['a'])]
+    assert not RpiSupervisor.recover(pi, Trigger.Request(), Trigger.Response()).success
+    if outcome == 'superseded':
+        pi.recovery_generation += 1
+    futures[0].set_result(SimpleNamespace(success=outcome != 'send_failure', message='send failed'))
+    if outcome == 'send_failure':
+        pi.enter_emergency.assert_called_once()
+    elif outcome == 'superseded':
+        assert pi.recovery_clear_at is None
+    else:
+        pi.body_at = pi.recovery_clear_at + 0.1
+        pi._advance_recovery()
+        assert len(calls) == 1  # The old fault is still reported.
+        if outcome == 'clear':
+            axis.axis_error_flags = 0
+            pi.body_at = pi.recovery_clear_at - 0.1
+            pi._advance_recovery()
+            assert len(calls) == 1  # An older report cannot confirm the clear.
+            pi.body_at = pi.recovery_clear_at + 0.1
+            pi._advance_recovery()
+            assert calls[-1].operation == 'recover'
+            futures[-1].set_result(SimpleNamespace(success=True))
+            pi.gate.recover.assert_called_once()
+            assert pi.recovery_deadline is None
+    assert all(r.operation in ('clear_errors', 'recover') for r in calls)
+    if outcome != 'clear':
+        pi.gate.recover.assert_not_called()
