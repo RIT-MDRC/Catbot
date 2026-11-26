@@ -528,7 +528,7 @@ class RpiSupervisor(Node):
         now = time.monotonic()
         self._advance_recovery()
         if self.recovery_deadline is not None and now >= self.recovery_deadline:
-            self.enter_emergency("Foundation recovery timed out")
+            self.enter_emergency("Foundation recovery timed out", hold_healthy=self.hold_healthy)
         if self.gate.mode == Mode.EMERGENCY and self.hold_healthy:
             reason = self.system_reason()
             if reason:

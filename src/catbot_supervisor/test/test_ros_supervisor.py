@@ -625,7 +625,13 @@ def test_local_homing_without_orin_or_policy():
         assert "controller_error_flags=256 [UNDECODED]" in pi.gate.reason
         assert "motor_error_flags=0 [NONE]" in pi.gate.reason
         assert pi.recover(Trigger.Request(), Trigger.Response()).success
+        until(lambda: pi.gate.reason == "Foundation recovery timed out" and not pi.runner.active)
+        assert pi.hold_healthy
+        assert states["bra"] == 1
+        assert all(states[n] == 8 for n in names if n != "bra")
         faults["bra"] = 0
+        until(lambda: pi.body["bra"].controller_error_flags == 0)
+        assert pi.recover(Trigger.Request(), Trigger.Response()).success
         until(lambda: pi.gate.mode == Mode.IDLE)
         assert all(states[n] == 8 for n in names if n != "bra")
         # Explicit e-stop still disarms every motor.
