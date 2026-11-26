@@ -837,7 +837,8 @@ def test_cpu_health_warning_is_advisory_and_rate_limited(monkeypatch):
 @pytest.mark.ros
 @pytest.mark.parametrize('outcome', ['clear', 'persistent', 'send_failure', 'superseded'])
 @pytest.mark.parametrize('fault', [0, 8192, 768])
-def test_recover_clears_all_errors_waits_for_feedback_and_never_arms(outcome, fault):
+@pytest.mark.parametrize('hold_healthy', [False, True])
+def test_recover_clears_all_errors_and_preserves_original_stop_checks(outcome, fault, hold_healthy):
     from concurrent.futures import Future
     from types import MethodType, SimpleNamespace
     from unittest.mock import Mock
@@ -860,13 +861,12 @@ def test_recover_clears_all_errors_waits_for_feedback_and_never_arms(outcome, fa
         gate=SimpleNamespace(mode=Mode.EMERGENCY, recover=Mock()),
         runner=SimpleNamespace(active=False), reboot_wait=None,
         recovery_deadline=None, recovery_generation=0, recovery_clear_at=None,
-        hold_healthy=False, enter_emergency=Mock(),
+        hold_healthy=hold_healthy, enter_emergency=Mock(),
         motor=SimpleNamespace(service_is_ready=lambda: True, call_async=send),
     )
     pi._recover_foundation = MethodType(RpiSupervisor._recover_foundation, pi)
     pi._advance_recovery = MethodType(RpiSupervisor._advance_recovery, pi)
-    response = RpiSupervisor.recover(pi, Trigger.Request(), Trigger.Response())
-    assert response.success
+    assert RpiSupervisor.recover(pi, Trigger.Request(), Trigger.Response()).success
     assert [(r.operation, list(r.actuator_names)) for r in calls] == [('clear_errors', ['a'])]
     assert not RpiSupervisor.recover(pi, Trigger.Request(), Trigger.Response()).success
     if outcome == 'superseded':
@@ -877,23 +877,23 @@ def test_recover_clears_all_errors_waits_for_feedback_and_never_arms(outcome, fa
     elif outcome == 'superseded':
         assert pi.recovery_clear_at is None
     else:
-        if not fault:
-            axis.axis_error_flags = 8192  # A fault can also appear after the clear request.
-        pi.body_at = pi.recovery_clear_at + 0.1
-        pi._advance_recovery()
-        assert len(calls) == 1  # Faults are still reported.
         if outcome == 'clear':
             for field in ERROR_FIELDS:
                 setattr(axis, field, 0)
-            pi.body_at = pi.recovery_clear_at - 0.1
-            pi._advance_recovery()
-            assert len(calls) == 1  # An older report cannot confirm the clear.
-            pi.body_at = pi.recovery_clear_at + 0.1
-            pi._advance_recovery()
+        else:
+            axis.axis_error_flags = 8192
+        pi.body_at = pi.recovery_clear_at - 0.1
+        pi._advance_recovery()
+        assert len(calls) == 1  # An older report cannot complete recovery.
+        pi.body_at = pi.recovery_clear_at + 0.1
+        pi._advance_recovery()
+        if outcome == 'persistent' and hold_healthy:
+            assert len(calls) == 1
+        else:
             assert calls[-1].operation == 'recover'
             futures[-1].set_result(SimpleNamespace(success=True))
             pi.gate.recover.assert_called_once()
             assert pi.recovery_deadline is None
     assert all(r.operation in ('clear_errors', 'recover') for r in calls)
-    if outcome != 'clear':
+    if outcome in ('send_failure', 'superseded') or outcome == 'persistent' and hold_healthy:
         pi.gate.recover.assert_not_called()

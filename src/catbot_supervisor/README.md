@@ -102,10 +102,12 @@ axis out of closed loop.
 
 After resolving the underlying cause, call `/rpi/supervisor/recover` with `{}`.
 Recovery sends Clear_Errors to every configured motor controller, including
-axes with encoder/controller faults, waits for fresh fault-free feedback, then
-clears the motion latch. Persistent faults or
-missing feedback leave emergency latched. Recovery does not calibrate, home,
-arm motors, or send position targets. Release the physical switch before later
+axes with encoder/controller faults, then applies the original stopped-axis
+recovery checks. Local fault stops retaining healthy motor holds still require
+fault-free feedback. An all-axis operator stop can return to idle while axes
+remain disarmed; this does not certify that a persistent hardware fault is fixed.
+Recovery does not calibrate, home, arm motors, or send position targets.
+Release the physical switch before later
 re-arming, and wait for idle status before continuing.
 Recovery requires fresh feedback, no actuator faults, and every axis either IDLE
 or healthy in closed loop. It clears the command latch without changing states

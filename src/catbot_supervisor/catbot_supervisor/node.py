@@ -835,7 +835,7 @@ class RpiSupervisor(Node):
         if (
             self.body_fresh()
             and self.body_at > self.recovery_clear_at
-            and not fault_reason(self.body, self.names)
+            and (not self.hold_healthy or not fault_reason(self.body, self.names))
         ):
             self.recovery_clear_at = None
             self._recover_foundation(self.recovery_generation)
@@ -859,7 +859,7 @@ class RpiSupervisor(Node):
                     self.gate.mode != Mode.EMERGENCY
                     or self.runner.active
                     or not self.emergency_stopped()
-                    or fault_reason(self.body, self.names)
+                    or (self.hold_healthy and bool(fault_reason(self.body, self.names)))
                 ):
                     raise RuntimeError("Recovery lost stopped, fault-free feedback")
                 self.recovery_deadline = None
