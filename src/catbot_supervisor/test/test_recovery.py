@@ -2,7 +2,7 @@ from types import SimpleNamespace
 
 import pytest
 from catbot_supervisor.homing import ERROR_FIELDS
-from catbot_supervisor.recovery import endstop_axes
+from catbot_supervisor.recovery import recovery_axes
 
 
 def state(axis_error=0, **updates):
@@ -17,27 +17,31 @@ def state(axis_error=0, **updates):
     )
 
 
-def test_only_stopped_endstop_axes_are_selected():
+def test_only_stopped_recovery_axes_are_selected():
     body = {"a": state(4096), "b": state(8192), "c": state(axis_state=8)}
-    assert endstop_axes(body, tuple(body)) == ("a", "b")
-    assert endstop_axes({"a": state()}, ("a",)) == ()
+    assert recovery_axes(body, tuple(body)) == ("a", "b", "c")
+    assert recovery_axes({"a": state()}, ("a",)) == ("a",)
 
 
 @pytest.mark.parametrize(
     "sample",
     [
-        state(256),
-        state(8192 | 256),
-        state(8192, encoder_error_flags=128),
         state(8192, axis_state=8),
         state(heartbeat_available=False),
     ],
 )
-def test_unrelated_faults_missing_heartbeat_and_active_faulted_axes_block(sample):
+def test_missing_heartbeat_and_active_faulted_axes_block(sample):
     with pytest.raises(ValueError):
-        endstop_axes({"a": sample}, ("a",))
+        recovery_axes({"a": sample}, ("a",))
 
 
 def test_partial_roster_blocks_recovery():
     with pytest.raises(ValueError):
-        endstop_axes({}, ("a",))
+        recovery_axes({}, ("a",))
+
+
+@pytest.mark.parametrize("field", ERROR_FIELDS)
+def test_every_fault_type_is_clearable_while_idle(field):
+    sample = state()
+    setattr(sample, field, 128)
+    assert recovery_axes({"a": sample}, ("a",)) == ("a",)

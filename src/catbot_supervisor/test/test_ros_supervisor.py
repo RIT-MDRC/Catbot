@@ -624,11 +624,8 @@ def test_local_homing_without_orin_or_policy():
         assert "bra" in pi.gate.reason
         assert "controller_error_flags=256 [UNDECODED]" in pi.gate.reason
         assert "motor_error_flags=0 [NONE]" in pi.gate.reason
-        assert not pi.recover(Trigger.Request(), Trigger.Response()).success
-        faults["bra"] = 0
-        until(lambda: pi.body["bra"].controller_error_flags == 0)
-        assert pi.gate.mode == Mode.EMERGENCY
         assert pi.recover(Trigger.Request(), Trigger.Response()).success
+        faults["bra"] = 0
         until(lambda: pi.gate.mode == Mode.IDLE)
         assert all(states[n] == 8 for n in names if n != "bra")
         # Explicit e-stop still disarms every motor.
@@ -641,7 +638,7 @@ def test_local_homing_without_orin_or_policy():
         assert pi.recover(Trigger.Request(), Trigger.Response()).success
         until(lambda: pi.gate.mode == Mode.IDLE)
         assert operations[recovery_start:] == [
-            ("clear_errors", 0, ["bra"]), ("recover", 0, [])
+            ("clear_errors", 0, names), ("recover", 0, [])
         ]
         assert all(state == 1 for state in states.values())
         # A fault also aborts a local sequence, retaining healthy knees/flexion.
@@ -839,14 +836,18 @@ def test_cpu_health_warning_is_advisory_and_rate_limited(monkeypatch):
 
 @pytest.mark.ros
 @pytest.mark.parametrize('outcome', ['clear', 'persistent', 'send_failure', 'superseded'])
-def test_recover_clears_endstops_waits_for_feedback_and_never_arms(outcome):
+@pytest.mark.parametrize('fault', [0, 8192, 768])
+def test_recover_clears_all_errors_waits_for_feedback_and_never_arms(outcome, fault):
     from concurrent.futures import Future
     from types import MethodType, SimpleNamespace
     from unittest.mock import Mock
     from catbot_supervisor.homing import ERROR_FIELDS
 
     axis = SimpleNamespace(**dict.fromkeys(ERROR_FIELDS, 0), axis_state=1, heartbeat_available=True)
-    axis.axis_error_flags = 8192
+    axis.axis_error_flags = fault
+    if fault == 768:
+        axis.encoder_error_flags = 128
+        axis.controller_error_flags = 32
     calls, futures = [], []
     def send(request):
         calls.append(request)
@@ -876,11 +877,14 @@ def test_recover_clears_endstops_waits_for_feedback_and_never_arms(outcome):
     elif outcome == 'superseded':
         assert pi.recovery_clear_at is None
     else:
+        if not fault:
+            axis.axis_error_flags = 8192  # A fault can also appear after the clear request.
         pi.body_at = pi.recovery_clear_at + 0.1
         pi._advance_recovery()
-        assert len(calls) == 1  # The old fault is still reported.
+        assert len(calls) == 1  # Faults are still reported.
         if outcome == 'clear':
-            axis.axis_error_flags = 0
+            for field in ERROR_FIELDS:
+                setattr(axis, field, 0)
             pi.body_at = pi.recovery_clear_at - 0.1
             pi._advance_recovery()
             assert len(calls) == 1  # An older report cannot confirm the clear.

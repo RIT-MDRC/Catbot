@@ -101,9 +101,9 @@ or the actuator and raw fault flags. Hardware may independently drop a faulted
 axis out of closed loop.
 
 After resolving the underlying cause, call `/rpi/supervisor/recover` with `{}`.
-Recovery automatically clears latched min/max endstop faults on stopped axes,
-waits for fresh fault-free feedback, then clears the motion latch. Other motor,
-encoder, or controller faults require separate diagnosis. Persistent faults or
+Recovery sends Clear_Errors to every configured motor controller, including
+axes with encoder/controller faults, waits for fresh fault-free feedback, then
+clears the motion latch. Persistent faults or
 missing feedback leave emergency latched. Recovery does not calibrate, home,
 arm motors, or send position targets. Release the physical switch before later
 re-arming, and wait for idle status before continuing.

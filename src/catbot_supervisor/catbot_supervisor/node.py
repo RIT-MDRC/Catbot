@@ -45,7 +45,7 @@ from catbot_supervisor.homing import (
     fault_reason,
     readiness_reason,
 )
-from catbot_supervisor.recovery import endstop_axes
+from catbot_supervisor.recovery import recovery_axes
 from catbot_supervisor.scripts import ScriptRunner, Step, registry
 
 
@@ -879,7 +879,7 @@ class RpiSupervisor(Node):
                 or not self.emergency_stopped()
             ):
                 raise ValueError("Recovery requires confirmed stopped axes and no pending recovery")
-            selected = endstop_axes(self.body, self.names)
+            selected = recovery_axes(self.body, self.names)
             if not self.motor.service_is_ready():
                 raise ValueError("Foundation motor service unavailable")
             self.recovery_generation += 1
@@ -895,7 +895,7 @@ class RpiSupervisor(Node):
                     try:
                         result = result_future.result()
                         if result is None or not result.success:
-                            raise RuntimeError(getattr(result, "message", "Endstop clear failed"))
+                            raise RuntimeError(getattr(result, "message", "Motor fault clear failed"))
                         # CAN send success is not controller acknowledgement.
                         self.recovery_clear_at = time.monotonic()
                     except (OSError, RuntimeError, ValueError) as error:
@@ -904,7 +904,7 @@ class RpiSupervisor(Node):
                 future.add_done_callback(cleared)
             else:
                 self._recover_foundation(generation)
-            response.success, response.message = True, "recovery requested; clearing endstop faults if present; wait for idle status"
+            response.success, response.message = True, "recovery requested; clearing all motor errors; wait for idle status"
         except (OSError, RuntimeError, ValueError) as error:
             response.success, response.message = False, str(error)
         return response
