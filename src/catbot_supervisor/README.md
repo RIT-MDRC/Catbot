@@ -100,6 +100,13 @@ homing and calibrating axes receive IDLE. Status names the unavailable actuator
 or the actuator and raw fault flags. Hardware may independently drop a faulted
 axis out of closed loop.
 
+Heartbeat-only emergencies automatically recover to idle after one continuous
+second of fresh, fault-free feedback and confirmed stopped axes. The stability
+period is the `heartbeat_recovery_seconds` ROS parameter. This covers motor CAN
+heartbeat loss and Orin heartbeat loss; operator emergency, controller faults,
+and script/action-stream failures still require explicit recovery. No policy
+restart, arming, or position command is issued by automatic recovery.
+
 After resolving the underlying cause, call `/rpi/supervisor/recover` with `{}`.
 Recovery sends Clear_Errors to every configured motor controller, including
 axes with encoder/controller faults, then applies the original stopped-axis

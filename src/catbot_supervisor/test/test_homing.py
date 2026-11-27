@@ -52,11 +52,11 @@ def test_readiness_error_reports_each_unready_axis_and_zero_fault_masks():
     body["flf"].axis_state = 8
     reason = readiness_reason(body)
     assert reason.startswith("Foundation actuator not ready: ")
-    assert "brk (axis_state=1, heartbeat_available=True" in reason
-    assert "flf (axis_state=8, heartbeat_available=True" in reason
+    assert "brk (IDLE/disarmed (state 1), no controller faults" in reason
+    assert "flf (closed loop (state 8), no controller faults" in reason
     assert "fla (" not in reason
-    for field in ERROR_FIELDS:
-        assert f"{field}=0 [NONE]" in reason
+    assert "motion requires closed-loop control (state 8)" in reason
+    assert "waiting for fresh valid encoder/position feedback" in reason
 
 
 def test_fault_error_includes_all_reported_decoded_masks_not_just_first_fault():

@@ -39,7 +39,9 @@ from catbot_supervisor.core import (
     status_uint32,
 )
 from catbot_supervisor.health import PiHealth, compute_warning, health_reason
+from catbot_supervisor.heartbeat_recovery import HeartbeatRecovery
 from catbot_supervisor.homing import (
+    ERROR_FIELDS,
     StateCycle,
     at_position,
     fault_reason,
@@ -107,6 +109,8 @@ class RpiSupervisor(Node):
         self.recovery_generation = 0
         self.recovery_deadline = None
         self.recovery_clear_at = None
+        self.recovery_automatic = False
+        self.heartbeat_recovery = HeartbeatRecovery(float(param("heartbeat_recovery_seconds", 1.0)))
         self.motor = self.create_client(MotorCommand, "/body/control/motor")
         self.jobs = self.create_client(SupervisorJob, "/orin/supervisor/job")
         self.output = self.create_publisher(
@@ -495,6 +499,33 @@ class RpiSupervisor(Node):
             else Step("wait_state", state=1)
         )
 
+    def _auto_recover_heartbeat(self, now):
+        if self.heartbeat_recovery.kind is None:
+            return
+        faulted = any(
+            getattr(axis, field) for axis in self.body.values() for field in ERROR_FIELDS
+        )
+        healthy = (
+            self.gate.mode == Mode.EMERGENCY
+            and not self.runner.active
+            and self.recovery_deadline is None
+            and not self.system_reason()
+            and not fault_reason(self.body, self.names)
+            and 0 <= now - self.positions_at <= self.body_timeout
+            and set(self.positions) == set(self.names)
+            and all(position.valid for position in self.positions.values())
+            and self.emergency_stopped()
+            and self.motor.service_is_ready()
+        )
+        if self.heartbeat_recovery.kind == "orin":
+            healthy = healthy and self.gate.check(now, require_action=False)
+        if self.heartbeat_recovery.ready(now, healthy, faulted):
+            self.recovery_automatic = True
+            self.recovery_generation += 1
+            self.recovery_deadline = now + 3.0
+            self.get_logger().info("Heartbeat stable; automatically recovering to idle. Policy motion remains disabled.")
+            self._recover_foundation(self.recovery_generation)
+
     def sample_health(self):
         now = time.monotonic()
         self.health_sample = self.health.sample(now)
@@ -511,6 +542,8 @@ class RpiSupervisor(Node):
         self.recovery_generation += 1
         self.recovery_deadline = None
         self.recovery_clear_at = None
+        self.recovery_automatic = False
+        self.heartbeat_recovery.start(reason)
         # Record degraded verdict before the immediate transition to emergency.
         self.get_logger().error(f"Emergency: {reason}")
         # A subsequent actuator fault cannot weaken an all-axis e-stop.
@@ -632,6 +665,7 @@ class RpiSupervisor(Node):
                     self.enter_emergency(self.gate.reason)
                 else:
                     self.gate.mode = Mode.READY
+        self._auto_recover_heartbeat(now)
         prompt = self.runner.prompt
         health = self.health_sample
 
@@ -865,11 +899,12 @@ class RpiSupervisor(Node):
                     self.gate.mode != Mode.EMERGENCY
                     or self.runner.active
                     or not self.emergency_stopped()
-                    or (self.hold_healthy and bool(fault_reason(self.body, self.names)))
+                    or ((self.hold_healthy or self.recovery_automatic) and bool(fault_reason(self.body, self.names)))
                 ):
                     raise RuntimeError("Recovery lost stopped, fault-free feedback")
                 self.recovery_deadline = None
                 self.gate.recover()
+                self.recovery_automatic = False
                 self.hold_healthy = False
             except (OSError, RuntimeError, ValueError) as error:
                 self.enter_emergency(str(error), hold_healthy=self.hold_healthy)
@@ -885,6 +920,7 @@ class RpiSupervisor(Node):
                 or not self.emergency_stopped()
             ):
                 raise ValueError("Recovery requires confirmed stopped axes and no pending recovery")
+            self.recovery_automatic = False
             selected = recovery_axes(self.body, self.names)
             if not self.motor.service_is_ready():
                 raise ValueError("Foundation motor service unavailable")

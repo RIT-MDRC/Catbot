@@ -26,16 +26,20 @@ def actuator_details(state):
 
 
 def readiness_reason(body):
-    unavailable = [
-        f"{name} ({actuator_details(state)})"
-        for name, state in body.items()
-        if not state.ready
-    ]
-    return (
-        "Foundation actuator not ready: " + "; ".join(unavailable)
-        if unavailable
-        else ""
-    )
+    unavailable = []
+    for name, state in body.items():
+        if state.ready:
+            continue
+        if not state.heartbeat_available or any(getattr(state, field) for field in ERROR_FIELDS):
+            detail = actuator_details(state)
+        elif state.axis_state == 1:
+            detail = "IDLE/disarmed (state 1), no controller faults; motion requires closed-loop control (state 8). Arm before starting policy motion"
+        elif state.axis_state == 8:
+            detail = "closed loop (state 8), no controller faults; waiting for fresh valid encoder/position feedback"
+        else:
+            detail = f"controller state {state.axis_state}; motion requires closed-loop control (state 8)"
+        unavailable.append(f"{name} ({detail})")
+    return "Foundation actuator not ready: " + "; ".join(unavailable) if unavailable else ""
 
 
 def fault_reason(body, names):

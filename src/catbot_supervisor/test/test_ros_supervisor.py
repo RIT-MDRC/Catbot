@@ -522,8 +522,7 @@ def test_local_homing_without_orin_or_policy():
         # An explicit script move can start from idle without separate arm steps.
         reason = pi.local_reason()
         assert reason.startswith("Foundation actuator not ready: ")
-        assert "brk (axis_state=1, heartbeat_available=True" in reason
-        assert "motor_error_flags=0 [NONE]" in reason
+        assert "brk (IDLE/disarmed (state 1), no controller faults" in reason
         pi.scripts["move_check"] = lambda names: [
             Step("position", names=("flf",), positions=(12.0,)),
             Step("wait_position", names=("flf",), positions=(12.0,)),
@@ -867,7 +866,7 @@ def test_recover_clears_all_errors_and_preserves_original_stop_checks(outcome, f
         gate=SimpleNamespace(mode=Mode.EMERGENCY, recover=Mock()),
         runner=SimpleNamespace(active=False), reboot_wait=None,
         recovery_deadline=None, recovery_generation=0, recovery_clear_at=None,
-        hold_healthy=hold_healthy, enter_emergency=Mock(),
+        hold_healthy=hold_healthy, recovery_automatic=False, enter_emergency=Mock(),
         motor=SimpleNamespace(service_is_ready=lambda: True, call_async=send),
     )
     pi._recover_foundation = MethodType(RpiSupervisor._recover_foundation, pi)
@@ -903,3 +902,52 @@ def test_recover_clears_all_errors_and_preserves_original_stop_checks(outcome, f
     assert all(r.operation in ('clear_errors', 'recover') for r in calls)
     if outcome in ('send_failure', 'superseded') or outcome == 'persistent' and hold_healthy:
         pi.gate.recover.assert_not_called()
+
+
+@pytest.mark.ros
+@pytest.mark.parametrize('reason', ['Foundation actuator heartbeat unavailable: frk', 'Orin heartbeat lost'])
+@pytest.mark.parametrize('fault_after_request', [False, True])
+@pytest.mark.parametrize('position_feedback', ['fresh', 'invalid', 'stale'])
+def test_automatic_heartbeat_recovery_only_unlatches_after_stability(reason, fault_after_request, position_feedback):
+    from concurrent.futures import Future
+    from types import MethodType, SimpleNamespace
+    from unittest.mock import Mock
+    from catbot_supervisor.heartbeat_recovery import HeartbeatRecovery
+    from catbot_supervisor.homing import ERROR_FIELDS
+
+    axis = SimpleNamespace(**dict.fromkeys(ERROR_FIELDS, 0), axis_state=1, heartbeat_available=True)
+    future = Future()
+    motor = Mock()
+    motor.service_is_ready.return_value = True
+    motor.call_async.return_value = future
+    pi = SimpleNamespace(
+        heartbeat_recovery=HeartbeatRecovery(), body={'a': axis}, names=('a',),
+        positions={'a': SimpleNamespace(valid=position_feedback != 'invalid')},
+        positions_at=-10.0 if position_feedback == 'stale' else 0.0, body_timeout=3.0,
+        gate=SimpleNamespace(mode=Mode.EMERGENCY, check=Mock(return_value=True), recover=Mock()),
+        runner=SimpleNamespace(active=False), reboot_wait=None, recovery_deadline=None,
+        recovery_generation=0, recovery_automatic=False, hold_healthy=False,
+        system_reason=lambda: '', emergency_stopped=lambda: True,
+        motor=motor, get_logger=lambda: Mock(), enter_emergency=Mock(),
+    )
+    pi._recover_foundation = MethodType(RpiSupervisor._recover_foundation, pi)
+    pi.heartbeat_recovery.start(reason)
+    RpiSupervisor._auto_recover_heartbeat(pi, 0)
+    motor.call_async.assert_not_called()
+    RpiSupervisor._auto_recover_heartbeat(pi, 1)
+    if position_feedback != 'fresh':
+        motor.call_async.assert_not_called()
+        return
+    assert motor.call_async.call_count == 1
+    assert motor.call_async.call_args.args[0].operation == 'recover'
+    assert not motor.call_async.call_args.args[0].actuator_names
+    if fault_after_request:
+        axis.axis_error_flags = 256
+    future.set_result(SimpleNamespace(success=True))
+    if fault_after_request:
+        pi.enter_emergency.assert_called_once()
+        pi.gate.recover.assert_not_called()
+    else:
+        pi.gate.recover.assert_called_once()
+    RpiSupervisor._auto_recover_heartbeat(pi, 2)
+    assert motor.call_async.call_count == 1
