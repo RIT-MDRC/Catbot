@@ -11,7 +11,7 @@ setup(
         ("share/" + package_name, ["package.xml"]),
     ],
     package_data={
-        "foundation": ["pinconfig.json"],
+        "foundation": ["pinconfig.json", "hardware_protocol.json"],
         "foundation.component.motor": ["odrive-cansimple.dbc"],
     },
     install_requires=[

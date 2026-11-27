@@ -1,6 +1,6 @@
 {
 	"smbus2": { "smbus": 1 },
-	"can_bus": { "can_bus_1": { "silence": true } },
+	"can_bus": { "can_bus_1": { "silence": true, "busConfig": { "channel": "can0", "interface": "socketcan" } } },
 	"actuator_motion_profile": {
 		"standard_64_to_1": {
 			"motor_turns_per_actuator_turn": 64,
@@ -50,72 +50,84 @@
 		"bra": {
 			"bus": "can_bus_1",
 			"axisID": 0,
+			"controller_reboot_axis": 0,
 			"control_mode": 2,
 			"input_mode": 1
 		},
 		"bla": {
 			"bus": "can_bus_1",
 			"axisID": 1,
+			"controller_reboot_axis": 0,
 			"control_mode": 2,
 			"input_mode": 1
 		},
 		"brf": {
 			"bus": "can_bus_1",
 			"axisID": 2,
+			"controller_reboot_axis": 2,
 			"control_mode": 2,
 			"input_mode": 1
 		},
 		"blf": {
 			"bus": "can_bus_1",
 			"axisID": 3,
+			"controller_reboot_axis": 2,
 			"control_mode": 2,
 			"input_mode": 1
 		},
 		"brk": {
 			"bus": "can_bus_1",
 			"axisID": 4,
+			"controller_reboot_axis": 4,
 			"control_mode": 2,
 			"input_mode": 1
 		},
 		"blk": {
 			"bus": "can_bus_1",
 			"axisID": 5,
+			"controller_reboot_axis": 4,
 			"control_mode": 2,
 			"input_mode": 1
 		},
 		"fla": {
 			"bus": "can_bus_1",
 			"axisID": 6,
+			"controller_reboot_axis": 6,
 			"control_mode": 2,
 			"input_mode": 1
 		},
 		"fra": {
 			"bus": "can_bus_1",
 			"axisID": 7,
+			"controller_reboot_axis": 6,
 			"control_mode": 2,
 			"input_mode": 1
 		},
 		"flf": {
 			"bus": "can_bus_1",
 			"axisID": 8,
+			"controller_reboot_axis": 8,
 			"control_mode": 2,
 			"input_mode": 1
 		},
 		"frf": {
 			"bus": "can_bus_1",
 			"axisID": 9,
+			"controller_reboot_axis": 8,
 			"control_mode": 2,
 			"input_mode": 1
 		},
 		"flk": {
 			"bus": "can_bus_1",
 			"axisID": 10,
+			"controller_reboot_axis": 10,
 			"control_mode": 2,
 			"input_mode": 1
 		},
 		"frk": {
 			"bus": "can_bus_1",
 			"axisID": 11,
+			"controller_reboot_axis": 10,
 			"control_mode": 2,
 			"input_mode": 1
 		}

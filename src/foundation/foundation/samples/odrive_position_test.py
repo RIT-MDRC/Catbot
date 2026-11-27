@@ -21,6 +21,7 @@ from textual.widgets import Input, Static, TextArea
 # Direct script execution needs Foundation on the module search path.
 FOUNDATION_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, os.fspath(FOUNDATION_ROOT))
+sys.path.insert(0, os.fspath(FOUNDATION_ROOT.parent))
 
 # Component imports register device parsers before configure_device is called.
 from component.actuator import actuator_actions

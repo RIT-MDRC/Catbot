@@ -6,6 +6,8 @@ from pathlib import Path
 
 from ament_index_python.packages import get_package_share_directory
 from catbot_policy.configuration import POLICY_DEFAULTS, POLICY_PARAMETERS
+from catbot_supervisor.rpi_configuration import RPI_DEFAULTS
+from foundation.configuration import FOUNDATION_DEFAULTS
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, Shutdown
 from launch.conditions import IfCondition
@@ -55,6 +57,12 @@ def generate_launch_description():
                 if name != "simulation_mode"
             ],
             DeclareLaunchArgument("network_interface", default_value="eth0"),
+            *[
+                DeclareLaunchArgument(name, default_value=str(value))
+                for name, value in {**RPI_DEFAULTS, **FOUNDATION_DEFAULTS}.items()
+            ],
+            DeclareLaunchArgument("hardware_config_file", default_value=""),
+            DeclareLaunchArgument("protocol_config_file", default_value=""),
             IncludeLaunchDescription(
                 PythonLaunchDescriptionSource(
                     os.path.join(
@@ -71,6 +79,15 @@ def generate_launch_description():
                 launch_arguments={
                     "mapping_file": LaunchConfiguration("mapping_file"),
                     "network_interface": LaunchConfiguration("network_interface"),
+                    **{
+                        name: LaunchConfiguration(name)
+                        for name in (
+                            *RPI_DEFAULTS,
+                            *FOUNDATION_DEFAULTS,
+                            "hardware_config_file",
+                            "protocol_config_file",
+                        )
+                    },
                 }.items(),
             ),
             Node(

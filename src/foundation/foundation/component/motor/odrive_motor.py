@@ -1,6 +1,5 @@
 import logging
 import math
-import os
 import time
 from dataclasses import dataclass
 from typing import cast
@@ -15,14 +14,19 @@ from state_management import (
     identifier,
 )
 
+from foundation.protocol import COMMAND_BITS, COMMAND_MASK, DBC_FILE, HEARTBEAT_COMMAND
+
 from ..can import can_actions
 from .odrive_enums import AxisError, ControlMode, InputMode, MotorState
 
 logger = logging.getLogger(__name__)
 ODRIVE_CAN_DB = cast(
     Database,
-    cantools.database.load_file(os.path.dirname(__file__) + "/odrive-cansimple.dbc"),
+    cantools.database.load_file(DBC_FILE),
 )
+
+if ODRIVE_CAN_DB.get_message_by_name("Heartbeat").frame_id != HEARTBEAT_COMMAND:
+    raise ValueError("Heartbeat command does not match the configured DBC")
 
 
 @device
@@ -54,9 +58,18 @@ class ODriveMotor:
     sensorless_error_flag: bool = False
     controller_error_flag: bool = False
 
+    controller_reboot_axis: int | None = None
+    heartbeat_timeout_seconds: float = 0.5
+    encoder_timeout_seconds: float = 0.25
+    motor_arm_timeout_seconds: float = 0.5
+
     strict_bounds: bool = True
 
     def __post_init__(self):
+        if type(self.axisID) is not int or not 0 <= self.axisID < (
+            1 << (11 - COMMAND_BITS)
+        ):
+            raise ValueError("CAN axisID is outside the configured standard-ID layout")
         can_actions.add_listener(
             self.bus, self.axisID, lambda msg: read_message(self, msg)
         )
@@ -82,6 +95,8 @@ class ODriveMotorState:
     sensorless_error_flag: bool
     controller_error_flag: bool
 
+    controller_reboot_axis: int | None = None
+
     @property
     def axisID(self) -> int:
         """Preserve the configured ODrive axis field spelling for consumers."""
@@ -101,7 +116,7 @@ EVENT_IGNORE = [
 
 
 def read_message(motor: ODriveMotor, msg):
-    msg_id = msg.arbitration_id & 0x1F
+    msg_id = msg.arbitration_id & COMMAND_MASK
     msg_db = ODRIVE_CAN_DB.get_message_by_frame_id(msg_id)
     if msg_db.name in EVENT_HANDLE:
         EVENT_HANDLE[msg_db.name](motor, msg_db.decode(msg.data))
@@ -152,7 +167,7 @@ def read_heartbeat(motor: ODriveMotor, data):
         if (
             motor.axis_error
             or requested_at is None
-            or time.monotonic() - requested_at > 0.5
+            or time.monotonic() - requested_at > motor.motor_arm_timeout_seconds
             or state not in (MotorState.IDLE, MotorState.CLOSED_LOOP_CONTROL)
         ):
             set_axis_state(motor, MotorState.IDLE)
@@ -257,11 +272,36 @@ def get_names() -> tuple[str, ...]:
     return tuple(ctx.store)
 
 
+def validate_feedback_timeouts(heartbeat, encoder, arm):
+    for name, value in (
+        ("heartbeat", heartbeat),
+        ("encoder", encoder),
+        ("motor arm", arm),
+    ):
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or not math.isfinite(value)
+            or value <= 0
+        ):
+            raise ValueError(f"{name} timeout must be positive and finite")
+
+
+@device_action(ctx)
+def set_feedback_timeouts(motor: ODriveMotor, heartbeat, encoder, arm):
+    """Configure feedback gates without changing controller state or targets."""
+    validate_feedback_timeouts(heartbeat, encoder, arm)
+    motor.heartbeat_timeout_seconds = heartbeat
+    motor.encoder_timeout_seconds = encoder
+    motor.motor_arm_timeout_seconds = arm
+
+
 @device_action(ctx)
 def get_state_snapshot(motor: ODriveMotor) -> ODriveMotorState:
     """Return a stable read-only snapshot of one motor's observable state."""
     return ODriveMotorState(
         axis_id=getattr(motor, "axisID", 0),
+        controller_reboot_axis=getattr(motor, "controller_reboot_axis", None),
         current_state=getattr(motor, "current_state", MotorState.UNDEFINED),
         axis_error=getattr(motor, "axis_error", 0),
         current_position=getattr(motor, "current_position", None),
@@ -361,9 +401,11 @@ def _send_motion(motor, command, values, control_mode, input_mode, *, auto_arm):
         motor.current_state not in allowed
         or has_fault(motor)
         or motor.last_heartbeat_time is None
-        or not 0 <= now - motor.last_heartbeat_time <= 0.5
+        or not 0 <= now - motor.last_heartbeat_time <= motor.heartbeat_timeout_seconds
         or motor.last_encoder_estimate_time is None
-        or not 0 <= now - motor.last_encoder_estimate_time <= 0.25
+        or not 0
+        <= now - motor.last_encoder_estimate_time
+        <= motor.encoder_timeout_seconds
         or motor.current_position is None
         or not math.isfinite(motor.current_position)
         or motor.current_velocity is None
@@ -378,7 +420,7 @@ def _send_motion(motor, command, values, control_mode, input_mode, *, auto_arm):
     if (
         motor.current_state == MotorState.IDLE
         and pending is not None
-        and now - pending > 0.5
+        and now - pending > motor.motor_arm_timeout_seconds
     ):
         set_axis_state(motor, MotorState.IDLE)
         logger.error("Axis %s did not confirm closed loop", motor.axisID)
@@ -619,7 +661,7 @@ def get_input_mode(motor: ODriveMotor) -> InputMode:
 @device_action(ctx)
 def send_message(motor: ODriveMotor, msg_name: str, data: dict) -> bool:
     msg = ODRIVE_CAN_DB.get_message_by_name(msg_name)
-    msg_id = msg.frame_id | motor.axisID << 5
+    msg_id = msg.frame_id | motor.axisID << COMMAND_BITS
     encoded_data = msg.encode(data)
     return can_actions.send_message(motor.bus, msg_id, encoded_data)
 
@@ -627,7 +669,7 @@ def send_message(motor: ODriveMotor, msg_name: str, data: dict) -> bool:
 @device_action(ctx)
 def request_message(motor: ODriveMotor, msg_name: str) -> bool:
     msg = ODRIVE_CAN_DB.get_message_by_name(msg_name)
-    msg_id = msg.frame_id | motor.axisID << 5
+    msg_id = msg.frame_id | motor.axisID << COMMAND_BITS
     return can_actions.request_message(motor.bus, msg_id, msg.length)
 
 

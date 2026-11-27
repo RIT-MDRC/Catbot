@@ -36,6 +36,9 @@ ros2 launch catbot_supervisor rpi.launch.py network_interface:=eth0
 ros2 launch catbot_supervisor orin.launch.py policy_bundle:=/absolute/path/to/bundle policy_device:=cuda:0
 ```
 
+For configurable timeouts, script budgets, health limits and hardware files, see
+[launch and hardware configuration](CONFIGURATION.md).
+
 Keep the existing Orin sensors/kinematics feedback provider running. It must use
 the same policy/model/mapping contract. `mapping_file` selects the Pi's complete
 actuator roster; Orin's mapping must agree. `foundation_pid:=123` can override

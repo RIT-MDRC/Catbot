@@ -12,6 +12,8 @@ from state_management import (
     device_parser,
 )
 
+from foundation.protocol import COMMAND_BITS, COMMAND_MASK, HEARTBEAT_COMMAND
+
 logger = logging.getLogger(__name__)
 DEFAULT_BUS_CONFIG = {
     "channel": "can0",
@@ -65,8 +67,8 @@ def read_message(can_bus: CanBus, msg) -> None:
         lag = time.time() - msg.timestamp
         if lag > can_bus.peak_receive_lag:
             can_bus.peak_receive_lag, can_bus.peak_receive_lag_at = lag, started
-    axisId = msg.arbitration_id >> 5
-    if msg.arbitration_id & 0x1F == 1:
+    axisId = msg.arbitration_id >> COMMAND_BITS
+    if msg.arbitration_id & COMMAND_MASK == HEARTBEAT_COMMAND:
         can_bus.heartbeat_counts[axisId] = can_bus.heartbeat_counts.get(axisId, 0) + 1
         can_bus.heartbeat_dispatch[axisId] = started
         can_bus.heartbeat_kernel[axisId] = msg.timestamp
@@ -157,7 +159,7 @@ def send_message(
         counts = getattr(bus, "tx_commands", None)
         if counts is None:
             counts = bus.tx_commands = {}
-        command = arbitration_id & 0x1F
+        command = arbitration_id & COMMAND_MASK
         counts[command] = counts.get(command, 0) + 1
         return True
     except (can.CanError, OSError):

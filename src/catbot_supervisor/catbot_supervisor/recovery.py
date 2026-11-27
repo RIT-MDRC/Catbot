@@ -1,5 +1,7 @@
 """Validate a complete stopped roster before clearing all controller faults."""
 
+from foundation.protocol import MotorState
+
 from catbot_supervisor.homing import ERROR_FIELDS
 
 
@@ -10,8 +12,12 @@ def recovery_axes(body, names):
         state = body[name]
         if not state.heartbeat_available:
             raise ValueError(f"Recovery requires a fresh heartbeat: {name}")
-        if state.axis_state not in (1, 8) or (
-            any(getattr(state, field) for field in ERROR_FIELDS) and state.axis_state != 1
+        if state.axis_state not in (
+            MotorState.IDLE,
+            MotorState.CLOSED_LOOP_CONTROL,
+        ) or (
+            any(getattr(state, field) for field in ERROR_FIELDS)
+            and state.axis_state != MotorState.IDLE
         ):
             raise ValueError(f"Fault clearing requires a stopped axis: {name}")
     return tuple(names)

@@ -1138,3 +1138,28 @@ def test_gain_scale_bounds_and_explicit_baselines():
         validate_tuning({"policy_gain_scale": 1.01})
     with pytest.raises(ValueError):
         validate_tuning({"axis.velocity_gain": -1.0})
+
+
+@pytest.mark.parametrize(
+    "heartbeat_age,encoder_age,expected",
+    [(0.7, 0.3, True), (1.01, 0.1, False), (0.1, 0.41, False)],
+)
+def test_configured_feedback_gates_control_motion(
+    motion_motor, heartbeat_age, encoder_age, expected
+):
+    motor, send, clock = motion_motor
+    motor_actions.set_feedback_timeouts(motor, 1.0, 0.4, 0.8)
+    motor.current_state = MotorState.CLOSED_LOOP_CONTROL
+    motor.last_heartbeat_time = clock[0] - heartbeat_age
+    motor.last_encoder_estimate_time = clock[0] - encoder_age
+    assert motor_actions.set_target_position(motor, 0.0, auto_arm=False) is expected
+    assert any(c.args[1] == "Set_Input_Pos" for c in send.call_args_list) is expected
+
+
+@pytest.mark.parametrize("value", [0.0, -1.0, float("nan"), float("inf"), True])
+def test_invalid_motor_timeout_does_not_mutate_limits(motion_motor, value):
+    motor, _, _ = motion_motor
+    with pytest.raises(ValueError):
+        motor_actions.set_feedback_timeouts(motor, 1.0, value, 0.8)
+    assert motor.heartbeat_timeout_seconds == 0.5
+    assert motor.encoder_timeout_seconds == 0.25

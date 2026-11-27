@@ -1,36 +1,7 @@
-from enum import IntEnum, IntFlag
+from enum import IntFlag
 
-class MotorState(IntEnum):
-    UNDEFINED = 0
-    IDLE = 1
-    STARTUP_SEQUENCE = 2
-    FULL_CALIBRATION_SEQUENCE = 3
-    MOTOR_CALIBRATION = 4
-    ENCODER_INDEX_SEARCH = 6
-    ENCODER_OFFSET_CALIBRATION = 7
-    CLOSED_LOOP_CONTROL = 8
-    LOCKIN_SPIN = 9
-    ENCODER_DIR_FIND = 10
-    HOMING = 11
-    ENCODER_HALL_POLARITY_CALIBRATION = 12
-    ENCODER_HALL_PHASE_CALIBRATION = 13
+from foundation.protocol import ControlMode, InputMode, MotorState  # noqa: F401
 
-class InputMode(IntEnum):
-    INACTIVE = 0
-    PASSTHROUGH = 1
-    VEL_RAMP = 2
-    POS_FILTER = 3
-    MIX_CHANNELS = 4
-    TRAP_TRAJ = 5
-    TORQUE_RAMP = 6
-    MIRROR = 7
-    TUNING = 8
-
-class ControlMode(IntEnum):
-    VOLTAGE_CONTROL = 0
-    TORQUE_CONTROL = 1
-    VELOCITY_CONTROL = 2
-    POSITION_CONTROL = 3
 
 class AxisError(IntFlag):
     NONE = 0
@@ -46,6 +17,7 @@ class AxisError(IntFlag):
     HOMING_WITHOUT_ENDSTOP = 131072
     OVER_TEMP = 262144
     UNKNOWN_POSITION = 524288
+
 
 class MotorError(IntFlag):
     NONE = 0
@@ -77,6 +49,7 @@ class MotorError(IntFlag):
     CONTROLLER_INITIALIZING = 17179869184
     UNBALANCED_PHASES = 34359738368
 
+
 class EncoderError(IntFlag):
     NONE = 0
     UNSTABLE_GAIN = 1
@@ -90,10 +63,12 @@ class EncoderError(IntFlag):
     ABS_SPI_NOT_READY = 256
     HALL_NOT_CALIBRATED_YET = 512
 
+
 class SensorlessError(IntFlag):
     NONE = 0
     UNSTABLE_GAIN = 1
     UNKNOWN_CURRENT_MEASUREMENT = 2
+
 
 class ControllerError(IntFlag):
     NONE = 0

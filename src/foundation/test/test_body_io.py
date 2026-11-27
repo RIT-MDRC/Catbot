@@ -15,7 +15,10 @@ def body_io(monkeypatch):
     monkeypatch.syspath_prepend(str(root))
     modules = {
         "rclpy": {},
-        "rcl_interfaces.msg": {"SetParametersResult": SimpleNamespace},
+        "rcl_interfaces.msg": {
+            "ParameterDescriptor": SimpleNamespace,
+            "SetParametersResult": SimpleNamespace,
+        },
         "rclpy.node": {"Node": object},
         "rclpy.executors": {
             "ExternalShutdownException": type(
@@ -62,8 +65,6 @@ def body_io(monkeypatch):
         for axis_id, name in enumerate(("a", "b"))
     }
     monkeypatch.setattr(module.time, "monotonic", lambda: 10.1)
-    monkeypatch.setattr(module, "HEARTBEAT_STALE_SECONDS", 0.4)
-    monkeypatch.setattr(module, "ENCODER_STALE_SECONDS", 0.2)
     monkeypatch.setattr(
         module.motor_actions, "get_state_snapshot", snapshots.__getitem__
     )
@@ -81,6 +82,10 @@ def body_io(monkeypatch):
         motion_inhibited=False,
         emergency_disarm=False,
         invalid_kinematics=set(),
+        heartbeat_timeout_seconds=0.4,
+        encoder_timeout_seconds=0.2,
+        error_request_period_seconds=1.0,
+        gain_scale_step=0.05,
     )
     node._ready_motor_names = lambda **kwargs: (
         module.BodyControlNode._ready_motor_names(node, **kwargs)
@@ -693,3 +698,38 @@ def test_group_gain_baselines_enable_group_scale_in_one_batch(body_io):
     assert all(
         node.tuning[f"{axis}.position_gain"] == 20.0 for axis in node.actuator_names
     )
+
+
+def test_node_configuration_reaches_every_motor_and_readiness(body_io, monkeypatch):
+    module, node, snapshots = body_io
+    values = {"heartbeat_timeout_seconds": 1.0, "encoder_timeout_seconds": 0.4}
+    node.declare_parameter = lambda name, default, descriptor: SimpleNamespace(
+        value=values.get(name, default)
+    )
+    configure = Mock()
+    monkeypatch.setattr(module.motor_actions, "set_feedback_timeouts", configure)
+    module.BodyControlNode._configure_operational_limits(node)
+    assert configure.call_args_list == [
+        call("a", 1.0, 0.4, 0.5),
+        call("b", 1.0, 0.4, 0.5),
+    ]
+    for sample in snapshots.values():
+        sample.current_state = module.MotorState.CLOSED_LOOP_CONTROL
+        sample.last_heartbeat_time = 9.4
+        sample.last_encoder_estimate_time = 9.8
+    assert node._ready_motor_names() == {"a", "b"}
+    snapshots["b"].last_heartbeat_time = 9.0
+    assert node._ready_motor_names() == {"a"}
+
+
+@pytest.mark.parametrize("value", [0.0, -1.0, float("nan"), float("inf")])
+def test_node_rejects_invalid_timeout_before_motor_changes(body_io, monkeypatch, value):
+    module, node, _ = body_io
+    node.declare_parameter = lambda name, default, descriptor: SimpleNamespace(
+        value=value if name == "encoder_timeout_seconds" else default
+    )
+    configure = Mock()
+    monkeypatch.setattr(module.motor_actions, "set_feedback_timeouts", configure)
+    with pytest.raises(ValueError, match="encoder_timeout_seconds"):
+        module.BodyControlNode._configure_operational_limits(node)
+    configure.assert_not_called()

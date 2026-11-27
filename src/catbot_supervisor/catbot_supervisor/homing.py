@@ -2,6 +2,8 @@
 
 import math
 
+from foundation.protocol import MotorState
+
 ERROR_FIELDS = (
     "axis_error_flags",
     "motor_error_flags",
@@ -30,16 +32,22 @@ def readiness_reason(body):
     for name, state in body.items():
         if state.ready:
             continue
-        if not state.heartbeat_available or any(getattr(state, field) for field in ERROR_FIELDS):
+        if not state.heartbeat_available or any(
+            getattr(state, field) for field in ERROR_FIELDS
+        ):
             detail = actuator_details(state)
-        elif state.axis_state == 1:
-            detail = "IDLE/disarmed (state 1), no controller faults; motion requires closed-loop control (state 8). Arm before starting policy motion"
-        elif state.axis_state == 8:
-            detail = "closed loop (state 8), no controller faults; waiting for fresh valid encoder/position feedback"
+        elif state.axis_state == MotorState.IDLE:
+            detail = f"IDLE/disarmed (state {int(MotorState.IDLE)}), no controller faults; motion requires closed-loop control (state {int(MotorState.CLOSED_LOOP_CONTROL)}). Arm before starting policy motion"
+        elif state.axis_state == MotorState.CLOSED_LOOP_CONTROL:
+            detail = f"closed loop (state {int(MotorState.CLOSED_LOOP_CONTROL)}), no controller faults; waiting for fresh valid encoder/position feedback"
         else:
-            detail = f"controller state {state.axis_state}; motion requires closed-loop control (state 8)"
+            detail = f"controller state {state.axis_state}; motion requires closed-loop control (state {int(MotorState.CLOSED_LOOP_CONTROL)})"
         unavailable.append(f"{name} ({detail})")
-    return "Foundation actuator not ready: " + "; ".join(unavailable) if unavailable else ""
+    return (
+        "Foundation actuator not ready: " + "; ".join(unavailable)
+        if unavailable
+        else ""
+    )
 
 
 def fault_reason(body, names):
@@ -63,7 +71,18 @@ class StateCycle:
     def __init__(self, names, state):
         self.names, self.state = tuple(names), state
         # FULL_CALIBRATION_SEQUENCE expands into these tasks in ODrive 0.5.6.
-        self.active_states = {3, 4, 6, 7, 12, 13} if state == 3 else {state}
+        self.active_states = (
+            {
+                MotorState.FULL_CALIBRATION_SEQUENCE,
+                MotorState.MOTOR_CALIBRATION,
+                MotorState.ENCODER_INDEX_SEARCH,
+                MotorState.ENCODER_OFFSET_CALIBRATION,
+                MotorState.ENCODER_HALL_POLARITY_CALIBRATION,
+                MotorState.ENCODER_HALL_PHASE_CALIBRATION,
+            }
+            if state == MotorState.FULL_CALIBRATION_SEQUENCE
+            else {state}
+        )
         self.started = set()
 
     def observe(self, body):
@@ -83,11 +102,13 @@ class StateCycle:
             raise RuntimeError(reason)
         self.observe(samples)
         return self.started == set(self.names) and all(
-            sample.axis_state == 1 for sample in samples.values()
+            sample.axis_state == MotorState.IDLE for sample in samples.values()
         )
 
 
-def at_position(body, names, targets):
+def at_position(
+    body, names, targets, *, position_tolerance=1.0, velocity_tolerance=1.0
+):
     if len(names) != len(targets) or not names:
         return False
     for name, target in zip(names, targets):
@@ -97,6 +118,9 @@ def at_position(body, names, targets):
         position, velocity = state.position_degrees, state.velocity_degrees_per_second
         if not all(math.isfinite(v) for v in (position, velocity, target)):
             return False
-        if abs(position - target) > 1.0 or abs(velocity) > 1.0:
+        if (
+            abs(position - target) > position_tolerance
+            or abs(velocity) > velocity_tolerance
+        ):
             return False
     return True

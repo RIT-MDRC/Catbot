@@ -4,6 +4,10 @@ from dataclasses import dataclass
 from importlib.metadata import entry_points
 from uuid import uuid4
 
+from foundation.protocol import MotorState
+
+from catbot_supervisor.rpi_configuration import OperationalSettings
+
 
 @dataclass(frozen=True)
 class Step:
@@ -18,7 +22,7 @@ class Step:
 def maintenance(names, state=None):
     steps = [
         Step("motor", "idle"),
-        Step("wait_state", state=1),
+        Step("wait_state", state=MotorState.IDLE),
         Step("motor", "clear_errors"),
         Step("wait_clear"),
     ]
@@ -27,7 +31,7 @@ def maintenance(names, state=None):
             steps += [
                 Step("motor", "state", (name,), state),
                 Step("wait_state", names=(name,), state=state),
-                Step("wait_state", names=(name,), state=1, timeout=30.0),
+                Step("wait_state", names=(name,), state=MotorState.IDLE, timeout=30.0),
             ]
     return steps + arm_steps(names)
 
@@ -37,13 +41,14 @@ def arm_steps(names):
     steps = []
     for name in names:
         steps += [
-            Step("motor", "state", (name,), 8),
+            Step("motor", "state", (name,), MotorState.CLOSED_LOOP_CONTROL),
             Step("wait_ready", names=(name,)),
         ]
     return steps
 
 
-def registry():
+def registry(settings: OperationalSettings | None = None):
+    configured = settings if settings is not None else OperationalSettings()
     scripts = {
         "startup": lambda names: (
             [
@@ -54,11 +59,11 @@ def registry():
                 Step("wait_policy_ready", timeout=120.0),
                 Step("wait_link", timeout=120.0),
             ]
-            + maintenance(names, 4)
+            + maintenance(names, MotorState.MOTOR_CALIBRATION)
         ),
         "shutdown": lambda names: [
             Step("motor", "idle"),
-            Step("wait_state", state=1),
+            Step("wait_state", state=MotorState.IDLE),
             Step("job_stop", "policy"),
             Step("wait_policy_stopped", timeout=8.0),
         ],
@@ -66,7 +71,7 @@ def registry():
             Step("wait_health", timeout=5.0),
             Step("wait_preflight", timeout=120.0),
             Step("motor", "idle"),
-            Step("wait_state", state=1),
+            Step("wait_state", state=MotorState.IDLE),
             Step("job_restart", "policy", timeout=8.0),
             Step("wait_policy_ready", timeout=120.0),
             Step("wait_link", timeout=120.0),
@@ -74,15 +79,23 @@ def registry():
         ],
         "emergency": lambda names: [
             Step("motor", "emergency"),
-            Step("wait_state", state=1),
+            Step("wait_state", state=MotorState.IDLE),
         ],
-        "home": lambda names: maintenance(names, 11),
-        "calibrate": calibrate_robot,
-        "full_calibrate": calibrate_robot,
+        "home": lambda names: maintenance(names, MotorState.HOMING),
+        "calibrate": lambda names: calibrate_robot(
+            names, front_flexion_degrees=configured.front_flexion_clearance_degrees
+        ),
+        "full_calibrate": lambda names: calibrate_robot(
+            names, front_flexion_degrees=configured.front_flexion_clearance_degrees
+        ),
         "clear_errors": lambda names: maintenance(names),
-        "sample_home": lambda names: prompted_maintenance(names, 11),
-        "sample_calibrate": lambda names: prompted_maintenance(names, 4),
-        "home_robot": home_robot,
+        "sample_home": lambda names: prompted_maintenance(names, MotorState.HOMING),
+        "sample_calibrate": lambda names: prompted_maintenance(
+            names, MotorState.MOTOR_CALIBRATION
+        ),
+        "home_robot": lambda names: home_robot(
+            names, front_flexion_degrees=configured.front_flexion_clearance_degrees
+        ),
         "zero_all": lambda names: zero_position(names, names),
     }
     for leg in ("fl", "fr", "bl", "br"):
@@ -91,6 +104,14 @@ def registry():
             scripts[f"zero_{axis}"] = lambda names, selected=axis: zero_position(
                 names, (selected,)
             )
+    scripts = {
+        name: (
+            lambda names, factory=factory: [
+                configured.step(step) for step in factory(names)
+            ]
+        )
+        for name, factory in scripts.items()
+    }
     for plugin in entry_points(group="catbot_supervisor.scripts"):
         if plugin.name in scripts:
             raise ValueError(f"Script already registered: {plugin.name}")
@@ -117,7 +138,7 @@ def zero_position(names, selected):
     ]
 
 
-def calibrate_robot(names):
+def calibrate_robot(names, *, front_flexion_degrees=30.0):
     """Calibrate, hold abduction, home in order, then settle every joint at zero."""
     groups = (
         ("flk", "frk", "blk", "brk", "flf", "frf", "blf", "brf"),
@@ -131,20 +152,32 @@ def calibrate_robot(names):
         )
     steps = [
         Step("motor", "idle"),
-        Step("wait_state", state=1),
+        Step("wait_state", state=MotorState.IDLE),
         Step("motor", "clear_errors"),
         Step("wait_clear"),
-        Step("motor", "state", tuple(names), 3),
-        Step("wait_cycle", names=tuple(names), state=3, timeout=60.0),
+        Step("motor", "state", tuple(names), MotorState.FULL_CALIBRATION_SEQUENCE),
+        Step(
+            "wait_cycle",
+            names=tuple(names),
+            state=MotorState.FULL_CALIBRATION_SEQUENCE,
+            timeout=60.0,
+        ),
         *arm_steps(("fla", "fra", "bla", "bra")),
     ]
     for group in groups:
         if group == ("fla", "fra"):
             front = ("flf", "frf")
             steps += [
-                Step("position", names=front, positions=(30.0, 30.0)),
                 Step(
-                    "wait_position", names=front, positions=(30.0, 30.0), timeout=15.0
+                    "position",
+                    names=front,
+                    positions=(front_flexion_degrees, front_flexion_degrees),
+                ),
+                Step(
+                    "wait_position",
+                    names=front,
+                    positions=(front_flexion_degrees, front_flexion_degrees),
+                    timeout=15.0,
                 ),
                 Step(
                     "wait_operator",
@@ -154,8 +187,8 @@ def calibrate_robot(names):
                 ),
             ]
         steps += [
-            Step("motor", "state", group, 11),
-            Step("wait_cycle", names=group, state=11, timeout=30.0),
+            Step("motor", "state", group, MotorState.HOMING),
+            Step("wait_cycle", names=group, state=MotorState.HOMING, timeout=30.0),
             *arm_steps(group),
         ]
     zero = (0.0,) * len(names)
@@ -165,7 +198,7 @@ def calibrate_robot(names):
     ]
 
 
-def home_robot(names):
+def home_robot(names, *, front_flexion_degrees=30.0):
     """Home knees/flexion together, then approved abduction. Never clear faults."""
     groups = (
         ("flk", "frk", "blk", "brk", "flf", "frf", "blf", "brf"),
@@ -173,14 +206,21 @@ def home_robot(names):
     )
     if set(names) != {name for group in groups for name in group}:
         raise ValueError("home_robot requires the complete standard 12-actuator roster")
-    steps = [Step("motor", "idle"), Step("wait_state", state=1)]
+    steps = [Step("motor", "idle"), Step("wait_state", state=MotorState.IDLE)]
     for index, group in enumerate(groups):
         if index == 1:
             front = ("flf", "frf")
             steps += [
-                Step("position", names=front, positions=(30.0, 30.0)),
                 Step(
-                    "wait_position", names=front, positions=(30.0, 30.0), timeout=15.0
+                    "position",
+                    names=front,
+                    positions=(front_flexion_degrees, front_flexion_degrees),
+                ),
+                Step(
+                    "wait_position",
+                    names=front,
+                    positions=(front_flexion_degrees, front_flexion_degrees),
+                    timeout=15.0,
                 ),
                 Step("delay", timeout=15.0),
                 Step(
@@ -193,16 +233,18 @@ def home_robot(names):
             ]
         if index == 0:
             steps += [
-                Step("motor", "state", group, 11),
-                Step("wait_cycle", names=group, state=11, timeout=30.0),
+                Step("motor", "state", group, MotorState.HOMING),
+                Step("wait_cycle", names=group, state=MotorState.HOMING, timeout=30.0),
                 *arm_steps(group),
             ]
         else:
             for name in group:
                 steps += [
-                    Step("motor", "state", (name,), 11),
-                    Step("wait_state", names=(name,), state=11),
-                    Step("wait_state", names=(name,), state=1, timeout=30.0),
+                    Step("motor", "state", (name,), MotorState.HOMING),
+                    Step("wait_state", names=(name,), state=MotorState.HOMING),
+                    Step(
+                        "wait_state", names=(name,), state=MotorState.IDLE, timeout=30.0
+                    ),
                     *arm_steps((name,)),
                 ]
         steps.append(Step("delay", timeout=15.0))
@@ -276,7 +318,9 @@ class ScriptRunner:
                 return
             if now >= self.deadline:
                 detail = self.describe_timeout(step) if self.describe_timeout else None
-                raise RuntimeError(detail or f"Script step timed out: {step.kind} {step.operation}")
+                raise RuntimeError(
+                    detail or f"Script step timed out: {step.kind} {step.operation}"
+                )
             if step.kind == "wait_operator":
                 if self.prompt is None:
                     self.prompt = {"id": uuid4().hex, "text": step.operation}

@@ -1,6 +1,7 @@
 """Catbot ROS node for sparse, position-controlled body actuation."""
 
 import json
+import math
 import os
 import signal
 import time
@@ -29,7 +30,7 @@ from component.motor.odrive_enums import (
     SensorlessError,
 )
 from heartbeat_diagnostics import HeartbeatDiagnostics
-from rcl_interfaces.msg import SetParametersResult
+from rcl_interfaces.msg import ParameterDescriptor, SetParametersResult
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy
@@ -45,12 +46,8 @@ from catbot_interfaces.msg import (
     BodyKinematicState,
 )
 from catbot_interfaces.srv import MotorCommand
+from foundation.configuration import FOUNDATION_DEFAULTS
 
-POSITION_STATE_PERIOD_SECONDS = 0.02
-STATE_CHECK_PERIOD_SECONDS = 0.05
-HEARTBEAT_STALE_SECONDS = 0.5
-ENCODER_STALE_SECONDS = 0.25
-ERROR_REQUEST_PERIOD_SECONDS = 1.0
 JOINT_GROUPS = {
     "abduction": ("fla", "fra", "bla", "bra"),
     "flexion": ("flf", "frf", "blf", "brf"),
@@ -61,15 +58,30 @@ JOINT_GROUPS = {
 class BodyControlNode(Node):
     """Validate and perform immediate body I/O; the Pi owns all sequencing."""
 
+    heartbeat_timeout_seconds: float
+    encoder_timeout_seconds: float
+    motor_arm_timeout_seconds: float
+    position_state_period_seconds: float
+    state_check_period_seconds: float
+    error_request_period_seconds: float
+    gain_update_period_seconds: float
+    gain_scale_step: float
+    limits_publish_period_seconds: float
+
     def __init__(self):
-        config_path = os.path.join(os.path.dirname(__file__), "pinconfig.json")
-        configure_device(config_path)
         super().__init__("foundation_node")
+        config_path = self.declare_parameter(
+            "hardware_config_file",
+            os.path.join(os.path.dirname(__file__), "pinconfig.json"),
+            ParameterDescriptor(read_only=True),
+        ).value
+        configure_device(os.path.expanduser(config_path))
 
         self.actuator_names = actuator_actions.get_names()
         self.motion_inhibited = False
         self.emergency_disarm = False
         self.ordered_motor_names = actuator_names_by_axis_id(self.actuator_names)
+        self._configure_operational_limits()
         self.last_error_request_times = {}
         self.invalid_kinematics = set()
 
@@ -114,7 +126,7 @@ class BodyControlNode(Node):
         self.applied_group_scales = {group: 1.0 for group in JOINT_GROUPS}
         self.gains_dirty = True
         self.add_on_set_parameters_callback(self._tune)
-        self.create_timer(0.1, self._apply_gains)
+        self.create_timer(self.gain_update_period_seconds, self._apply_gains)
         position_qos = QoSProfile(
             history=HistoryPolicy.KEEP_LAST,
             depth=1,
@@ -154,7 +166,9 @@ class BodyControlNode(Node):
             error_state_qos,
         )
         self.create_service(MotorCommand, "/body/control/motor", self._motor_command)
-        self.create_timer(POSITION_STATE_PERIOD_SECONDS, self._publish_position_state)
+        self.create_timer(
+            self.position_state_period_seconds, self._publish_position_state
+        )
         log_path = str(
             self.declare_parameter(
                 "heartbeat_diagnostic_log",
@@ -177,7 +191,32 @@ class BodyControlNode(Node):
             "Heartbeat diagnostic log: "
             + (os.path.expanduser(log_path) if log_path else "disabled")
         )
-        self.create_timer(STATE_CHECK_PERIOD_SECONDS, self._update_error_state)
+        self.create_timer(self.state_check_period_seconds, self._update_error_state)
+
+    def _configure_operational_limits(self):
+        defaults = FOUNDATION_DEFAULTS
+        values = {}
+        for name, default in defaults.items():
+            value = self.declare_parameter(
+                name, default, ParameterDescriptor(read_only=True)
+            ).value
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or not math.isfinite(value)
+                or value <= 0
+            ):
+                raise ValueError(f"{name} must be positive and finite")
+            values[name] = value
+        for name, value in values.items():
+            setattr(self, name, value)
+        for name in self.ordered_motor_names:
+            motor_actions.set_feedback_timeouts(
+                name,
+                self.heartbeat_timeout_seconds,
+                self.encoder_timeout_seconds,
+                self.motor_arm_timeout_seconds,
+            )
 
     def _ready_motor_names(self, *, allow_idle=False) -> set[str]:
         ready = set()
@@ -192,7 +231,7 @@ class BodyControlNode(Node):
 
     def _motor_ready(self, name, motor, now, *, allow_idle=False) -> bool:
         return (
-            heartbeat_available(motor, now, HEARTBEAT_STALE_SECONDS)
+            heartbeat_available(motor, now, self.heartbeat_timeout_seconds)
             and motor.current_state
             in (
                 (MotorState.IDLE, MotorState.CLOSED_LOOP_CONTROL)
@@ -200,8 +239,10 @@ class BodyControlNode(Node):
                 else (MotorState.CLOSED_LOOP_CONTROL,)
             )
             and not motor_actions.has_fault(motor)
-            and encoder_available(motor, now, ENCODER_STALE_SECONDS)
-            and kinematic_values(name, now, ENCODER_STALE_SECONDS, motor_state=motor)[0]
+            and encoder_available(motor, now, self.encoder_timeout_seconds)
+            and kinematic_values(
+                name, now, self.encoder_timeout_seconds, motor_state=motor
+            )[0]
         )
 
     def _tune(self, parameters):
@@ -270,12 +311,17 @@ class BodyControlNode(Node):
     def _apply_gains(self):
         target = self.tuning["policy_gain_scale"]
         scale = self.applied_gain_scale + max(
-            -0.05, min(0.05, target - self.applied_gain_scale)
+            -self.gain_scale_step,
+            min(self.gain_scale_step, target - self.applied_gain_scale),
         )
         group_scales = {
             group: current
             + max(
-                -0.05, min(0.05, self.tuning.get(f"{group}.gain_scale", 1.0) - current)
+                -self.gain_scale_step,
+                min(
+                    self.gain_scale_step,
+                    self.tuning.get(f"{group}.gain_scale", 1.0) - current,
+                ),
             )
             for group, current in getattr(self, "applied_group_scales", {}).items()
         }
@@ -349,7 +395,7 @@ class BodyControlNode(Node):
                     not heartbeat_available(
                         motor_actions.get_state_snapshot(name),
                         time.monotonic(),
-                        HEARTBEAT_STALE_SECONDS,
+                        self.heartbeat_timeout_seconds,
                     )
                     or (
                         motor_actions.get_state_snapshot(name).current_state
@@ -387,7 +433,7 @@ class BodyControlNode(Node):
                 motor = motor_actions.get_state_snapshot(name)
                 if request.operation not in ("idle", "emergency", "clear_errors"):
                     if not heartbeat_available(
-                        motor, time.monotonic(), HEARTBEAT_STALE_SECONDS
+                        motor, time.monotonic(), self.heartbeat_timeout_seconds
                     ):
                         raise ValueError(f"No fresh heartbeat for {name}")
                     if motor_actions.has_fault(motor):
@@ -397,7 +443,7 @@ class BodyControlNode(Node):
                         and request.state == int(MotorState.CLOSED_LOOP_CONTROL)
                     )
                     if needs_encoder and not encoder_available(
-                        motor, time.monotonic(), ENCODER_STALE_SECONDS
+                        motor, time.monotonic(), self.encoder_timeout_seconds
                     ):
                         raise ValueError(f"No fresh encoder for {name}")
             failed = []
@@ -431,9 +477,11 @@ class BodyControlNode(Node):
             motor = motor_actions.get_state_snapshot(name)
             now = time.monotonic()
             valid, position, velocity = kinematic_values(
-                name, now, ENCODER_STALE_SECONDS, motor_state=motor
+                name, now, self.encoder_timeout_seconds, motor_state=motor
             )
-            if not valid and encoder_available(motor, now, ENCODER_STALE_SECONDS):
+            if not valid and encoder_available(
+                motor, now, self.encoder_timeout_seconds
+            ):
                 invalid_kinematics.add(name)
                 if name not in self.invalid_kinematics:
                     self.get_logger().error(
@@ -460,7 +508,9 @@ class BodyControlNode(Node):
             motor = motor_actions.get_state_snapshot(name)
             diagnostic_motors[name] = motor
             now = time.monotonic()
-            heartbeat_ok = heartbeat_available(motor, now, HEARTBEAT_STALE_SECONDS)
+            heartbeat_ok = heartbeat_available(
+                motor, now, self.heartbeat_timeout_seconds
+            )
             ready = self._motor_ready(name, motor, now)
             axis_messages = flag_messages(motor.axis_error, AxisError)
             motor_messages = flag_messages(motor.motor_error, MotorError)
@@ -497,7 +547,7 @@ class BodyControlNode(Node):
             last_request = self.last_error_request_times.get(name, float("-inf"))
             if (
                 has_detailed_error
-                and now - last_request >= ERROR_REQUEST_PERIOD_SECONDS
+                and now - last_request >= self.error_request_period_seconds
             ):
                 if not motor_actions.request_error_details(name):
                     self.get_logger().error(

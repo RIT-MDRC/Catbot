@@ -7,6 +7,8 @@ from concurrent.futures import Future
 from types import SimpleNamespace
 
 import rclpy
+from foundation.protocol import COMMAND_BITS, MotorState
+from rcl_interfaces.msg import ParameterDescriptor
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
@@ -48,6 +50,10 @@ from catbot_supervisor.homing import (
     readiness_reason,
 )
 from catbot_supervisor.recovery import recovery_axes
+from catbot_supervisor.rpi_configuration import (
+    OPERATIONAL_DEFAULTS,
+    OperationalSettings,
+)
 from catbot_supervisor.script_errors import clear_timeout_reason
 from catbot_supervisor.scripts import ScriptRunner, Step, registry
 
@@ -57,8 +63,18 @@ class RpiSupervisor(Node):
         super().__init__("rpi_supervisor")
 
         def param(name, default):
-            return self.declare_parameter(name, default).value
+            return self.declare_parameter(
+                name,
+                default,
+                ParameterDescriptor(read_only=name != "manual_drag_timeout"),
+            ).value
 
+        self.settings = OperationalSettings(
+            **{
+                name: param(name, default)
+                for name, default in OPERATIONAL_DEFAULTS.items()
+            }
+        )
         self.gate = ActionGate(
             Limits(
                 **{
@@ -86,6 +102,28 @@ class RpiSupervisor(Node):
             or len(set(self.names)) != len(self.names)
         ):
             raise ValueError("Configure the complete unique actuator_names roster")
+        self.axis_ids = tuple(param("actuator_axis_ids", list(range(len(self.names)))))
+        if (
+            len(self.axis_ids) != len(self.names)
+            or len(set(self.axis_ids)) != len(self.axis_ids)
+            or any(
+                type(axis) is not int or not 0 <= axis < (1 << (11 - COMMAND_BITS))
+                for axis in self.axis_ids
+            )
+        ):
+            raise ValueError(
+                "actuator_axis_ids must be unique CAN axis IDs matching the roster"
+            )
+        board_axes = tuple(
+            param("controller_reboot_axes", [axis & ~1 for axis in self.axis_ids])
+        )
+        if len(board_axes) != len(self.axis_ids) or any(
+            axis not in self.axis_ids for axis in board_axes
+        ):
+            raise ValueError(
+                "controller_reboot_axes must name configured board representatives"
+            )
+        self.controller_boards = dict(zip(self.axis_ids, board_axes))
         self.health = PiHealth(
             str(param("network_interface", "eth0")), int(param("foundation_pid", 0))
         )
@@ -94,7 +132,7 @@ class RpiSupervisor(Node):
         self.positions, self.positions_at = {}, float("-inf")
         self.script_position_at = float("inf")
         self.state_cycle = None
-        self.scripts = registry()
+        self.scripts = registry(self.settings)
         self.script_name = ""
         self.script_link_required = False
         self.orin_action_sequence = 0
@@ -110,7 +148,9 @@ class RpiSupervisor(Node):
         self.recovery_deadline = None
         self.recovery_clear_at = None
         self.recovery_automatic = False
-        self.heartbeat_recovery = HeartbeatRecovery(float(param("heartbeat_recovery_seconds", 1.0)))
+        self.heartbeat_recovery = HeartbeatRecovery(
+            float(param("heartbeat_recovery_seconds", 1.0))
+        )
         self.motor = self.create_client(MotorCommand, "/body/control/motor")
         self.jobs = self.create_client(SupervisorJob, "/orin/supervisor/job")
         self.output = self.create_publisher(
@@ -134,7 +174,9 @@ class RpiSupervisor(Node):
             "/rpi/supervisor/status",
             QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL),
         )
-        self.runner = ScriptRunner(self.dispatch, self.satisfied, self.describe_script_timeout)
+        self.runner = ScriptRunner(
+            self.dispatch, self.satisfied, self.describe_script_timeout
+        )
         self.create_subscription(PolicyAction, "/orin/policy/action", self.action, 1)
         self.create_subscription(
             OrinHeartbeat, "/orin/supervisor/heartbeat", self.heartbeat, 1
@@ -161,12 +203,22 @@ class RpiSupervisor(Node):
             ("policy_stop", self.policy_stop),
         ):
             self.create_service(Trigger, "/rpi/supervisor/" + name, callback)
-        self.create_timer(0.02, self.tick)
-        self.probe_timer = self.create_timer(0.1, self.probe)
-        self.create_timer(1.0, self.sample_health)
+        self.create_timer(self.settings.tick_period_seconds, self.tick)
+        self.probe_timer = self.create_timer(
+            self.settings.probe_period_seconds, self.probe
+        )
+        self.create_timer(self.settings.health_period_seconds, self.sample_health)
         # Boot only disarms. Startup/calibration requires an explicit script request.
         self.script_name = "boot"
-        self.runner.start([Step("motor", "idle"), Step("wait_state", state=1)])
+        self.runner.start(
+            [
+                self.settings.step(step)
+                for step in [
+                    Step("motor", "idle"),
+                    Step("wait_state", state=MotorState.IDLE),
+                ]
+            ]
+        )
 
     def body_state(self, message):
         names = [a.actuator_name for a in message.actuators]
@@ -236,7 +288,8 @@ class RpiSupervisor(Node):
             if not self.body_fresh() or not all(
                 self.body[n].heartbeat_available
                 and not self.body[n].axis_error_flags
-                and self.body[n].axis_state in (1, 8)
+                and self.body[n].axis_state
+                in (MotorState.IDLE, MotorState.CLOSED_LOOP_CONTROL)
                 for n in step.names
             ):
                 raise RuntimeError(
@@ -244,7 +297,8 @@ class RpiSupervisor(Node):
                 )
             if step.kind == "position_armed":
                 if not all(
-                    self.body[n].ready and self.body[n].axis_state == 8
+                    self.body[n].ready
+                    and self.body[n].axis_state == MotorState.CLOSED_LOOP_CONTROL
                     for n in step.names
                 ):
                     raise RuntimeError(
@@ -279,17 +333,22 @@ class RpiSupervisor(Node):
                 return None
             if (
                 step.operation == "state"
-                and step.state == 8
+                and step.state == MotorState.CLOSED_LOOP_CONTROL
                 and self.script_name in ("home_robot", "calibrate", "full_calibrate")
                 and (
                     not self.body_fresh()
-                    or any(a.axis_state == 11 for a in self.body.values())
+                    or any(
+                        a.axis_state == MotorState.HOMING for a in self.body.values()
+                    )
                 )
             ):
                 raise RuntimeError(
                     "Cannot arm while an actuator is homing or feedback is stale"
                 )
-            if step.operation == "state" and step.state in (3, 11):
+            if step.operation == "state" and step.state in (
+                MotorState.FULL_CALIBRATION_SEQUENCE,
+                MotorState.HOMING,
+            ):
                 self.state_cycle = StateCycle(step.names or self.names, step.state)
             return self.motor.call_async(
                 MotorCommand.Request(
@@ -312,7 +371,9 @@ class RpiSupervisor(Node):
 
     def describe_script_timeout(self, step):
         if step.kind == "wait_clear":
-            return clear_timeout_reason(self.body, step.names or self.names, step.timeout, self.body_fresh())
+            return clear_timeout_reason(
+                self.body, step.names or self.names, step.timeout, self.body_fresh()
+            )
         return None
 
     def satisfied(self, step):
@@ -320,7 +381,13 @@ class RpiSupervisor(Node):
             return (
                 self.positions_at > self.script_position_at
                 and time.monotonic() - self.positions_at <= self.body_timeout
-                and at_position(self.positions, step.names, step.positions)
+                and at_position(
+                    self.positions,
+                    step.names,
+                    step.positions,
+                    position_tolerance=self.settings.position_tolerance_degrees,
+                    velocity_tolerance=self.settings.velocity_tolerance_degrees_s,
+                )
             )
         if step.kind in ("wait_preflight", "wait_policy_ready"):
             fresh = (
@@ -360,7 +427,11 @@ class RpiSupervisor(Node):
         if step.kind == "wait_fault_stop":
             return all(
                 a.heartbeat_available
-                and (a.axis_state == 1 or a.axis_state == 8 and a.ready)
+                and (
+                    a.axis_state == MotorState.IDLE
+                    or a.axis_state == MotorState.CLOSED_LOOP_CONTROL
+                    and a.ready
+                )
                 for a in values
             )
         if step.kind == "wait_cycle":
@@ -379,7 +450,7 @@ class RpiSupervisor(Node):
         if step.kind == "wait_ready":
             return all(
                 a.ready
-                and a.axis_state == 8
+                and a.axis_state == MotorState.CLOSED_LOOP_CONTROL
                 and a.heartbeat_available
                 and not a.axis_error_flags
                 for a in values
@@ -489,21 +560,26 @@ class RpiSupervisor(Node):
 
     def emergency_steps(self):
         if self.hold_healthy:
-            return [Step("motor", "fault_stop"), Step("wait_fault_stop")]
+            return [
+                self.settings.step(step)
+                for step in [Step("motor", "fault_stop"), Step("wait_fault_stop")]
+            ]
         return self.scripts["emergency"](self.names)
 
     def emergency_stopped(self):
         return self.satisfied(
             Step("wait_fault_stop")
             if self.hold_healthy
-            else Step("wait_state", state=1)
+            else Step("wait_state", state=MotorState.IDLE)
         )
 
     def _auto_recover_heartbeat(self, now):
         if self.heartbeat_recovery.kind is None:
             return
         faulted = any(
-            getattr(axis, field) for axis in self.body.values() for field in ERROR_FIELDS
+            getattr(axis, field)
+            for axis in self.body.values()
+            for field in ERROR_FIELDS
         )
         healthy = (
             self.gate.mode == Mode.EMERGENCY
@@ -522,8 +598,10 @@ class RpiSupervisor(Node):
         if self.heartbeat_recovery.ready(now, healthy, faulted):
             self.recovery_automatic = True
             self.recovery_generation += 1
-            self.recovery_deadline = now + 3.0
-            self.get_logger().info("Heartbeat stable; automatically recovering to idle. Policy motion remains disabled.")
+            self.recovery_deadline = now + self.settings.recovery_timeout_seconds
+            self.get_logger().info(
+                "Heartbeat stable; automatically recovering to idle. Policy motion remains disabled."
+            )
             self._recover_foundation(self.recovery_generation)
 
     def sample_health(self):
@@ -532,7 +610,8 @@ class RpiSupervisor(Node):
         warning = compute_warning(self.health_sample, self.min_headroom)
         if warning and (
             not getattr(self, "last_compute_warning", "")
-            or now - getattr(self, "compute_warning_at", float("-inf")) >= 30.0
+            or now - getattr(self, "compute_warning_at", float("-inf"))
+            >= self.settings.compute_warning_interval_seconds
         ):
             self.get_logger().warning(warning)
             self.compute_warning_at = now
@@ -567,7 +646,9 @@ class RpiSupervisor(Node):
         now = time.monotonic()
         self._advance_recovery()
         if self.recovery_deadline is not None and now >= self.recovery_deadline:
-            self.enter_emergency("Foundation recovery timed out", hold_healthy=self.hold_healthy)
+            self.enter_emergency(
+                "Foundation recovery timed out", hold_healthy=self.hold_healthy
+            )
         if self.gate.mode == Mode.EMERGENCY and self.hold_healthy:
             reason = self.system_reason()
             if reason:
@@ -597,7 +678,10 @@ class RpiSupervisor(Node):
             )
             if reason or not self.body_fresh():
                 self.enter_emergency(reason or "Foundation state stream stale")
-        if self.gate.mode == Mode.EMERGENCY and now - self.remote_stop_at >= 1.0:
+        if (
+            self.gate.mode == Mode.EMERGENCY
+            and now - self.remote_stop_at >= self.settings.remote_stop_retry_seconds
+        ):
             self.stop_policy()
         if (
             self.runner.active
@@ -623,7 +707,7 @@ class RpiSupervisor(Node):
         elif (
             self.gate.mode == Mode.EMERGENCY
             and not self.runner.active
-            and now - self.emergency_attempt >= 1.0
+            and now - self.emergency_attempt >= self.settings.emergency_retry_seconds
         ) and not self.emergency_stopped():
             self.emergency_attempt = now
             self.script_name = "emergency"
@@ -635,7 +719,7 @@ class RpiSupervisor(Node):
                     self.enter_local_emergency(self.runner.error)
                 else:
                     self.enter_emergency(self.runner.error)
-            elif now - self.emergency_attempt >= 1.0:
+            elif now - self.emergency_attempt >= self.settings.emergency_retry_seconds:
                 self.emergency_attempt = now
                 self.runner.start(self.emergency_steps())
         elif not self.runner.active and self.script_name:
@@ -672,7 +756,9 @@ class RpiSupervisor(Node):
         health_message = SupervisorHealth(
             available=status_bool(health is not None),
             sample_monotonic_seconds=status_float(
-                health.get("sample_monotonic_seconds", 0.0) if health is not None else 0.0
+                health.get("sample_monotonic_seconds", 0.0)
+                if health is not None
+                else 0.0
             ),
             cpu_count=status_uint32(
                 health.get("cpu_count", 0) if health is not None else 0
@@ -737,9 +823,7 @@ class RpiSupervisor(Node):
                 script_step=status_uint32(self.runner.index),
                 script_error=status_string(self.runner.error),
                 operator_prompt=SupervisorOperatorPrompt(
-                    id=status_string(
-                        "" if prompt is None else prompt.get("id", "")
-                    ),
+                    id=status_string("" if prompt is None else prompt.get("id", "")),
                     text=status_string(
                         "" if prompt is None else prompt.get("text", "")
                     ),
@@ -794,7 +878,8 @@ class RpiSupervisor(Node):
                 if reason:
                     raise ValueError(reason)
                 if not all(
-                    self.body[name].axis_state == 8 for name in self.names
+                    self.body[name].axis_state == MotorState.CLOSED_LOOP_CONTROL
+                    for name in self.names
                 ):
                     raise ValueError("Zero position requires all axes in closed loop")
             if request.name == "shutdown":
@@ -894,12 +979,17 @@ class RpiSupervisor(Node):
             try:
                 result = result_future.result()
                 if result is None or not result.success:
-                    raise RuntimeError(getattr(result, "message", "Foundation recovery failed"))
+                    raise RuntimeError(
+                        getattr(result, "message", "Foundation recovery failed")
+                    )
                 if (
                     self.gate.mode != Mode.EMERGENCY
                     or self.runner.active
                     or not self.emergency_stopped()
-                    or ((self.hold_healthy or self.recovery_automatic) and bool(fault_reason(self.body, self.names)))
+                    or (
+                        (self.hold_healthy or self.recovery_automatic)
+                        and bool(fault_reason(self.body, self.names))
+                    )
                 ):
                     raise RuntimeError("Recovery lost stopped, fault-free feedback")
                 self.recovery_deadline = None
@@ -919,17 +1009,24 @@ class RpiSupervisor(Node):
                 or self.recovery_deadline is not None
                 or not self.emergency_stopped()
             ):
-                raise ValueError("Recovery requires confirmed stopped axes and no pending recovery")
+                raise ValueError(
+                    "Recovery requires confirmed stopped axes and no pending recovery"
+                )
             self.recovery_automatic = False
             selected = recovery_axes(self.body, self.names)
             if not self.motor.service_is_ready():
                 raise ValueError("Foundation motor service unavailable")
             self.recovery_generation += 1
             generation = self.recovery_generation
-            self.recovery_deadline = time.monotonic() + 3.0
+            self.recovery_deadline = (
+                time.monotonic() + self.settings.recovery_timeout_seconds
+            )
             if selected:
-                future = self.motor.call_async(MotorCommand.Request(
-                    operation="clear_errors", actuator_names=list(selected)))
+                future = self.motor.call_async(
+                    MotorCommand.Request(
+                        operation="clear_errors", actuator_names=list(selected)
+                    )
+                )
 
                 def cleared(result_future):
                     if generation != self.recovery_generation:
@@ -937,7 +1034,9 @@ class RpiSupervisor(Node):
                     try:
                         result = result_future.result()
                         if result is None or not result.success:
-                            raise RuntimeError(getattr(result, "message", "Motor fault clear failed"))
+                            raise RuntimeError(
+                                getattr(result, "message", "Motor fault clear failed")
+                            )
                         # CAN send success is not controller acknowledgement.
                         self.recovery_clear_at = time.monotonic()
                     except (OSError, RuntimeError, ValueError) as error:
@@ -946,7 +1045,10 @@ class RpiSupervisor(Node):
                 future.add_done_callback(cleared)
             else:
                 self._recover_foundation(generation)
-            response.success, response.message = True, "recovery requested; clearing all motor errors; wait for idle status"
+            response.success, response.message = (
+                True,
+                "recovery requested; clearing all motor errors; wait for idle status",
+            )
         except (OSError, RuntimeError, ValueError) as error:
             response.success, response.message = False, str(error)
         return response
@@ -973,13 +1075,17 @@ def main(args=None):
                     # No ROS calls if another owner already shut down the context.
                     if rclpy.ok():
                         node.enter_emergency("RPi Supervisor exiting")
-                        deadline = time.monotonic() + 3.0
+                        deadline = (
+                            time.monotonic() + node.settings.shutdown_timeout_seconds
+                        )
                         while (
                             rclpy.ok()
                             and node.runner.active
                             and time.monotonic() < deadline
                         ):
-                            rclpy.spin_once(node, timeout_sec=0.02)
+                            rclpy.spin_once(
+                                node, timeout_sec=node.settings.tick_period_seconds
+                            )
                 except ExternalShutdownException:
                     pass
                 finally:

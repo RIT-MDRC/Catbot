@@ -1,0 +1,37 @@
+{
+  "MotorState": {
+    "UNDEFINED": 0,
+    "IDLE": 1,
+    "STARTUP_SEQUENCE": 2,
+    "FULL_CALIBRATION_SEQUENCE": 3,
+    "MOTOR_CALIBRATION": 4,
+    "ENCODER_INDEX_SEARCH": 6,
+    "ENCODER_OFFSET_CALIBRATION": 7,
+    "CLOSED_LOOP_CONTROL": 8,
+    "LOCKIN_SPIN": 9,
+    "ENCODER_DIR_FIND": 10,
+    "HOMING": 11,
+    "ENCODER_HALL_POLARITY_CALIBRATION": 12,
+    "ENCODER_HALL_PHASE_CALIBRATION": 13
+  },
+  "InputMode": {
+    "INACTIVE": 0,
+    "PASSTHROUGH": 1,
+    "VEL_RAMP": 2,
+    "POS_FILTER": 3,
+    "MIX_CHANNELS": 4,
+    "TRAP_TRAJ": 5,
+    "TORQUE_RAMP": 6,
+    "MIRROR": 7,
+    "TUNING": 8
+  },
+  "ControlMode": {
+    "VOLTAGE_CONTROL": 0,
+    "TORQUE_CONTROL": 1,
+    "VELOCITY_CONTROL": 2,
+    "POSITION_CONTROL": 3
+  },
+  "can_command_bits": 5,
+  "heartbeat_command": 1,
+  "dbc_file": "component/motor/odrive-cansimple.dbc"
+}

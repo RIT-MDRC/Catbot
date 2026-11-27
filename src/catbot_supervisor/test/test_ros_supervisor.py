@@ -9,6 +9,7 @@ import rclpy
 from catbot_supervisor.core import Mode
 from catbot_supervisor.node import RpiSupervisor
 from catbot_supervisor.orin import OrinSupervisor
+from catbot_supervisor.rpi_configuration import OperationalSettings
 from catbot_supervisor.scripts import Step
 from rclpy.executors import SingleThreadedExecutor
 from rclpy.node import Node
@@ -48,6 +49,8 @@ def test_managed_orin_policy_pi_gate_scripts_and_stale_emergency(tmp_path):
             "--ros-args",
             "-p",
             "actuator_names:=" + json.dumps(names),
+            "-p",
+            "homing_delay_seconds:=0.2",
             "-p",
             f"policy_bundle:={tmp_path}",
             "-p",
@@ -366,7 +369,7 @@ def test_local_homing_without_orin_or_policy():
     names = json.loads((FIXTURES / "contract.json").read_text())["mapping"][
         "actuator_names"
     ]
-    rclpy.init(args=["--ros-args", "-p", "actuator_names:=" + json.dumps(names)])
+    rclpy.init(args=["--ros-args", "-p", "actuator_names:=" + json.dumps(names), "-p", "homing_delay_seconds:=0.2"])
     executor = SingleThreadedExecutor()
     pi = body = None
     try:
@@ -720,6 +723,7 @@ def record(value):
 class Fake(Node):
     def __init__(self):
         super().__init__('shutdown_test_pi')
+        self.settings = target.OperationalSettings()
         self.runner = SimpleNamespace(active=True)
         self.create_timer(.02, self.tick)
     def tick(self):
@@ -782,6 +786,9 @@ def test_zero_dispatch_publishes_only_to_non_arming_position_path(monkeypatch):
     moves = Mock()
     moves.get_subscription_count.return_value = 1
     pi = SimpleNamespace(
+        settings=OperationalSettings(),
+        axis_ids=tuple(range(12)),
+        controller_boards={axis: axis & ~1 for axis in range(12)},
         script_name="zero_flk",
         state_cycle=None,
         script_link_required=False,
@@ -824,6 +831,9 @@ def test_cpu_health_warning_is_advisory_and_rate_limited(monkeypatch):
     }
     logger = Mock()
     node = SimpleNamespace(
+        settings=OperationalSettings(),
+        axis_ids=tuple(range(12)),
+        controller_boards={axis: axis & ~1 for axis in range(12)},
         health=SimpleNamespace(sample=lambda _: dict(sample)),
         min_headroom=10.0,
         get_logger=lambda: logger,
@@ -847,6 +857,7 @@ def test_recover_clears_all_errors_and_preserves_original_stop_checks(outcome, f
     from concurrent.futures import Future
     from types import MethodType, SimpleNamespace
     from unittest.mock import Mock
+
     from catbot_supervisor.homing import ERROR_FIELDS
 
     axis = SimpleNamespace(**dict.fromkeys(ERROR_FIELDS, 0), axis_state=1, heartbeat_available=True)
@@ -861,6 +872,9 @@ def test_recover_clears_all_errors_and_preserves_original_stop_checks(outcome, f
         futures.append(future)
         return future
     pi = SimpleNamespace(
+        settings=OperationalSettings(),
+        axis_ids=tuple(range(12)),
+        controller_boards={axis: axis & ~1 for axis in range(12)},
         body={'a': axis}, names=('a',), body_at=0.0,
         body_fresh=lambda: True, emergency_stopped=lambda: True,
         gate=SimpleNamespace(mode=Mode.EMERGENCY, recover=Mock()),
@@ -912,6 +926,7 @@ def test_automatic_heartbeat_recovery_only_unlatches_after_stability(reason, fau
     from concurrent.futures import Future
     from types import MethodType, SimpleNamespace
     from unittest.mock import Mock
+
     from catbot_supervisor.heartbeat_recovery import HeartbeatRecovery
     from catbot_supervisor.homing import ERROR_FIELDS
 
@@ -921,6 +936,9 @@ def test_automatic_heartbeat_recovery_only_unlatches_after_stability(reason, fau
     motor.service_is_ready.return_value = True
     motor.call_async.return_value = future
     pi = SimpleNamespace(
+        settings=OperationalSettings(),
+        axis_ids=tuple(range(12)),
+        controller_boards={axis: axis & ~1 for axis in range(12)},
         heartbeat_recovery=HeartbeatRecovery(), body={'a': axis}, names=('a',),
         positions={'a': SimpleNamespace(valid=position_feedback != 'invalid')},
         positions_at=-10.0 if position_feedback == 'stale' else 0.0, body_timeout=3.0,
