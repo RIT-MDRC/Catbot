@@ -70,6 +70,7 @@ def body_io(monkeypatch):
     )
     for owner, name in (
         (module.motor_actions, "set_axis_state"),
+        (module.motor_actions, "set_encoder_log_period"),
         (module.motor_actions, "clear_error_message"),
         (module.motor_actions, "hold_current_position"),
         (module.motor_actions, "hold_after_fault"),

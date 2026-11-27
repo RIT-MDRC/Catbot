@@ -1163,3 +1163,30 @@ def test_invalid_motor_timeout_does_not_mutate_limits(motion_motor, value):
         motor_actions.set_feedback_timeouts(motor, 1.0, value, 0.8)
     assert motor.heartbeat_timeout_seconds == 0.5
     assert motor.encoder_timeout_seconds == 0.25
+
+
+def test_encoder_logging_is_bounded_but_every_feedback_sample_is_applied(
+    motion_motor, monkeypatch
+):
+    motor, _, clock = motion_motor
+    motor_actions.set_encoder_log_period(motor, 0.5)
+    debug = Mock()
+    info = Mock()
+    monkeypatch.setattr(motor_actions.logger, "debug", debug)
+    monkeypatch.setattr(motor_actions.logger, "info", info)
+    for index in range(100):
+        clock[0] = 20.0 + index * 0.01
+        update_estimates(motor, {"Pos_Estimate": index / 100, "Vel_Estimate": 0.1})
+    assert debug.call_count == 2
+    info.assert_not_called()
+    assert motor.current_position == 0.99
+    assert motor.current_velocity == 0.1
+    assert motor.last_encoder_estimate_time == 20.99
+
+
+@pytest.mark.parametrize("value", [0, -1, float("nan"), float("inf"), True])
+def test_invalid_encoder_log_period_rejected(motion_motor, value):
+    motor, _, _ = motion_motor
+    with pytest.raises(ValueError):
+        motor_actions.set_encoder_log_period(motor, value)
+    assert motor.encoder_log_period_seconds == 1.0

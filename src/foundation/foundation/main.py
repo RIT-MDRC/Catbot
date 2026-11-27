@@ -58,6 +58,7 @@ JOINT_GROUPS = {
 class BodyControlNode(Node):
     """Validate and perform immediate body I/O; the Pi owns all sequencing."""
 
+    encoder_log_period_seconds: float
     heartbeat_timeout_seconds: float
     encoder_timeout_seconds: float
     motor_arm_timeout_seconds: float
@@ -217,6 +218,7 @@ class BodyControlNode(Node):
                 self.encoder_timeout_seconds,
                 self.motor_arm_timeout_seconds,
             )
+            motor_actions.set_encoder_log_period(name, self.encoder_log_period_seconds)
 
     def _ready_motor_names(self, *, allow_idle=False) -> set[str]:
         ready = set()

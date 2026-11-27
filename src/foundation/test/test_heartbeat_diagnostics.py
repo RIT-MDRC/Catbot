@@ -170,3 +170,28 @@ def test_short_outage_is_retained_even_if_heartbeat_returns_before_log_write(tmp
     assert record["axes"][0]["heartbeat"] is True
     assert record["changes"] == {"fra:lost": 1, "fra:restored": 1}
     assert record["worst_missing_heartbeat"]["fra"]["heartbeat_age_ms"] == 100
+
+
+def test_socket_memory_reports_queue_pressure_and_drops_without_receiving(monkeypatch):
+    import struct
+    from unittest.mock import Mock
+
+    from component.can import can_bus
+
+    monkeypatch.setattr(can_bus.sys, "platform", "linux")
+    sock = Mock()
+    sock.getsockopt.return_value = struct.pack(
+        "=9I", 200000, 212992, 0, 212992, 0, 0, 0, 256, 37
+    )
+    assert can_bus.socket_memory_health(sock) == {
+        "receive_allocated_bytes": 200000,
+        "receive_limit_bytes": 212992,
+        "backlog_bytes": 256,
+        "drops_total": 37,
+    }
+    sock.recv.assert_not_called()
+    sock.getsockopt.side_effect = OSError("unsupported")
+    assert can_bus.socket_memory_health(sock) is None
+    sock.getsockopt.side_effect = None
+    sock.getsockopt.return_value = b"bad"
+    assert can_bus.socket_memory_health(sock) is None

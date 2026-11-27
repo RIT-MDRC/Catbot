@@ -59,6 +59,8 @@ class ODriveMotor:
     controller_error_flag: bool = False
 
     controller_reboot_axis: int | None = None
+    encoder_log_period_seconds: float = 1.0
+    last_encoder_log_time: float = float("-inf")
     heartbeat_timeout_seconds: float = 0.5
     encoder_timeout_seconds: float = 0.25
     motor_arm_timeout_seconds: float = 0.5
@@ -183,11 +185,15 @@ def read_heartbeat(motor: ODriveMotor, data):
 def update_estimates(motor: ODriveMotor, data):
     posEstimate = data["Pos_Estimate"]
     velEstimate = data["Vel_Estimate"]
-    if motor.current_position != posEstimate or motor.current_velocity != velEstimate:
-        logger.info(f"New Axis {motor.axisID} Encoder Estimates {data}")
+    now = time.monotonic()
+    if (
+        motor.current_position != posEstimate or motor.current_velocity != velEstimate
+    ) and now - motor.last_encoder_log_time >= motor.encoder_log_period_seconds:
+        logger.debug("Axis %s Encoder Estimates %s", motor.axisID, data)
+        motor.last_encoder_log_time = now
     motor.current_position = posEstimate
     motor.current_velocity = velEstimate
-    motor.last_encoder_estimate_time = time.monotonic()
+    motor.last_encoder_estimate_time = now
 
     position = motor.current_position
     velocity = motor.current_velocity
@@ -294,6 +300,18 @@ def set_feedback_timeouts(motor: ODriveMotor, heartbeat, encoder, arm):
     motor.heartbeat_timeout_seconds = heartbeat
     motor.encoder_timeout_seconds = encoder
     motor.motor_arm_timeout_seconds = arm
+
+
+@device_action(ctx)
+def set_encoder_log_period(motor: ODriveMotor, period_seconds: float):
+    """Bound routine receive-thread logging without suppressing controller faults."""
+    if (
+        isinstance(period_seconds, bool)
+        or not math.isfinite(period_seconds)
+        or period_seconds <= 0
+    ):
+        raise ValueError("encoder_log_period_seconds must be positive and finite")
+    motor.encoder_log_period_seconds = period_seconds
 
 
 @device_action(ctx)

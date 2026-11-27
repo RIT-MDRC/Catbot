@@ -37,6 +37,7 @@ The motor arm timeout is separate: it bounds the pending idle-to-closed-loop tra
 | Launch argument | Default |
 | --- | ---: |
 | `heartbeat_timeout_seconds` | 0.5 |
+| `encoder_log_period_seconds` | 1.0 |
 | `encoder_timeout_seconds` | 0.25 |
 | `motor_arm_timeout_seconds` | 0.5 |
 | `position_state_period_seconds` | 0.02 |
@@ -117,3 +118,6 @@ The protocol values must match the motor-controller firmware and the selected DB
 The DBC owns CAN message schemas, command IDs and decoded error fields; existing
 ODrive error enums keep their current public imports. Protocol changes require a
 full hardware-launch restart. No firmware is modified by editing these files.
+
+Routine encoder debug logs are limited per motor by `encoder_log_period_seconds`.
+All feedback samples are still applied; motor fault and state-transition logs remain active.

@@ -1,5 +1,7 @@
 import logging
 import socket
+import struct
+import sys
 import time
 import typing
 from dataclasses import dataclass, field
@@ -98,6 +100,26 @@ def get_names() -> tuple[str, ...]:
     return tuple(ctx.store)
 
 
+def socket_memory_health(sock):
+    """Read Linux socket memory/drop counters without receiving or opening sockets."""
+    if sock is None or sys.platform != "linux":
+        return None
+    try:
+        # Linux UAPI: asm-generic/socket.h SO_MEMINFO; linux/sock_diag.h SK_MEMINFO_*.
+        values = struct.unpack(
+            "=9I",
+            sock.getsockopt(socket.SOL_SOCKET, getattr(socket, "SO_MEMINFO", 55), 36),
+        )
+    except (OSError, struct.error):
+        return None
+    return {
+        "receive_allocated_bytes": values[0],
+        "receive_limit_bytes": values[1],
+        "backlog_bytes": values[7],
+        "drops_total": values[8],
+    }
+
+
 @device_action(ctx)
 def get_receive_health(bus: CanBus) -> dict:
     """Read existing receiver metrics; never opens another CAN socket."""
@@ -143,6 +165,7 @@ def get_receive_health(bus: CanBus) -> dict:
         "peak_callback_ms": bus.peak_callback_seconds * 1000,
         "notifier_error": None if error is None else repr(error),
         "socket_receive_buffer_bytes": receive_buffer,
+        "socket_memory": socket_memory_health(sock),
     }
 
 
