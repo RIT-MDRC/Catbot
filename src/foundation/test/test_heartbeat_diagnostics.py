@@ -154,7 +154,7 @@ def test_command_counts_track_socket_acceptance_not_failed_sends():
 
 def test_short_outage_is_retained_even_if_heartbeat_returns_before_log_write(tmp_path):
     path = tmp_path / "log"
-    journal = HeartbeatDiagnostics(path, lambda: {}, host=lambda: {})
+    journal = HeartbeatDiagnostics(path, dict, host=dict)
     message, motors = feedback()
     try:
         journal.observe(message, motors, 0)
