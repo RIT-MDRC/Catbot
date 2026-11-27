@@ -14,7 +14,7 @@ jobs:
           cache-dependency-glob: '**/tests/uv.lock'
       - name: Existing foundation and UI tests
         working-directory: .
-        run: uv run --locked --group dev python -m pytest src/foundation/test/test_actuator.py src/foundation/test/test_body_control.py src/foundation/test/test_body_io.py src/foundation/test/test_body_state.py src/foundation/test/test_odrive_position.py src/ui/test/test_policy_commands.py src/catbot_supervisor/test --junitxml=foundation-tests.xml
+        run: uv run --locked --group dev python -m pytest src/foundation/test/test_actuator.py src/foundation/test/test_body_control.py src/foundation/test/test_body_io.py src/foundation/test/test_body_state.py src/foundation/test/test_heartbeat_diagnostics.py src/foundation/test/test_odrive_position.py src/ui/test/test_policy_commands.py src/catbot_supervisor/test --junitxml=foundation-tests.xml
       - name: Catbot policy suite and coverage floors
         working-directory: .
         run: |

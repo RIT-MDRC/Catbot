@@ -28,6 +28,7 @@ from component.motor.odrive_enums import (
     MotorState,
     SensorlessError,
 )
+from heartbeat_diagnostics import HeartbeatDiagnostics
 from rcl_interfaces.msg import SetParametersResult
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
@@ -154,6 +155,28 @@ class BodyControlNode(Node):
         )
         self.create_service(MotorCommand, "/body/control/motor", self._motor_command)
         self.create_timer(POSITION_STATE_PERIOD_SECONDS, self._publish_position_state)
+        log_path = str(
+            self.declare_parameter(
+                "heartbeat_diagnostic_log",
+                "~/.local/state/catbot/heartbeat/heartbeat.jsonl",
+            ).value
+        )
+        self.heartbeat_diagnostics = (
+            HeartbeatDiagnostics(
+                log_path,
+                lambda: {
+                    name: can_actions.get_receive_health(name)
+                    for name in can_actions.get_names()
+                },
+            )
+            if log_path
+            else None
+        )
+        self.heartbeat_diagnostic_error_reported = False
+        self.get_logger().info(
+            "Heartbeat diagnostic log: "
+            + (os.path.expanduser(log_path) if log_path else "disabled")
+        )
         self.create_timer(STATE_CHECK_PERIOD_SECONDS, self._update_error_state)
 
     def _ready_motor_names(self, *, allow_idle=False) -> set[str]:
@@ -430,10 +453,12 @@ class BodyControlNode(Node):
         self.position_state_publisher.publish(message)
 
     def _update_error_state(self) -> None:
+        diagnostic_motors = {}
         message = BodyErrorState()
         message.stamp = self.get_clock().now().to_msg()
         for name in self.ordered_motor_names:
             motor = motor_actions.get_state_snapshot(name)
+            diagnostic_motors[name] = motor
             now = time.monotonic()
             heartbeat_ok = heartbeat_available(motor, now, HEARTBEAT_STALE_SECONDS)
             ready = self._motor_ready(name, motor, now)
@@ -481,6 +506,14 @@ class BodyControlNode(Node):
                 self.last_error_request_times[name] = now
 
         self.error_state_publisher.publish(message)
+        diagnostics = getattr(self, "heartbeat_diagnostics", None)
+        if diagnostics is not None:
+            diagnostics.observe(message, diagnostic_motors)
+            if diagnostics.error and not self.heartbeat_diagnostic_error_reported:
+                self.heartbeat_diagnostic_error_reported = True
+                self.get_logger().warning(
+                    "Heartbeat diagnostic log unavailable: " + diagnostics.error
+                )
 
     def _move_position_callback(self, message: ActuatorPositionCommand) -> None:
         self._position_callback(message, auto_arm=True)
@@ -536,6 +569,9 @@ class BodyControlNode(Node):
                 self.get_logger().error(
                     "Unable to close CAN bus %s: %s", bus_name, error
                 )
+        diagnostics = getattr(self, "heartbeat_diagnostics", None)
+        if diagnostics is not None:
+            diagnostics.close()
 
 
 def main(args=None):
