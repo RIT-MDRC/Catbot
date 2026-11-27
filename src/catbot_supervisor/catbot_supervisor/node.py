@@ -46,6 +46,7 @@ from catbot_supervisor.homing import (
     readiness_reason,
 )
 from catbot_supervisor.recovery import recovery_axes
+from catbot_supervisor.script_errors import clear_timeout_reason
 from catbot_supervisor.scripts import ScriptRunner, Step, registry
 
 
@@ -129,7 +130,7 @@ class RpiSupervisor(Node):
             "/rpi/supervisor/status",
             QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL),
         )
-        self.runner = ScriptRunner(self.dispatch, self.satisfied)
+        self.runner = ScriptRunner(self.dispatch, self.satisfied, self.describe_script_timeout)
         self.create_subscription(PolicyAction, "/orin/policy/action", self.action, 1)
         self.create_subscription(
             OrinHeartbeat, "/orin/supervisor/heartbeat", self.heartbeat, 1
@@ -304,6 +305,11 @@ class RpiSupervisor(Node):
                 )
             )
         raise ValueError(f"Unknown script step: {step.kind}")
+
+    def describe_script_timeout(self, step):
+        if step.kind == "wait_clear":
+            return clear_timeout_reason(self.body, step.names or self.names, step.timeout, self.body_fresh())
+        return None
 
     def satisfied(self, step):
         if step.kind == "wait_position":

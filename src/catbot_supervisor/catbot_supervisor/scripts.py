@@ -234,8 +234,9 @@ def prompted_maintenance(names, state):
 class ScriptRunner:
     """One step per tick; emergency replacement never waits for an old future."""
 
-    def __init__(self, dispatch, satisfied):
+    def __init__(self, dispatch, satisfied, describe_timeout=None):
         self.dispatch, self.satisfied = dispatch, satisfied
+        self.describe_timeout = describe_timeout
         self.steps = []
         self.index = 0
         self.deadline = None
@@ -274,9 +275,8 @@ class ScriptRunner:
                     self.deadline = None
                 return
             if now >= self.deadline:
-                raise RuntimeError(
-                    f"Script step timed out: {step.kind} {step.operation}"
-                )
+                detail = self.describe_timeout(step) if self.describe_timeout else None
+                raise RuntimeError(detail or f"Script step timed out: {step.kind} {step.operation}")
             if step.kind == "wait_operator":
                 if self.prompt is None:
                     self.prompt = {"id": uuid4().hex, "text": step.operation}
